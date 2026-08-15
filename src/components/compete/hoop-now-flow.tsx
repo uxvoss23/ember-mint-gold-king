@@ -458,10 +458,14 @@ export function HoopNowFlow({
   };
 
   const unmatchModal = unmatchConfirm ? (
-    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/55 p-4 sm:items-center">
-      <div className="w-full max-w-sm rounded-2xl border border-border bg-bg-elevated p-4">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/55 px-4 py-8">
+      <div className="w-full max-w-sm rounded-2xl border border-border bg-bg-elevated p-4 shadow-lg">
         <p className="text-[15px] font-semibold text-fg">
           Unmatch {unmatchConfirm.name}?
+        </p>
+        <p className="mt-1.5 text-[12px] text-fg-muted">
+          This match disappears for both of you. You won’t see each other here
+          anymore.
         </p>
         <div className="mt-4 flex gap-2">
           <button
@@ -475,6 +479,10 @@ export function HoopNowFlow({
             type="button"
             onClick={() => {
               hoop.unmatch(unmatchConfirm.id);
+              if (lockHoopMatchId === unmatchConfirm.id) {
+                setLockOpponent(null);
+                setLockHoopMatchId(null);
+              }
               setUnmatchConfirm(null);
               setPhase("matches");
             }}
@@ -1054,24 +1062,40 @@ export function HoopNowFlow({
                   (c) => c.kind === "proposal" && c.proposal?.status === "pending",
                 );
                 return (
-                  <button
+                  <div
                     key={m.id}
-                    type="button"
-                    onClick={() => openChat(p, m.id)}
-                    className="flex w-full items-center gap-3 rounded-2xl border border-border bg-bg-elevated px-3 py-2.5 text-left"
+                    className="flex w-full items-center gap-2 rounded-2xl border border-border bg-bg-elevated px-3 py-2.5"
                   >
-                    <PlayerAvatar player={p} size="sm" />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[14px] font-semibold text-fg">
-                        {p.name}
-                      </p>
-                      <p className="text-[11px] text-fg-muted">
-                        {displayRating(p.rating)}
-                        {pending ? " · plan waiting" : " · tap to set court"}
-                      </p>
-                    </div>
-                    <MessageCircle className="size-4 text-court" />
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => openChat(p, m.id)}
+                      className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                    >
+                      <PlayerAvatar player={p} size="sm" />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[14px] font-semibold text-fg">
+                          {p.name}
+                        </p>
+                        <p className="text-[11px] text-fg-muted">
+                          {displayRating(p.rating)}
+                          {pending ? " · plan waiting" : " · tap to set court"}
+                        </p>
+                      </div>
+                      <MessageCircle className="size-4 shrink-0 text-court" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setUnmatchConfirm({
+                          id: m.id,
+                          name: p.name.split(" ")[0] || p.name,
+                        })
+                      }
+                      className="shrink-0 rounded-full border border-border px-2.5 py-1.5 text-[11px] font-semibold text-fg-muted"
+                    >
+                      Unmatch
+                    </button>
+                  </div>
                 );
               })}
             </div>
