@@ -1,0 +1,4 @@
+node_modules/
+.tanstack/
+.vercel/
+.node_modules.lock

@@ -1,0 +1,530 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@theme {
+  --color-bg: #0c0c0d;
+  --color-bg-elevated: #141416;
+  --color-bg-subtle: #1c1c1f;
+  --color-bg-soft: #242428;
+  --color-fg: #f4f4f5;
+  --color-fg-muted: #a1a1aa;
+  --color-fg-subtle: #71717a;
+  --color-border: color-mix(in oklab, var(--color-fg) 10%, transparent);
+  --color-border-strong: color-mix(in oklab, var(--color-fg) 18%, transparent);
+  --color-accent: #e8e4df;
+  --color-accent-fg: #0c0c0d;
+  --color-court: #c45c26;
+  --color-court-soft: color-mix(in oklab, #c45c26 18%, transparent);
+  --color-success: #6b9b7a;
+  --color-danger: #c46b6b;
+  --color-gold: #c9a227;
+  --color-gold-soft: color-mix(in oklab, #c9a227 22%, transparent);
+  --color-hoop: #84cc16;
+  --color-hoop-soft: color-mix(in oklab, #84cc16 32%, transparent);
+
+  --radius-xs: 0.25rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+  --radius-2xl: 1.75rem;
+  --radius-full: 9999px;
+
+  --font-sans: "DM Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: "Instrument Sans", "DM Sans", ui-sans-serif, system-ui, sans-serif;
+
+  --shadow-soft: 0 8px 30px color-mix(in oklab, #000 35%, transparent);
+  --shadow-card: 0 2px 12px color-mix(in oklab, #000 28%, transparent);
+
+  --ease-out-smooth: cubic-bezier(0.22, 1, 0.36, 1);
+  --motion-quick: 150ms;
+  --motion-fast: 250ms;
+  --motion-slow: 400ms;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html {
+    color-scheme: dark;
+    -webkit-tap-highlight-color: transparent;
+    text-size-adjust: 100%;
+    height: 100dvh;
+    height: 100lvh;
+    max-height: 100dvh;
+    max-height: 100lvh;
+  }
+
+  body {
+    margin: 0;
+    height: 100dvh;
+    height: 100lvh;
+    max-height: 100dvh;
+    max-height: 100lvh;
+    background: var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    font-feature-settings: "ss01" on, "cv11" on;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /*
+   * iOS Safari auto-zooms focused fields under 16px — then the visual
+   * viewport detaches from the caret and you type "off-screen".
+   * Force 16px on every editable control (Tailwind cannot win).
+   */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="reset"]),
+  textarea,
+  select,
+  [contenteditable="true"] {
+    font-size: 16px !important;
+    line-height: 1.35 !important;
+    transform: none !important;
+  }
+
+  input[type="search"] {
+    -webkit-appearance: none;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--color-court) 40%, transparent);
+    color: var(--color-fg);
+  }
+
+  img {
+    max-width: 100%;
+    display: block;
+  }
+
+  /* MapLibre / gamified pins */
+  .uc-map .maplibregl-ctrl-attrib {
+    font-size: 9px;
+    background: color-mix(in oklab, var(--color-bg) 80%, transparent) !important;
+    color: var(--color-fg-muted) !important;
+  }
+
+  .uc-map .maplibregl-ctrl-group {
+    background: var(--color-bg-elevated) !important;
+    border: 1px solid color-mix(in oklab, var(--color-fg) 14%, transparent) !important;
+    box-shadow: var(--shadow-soft) !important;
+  }
+
+  .uc-map .maplibregl-ctrl-group button {
+    background: transparent !important;
+  }
+
+  .uc-map .maplibregl-ctrl-group button + button {
+    border-top-color: color-mix(in oklab, var(--color-fg) 12%, transparent) !important;
+  }
+
+  .uc-you {
+    width: 16px;
+    height: 16px;
+    border-radius: 999px;
+    background: #3b82f6;
+    border: 2.5px solid #fff;
+    box-shadow:
+      0 0 0 4px color-mix(in oklab, #3b82f6 38%, transparent),
+      0 2px 8px rgba(0, 0, 0, 0.35);
+  }
+
+  .uc-pin {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+    filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.45));
+    z-index: 4;
+  }
+
+  .uc-pin-face {
+    width: 44px;
+    height: 44px;
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font: 700 13px/1 var(--font-sans);
+    color: var(--color-fg);
+    background: var(--color-bg-elevated);
+    border: 2px solid color-mix(in oklab, var(--color-fg) 22%, transparent);
+  }
+
+  .uc-pin-open .uc-pin-face {
+    border-style: dashed;
+    border-color: color-mix(in oklab, var(--color-fg) 40%, transparent);
+    color: var(--color-fg-muted);
+    background: color-mix(in oklab, var(--color-bg) 70%, transparent);
+  }
+
+  .uc-pin-selected .uc-pin-face {
+    width: 54px;
+    height: 54px;
+    border-color: #f5d76e;
+    box-shadow:
+      0 0 0 3px rgba(245, 215, 110, 0.95),
+      0 0 0 6px rgba(245, 215, 110, 0.35),
+      0 4px 14px rgba(0, 0, 0, 0.45);
+    font-size: 15px;
+  }
+
+  .uc-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: #b91c1c;
+    color: #fff;
+    font: 700 10px/18px var(--font-sans);
+    text-align: center;
+    border: 2px solid var(--color-bg);
+  }
+
+  .uc-pin-label {
+    margin-top: 4px;
+    max-width: min(140px, 42vw);
+    padding: 3px 8px;
+    border-radius: 8px;
+    background: var(--color-bg-elevated);
+    border: 1px solid color-mix(in oklab, var(--color-gold) 50%, transparent);
+    color: var(--color-fg);
+    font: 600 10px/1.3 var(--font-sans);
+    text-align: center;
+    white-space: normal;
+  }
+
+  .uc-pin-sub {
+    margin-top: 3px;
+    padding: 1px 6px;
+    border-radius: 6px;
+    background: color-mix(in oklab, var(--color-bg) 80%, transparent);
+    color: var(--color-fg-muted);
+    font: 600 9px/1.3 var(--font-sans);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .uc-cluster {
+    width: 40px;
+    height: 40px;
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-bg-elevated);
+    border: 2px solid var(--color-court);
+    color: var(--color-fg);
+    font: 700 13px/1 var(--font-sans);
+    cursor: pointer;
+    box-shadow: var(--shadow-soft);
+    z-index: 4;
+  }
+
+  .uc-pin-hover {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: 160px;
+    padding: 4px 8px;
+    border-radius: 8px;
+    background: var(--color-bg-elevated);
+    border: 1px solid color-mix(in oklab, var(--color-fg) 16%, transparent);
+    color: var(--color-fg);
+    font: 600 11px/1.3 var(--font-sans);
+    white-space: nowrap;
+    pointer-events: none;
+    box-shadow: var(--shadow-soft);
+    z-index: 5;
+  }
+
+  .uc-pin-hovering .uc-pin-hover,
+  .uc-pin:focus-within .uc-pin-hover {
+    display: block;
+  }
+
+  .uc-pin-finder-wrap .uc-pin-face,
+  .uc-pin-face.uc-pin-finder {
+    width: 36px;
+    height: 36px;
+    background: var(--color-court);
+    border: 2px solid var(--color-bg);
+    color: #fff;
+  }
+
+  .uc-pin-finder-wrap.uc-pin-selected .uc-pin-face {
+    width: 44px;
+    height: 44px;
+    box-shadow: 0 0 0 3px var(--color-court-soft);
+  }
+
+  /* Live Hooping now — lime, never orange */
+  .uc-pin-hooping .uc-pin-face,
+  .uc-pin-hooping .uc-pin-face.uc-pin-finder,
+  .uc-pin-finder-wrap.uc-pin-hooping .uc-pin-face,
+  .uc-pin-open.uc-pin-hooping .uc-pin-face {
+    background: var(--color-hoop) !important;
+    border: 2px solid #ecfccb;
+    border-style: solid;
+    color: #14532d;
+    box-shadow: 0 0 0 4px var(--color-hoop-soft);
+  }
+
+  .uc-pin-hooping.uc-pin-selected .uc-pin-face,
+  .uc-pin-finder-wrap.uc-pin-hooping.uc-pin-selected .uc-pin-face {
+    border-color: #f5d76e;
+    box-shadow:
+      0 0 0 3px rgba(245, 215, 110, 0.95),
+      0 0 0 6px color-mix(in oklab, var(--color-hoop) 45%, transparent),
+      0 4px 14px rgba(0, 0, 0, 0.45);
+  }
+
+  .uc-cluster-hooping {
+    background: var(--color-hoop);
+    border-color: #ecfccb;
+    color: #14532d;
+    box-shadow: 0 0 0 4px var(--color-hoop-soft);
+  }
+
+  .uc-hoop-badge {
+    position: absolute;
+    top: -5px;
+    left: -6px;
+    padding: 1px 5px;
+    border-radius: 999px;
+    background: var(--color-hoop);
+    color: #14532d;
+    font: 800 8px/14px var(--font-sans);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    border: 2px solid var(--color-bg);
+    z-index: 2;
+  }
+
+  .uc-pin-hooping .uc-pin-label {
+    border-color: color-mix(in oklab, var(--color-hoop) 55%, transparent);
+  }
+
+  .uc-zone {
+    padding: 4px 10px;
+    border-radius: 6px;
+    background: color-mix(in oklab, var(--color-bg) 72%, transparent);
+    border: 1px solid color-mix(in oklab, var(--color-fg) 14%, transparent);
+    color: var(--color-fg-muted);
+    font: 600 10px/1 var(--font-sans);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    pointer-events: none;
+    white-space: nowrap;
+    z-index: 1;
+  }
+}
+
+@layer utilities {
+  .safe-pb {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+
+  .safe-pt {
+    padding-top: max(0.5rem, env(safe-area-inset-top));
+  }
+
+  /*
+   * Shell: CSS-only full viewport. Tab padding via --uc-tab-h (0 until tabs mount).
+   * ViewportLock re-asserts position/inset; never set height via JS.
+   */
+  .app-shell {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    max-width: 32rem;
+    margin-left: auto;
+    margin-right: auto;
+    height: 100dvh;
+    height: 100lvh;
+    max-height: 100dvh;
+    max-height: 100lvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    overflow-x: hidden;
+    box-sizing: border-box;
+    background: var(--color-bg);
+    padding-bottom: var(--uc-tab-h, 0px);
+  }
+
+  /* While boot splash is up: no tab padding, hide any stray tab bar */
+  html[data-uc-booting] .app-shell {
+    padding-bottom: 0 !important;
+  }
+
+  html[data-uc-booting] #uc-bottom-tab-bar {
+    display: none !important;
+    pointer-events: none !important;
+  }
+
+  /* Full-screen chat overlays: hide tab bar, zero shell tab padding */
+  html[data-uc-chat-open] #uc-bottom-tab-bar,
+  html[data-uc-chat-open] [data-uc-tab-bar="true"] {
+    display: none !important;
+    pointer-events: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    transform: none !important;
+    bottom: 0 !important;
+    top: auto !important;
+  }
+
+  html[data-uc-chat-open] .app-shell {
+    padding-bottom: 0 !important;
+  }
+
+  /* Match chat: keep tabs visible until the keyboard opens */
+  html[data-uc-chat-open][data-uc-match-chat-open]:not([data-uc-kb-open])
+    #uc-bottom-tab-bar,
+  html[data-uc-chat-open][data-uc-match-chat-open]:not([data-uc-kb-open])
+    [data-uc-tab-bar="true"] {
+    display: flex !important;
+    pointer-events: auto !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+
+  /* Tab bar: glued to the *large* viewport bottom. Never ride the keyboard. */
+  #uc-bottom-tab-bar {
+    position: fixed !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    top: auto !important;
+    transform: none !important;
+    margin: 0 !important;
+  }
+
+  html[data-uc-kb-open] #uc-bottom-tab-bar {
+    display: none !important;
+    pointer-events: none !important;
+    visibility: hidden !important;
+  }
+
+  /* Match chat portal */
+  [data-uc-match-chat="1"] {
+    overscroll-behavior: none;
+    touch-action: pan-y;
+  }
+
+  [data-uc-match-composer="1"] input {
+    font-size: 16px !important;
+  }
+
+  /* Boot splash */
+  @keyframes uc-boot-pulse {
+    0%,
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    50% {
+      transform: scale(1.04);
+      opacity: 0.92;
+    }
+  }
+
+  @keyframes uc-boot-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @keyframes uc-boot-bar {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(250%);
+    }
+  }
+
+  .uc-boot-mark {
+    animation: uc-boot-pulse 2.2s var(--ease-out-smooth) infinite;
+  }
+
+  .uc-boot-ring {
+    animation: uc-boot-spin 8s linear infinite;
+  }
+
+  .uc-boot-ring-2 {
+    animation: uc-boot-spin 12s linear infinite reverse;
+  }
+
+  .uc-boot-bar {
+    width: 40%;
+    animation: uc-boot-bar 1.35s var(--ease-out-smooth) infinite;
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .fade-in {
+    animation: fade-in var(--motion-fast) var(--ease-out-smooth) both;
+  }
+
+  .slide-up {
+    animation: slide-up var(--motion-fast) var(--ease-out-smooth) both;
+  }
+
+  .stagger-1 { animation-delay: 40ms; }
+  .stagger-2 { animation-delay: 80ms; }
+  .stagger-3 { animation-delay: 120ms; }
+  .stagger-4 { animation-delay: 160ms; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-in,
+  .slide-up,
+  .uc-boot-mark,
+  .uc-boot-ring,
+  .uc-boot-ring-2,
+  .uc-boot-bar {
+    animation: none;
+  }
+}

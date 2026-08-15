@@ -1,0 +1,2456 @@
+
+
+Worked for 3m
+Done. Every court photo now has a mini city map cutout in the top-left.
+
+Where
+List view court cards
+Court detail hero image
+What it shows
+Neighborhood street map (Carto Voyager tiles)
+Orange pin on that court’s exact spot
+Small rounded “cutout” so you can tell East vs South Austin at a glance
+Open Courts → list icon (or open any court from the map) to see it on each image.
+
+make the map cnippet a tad bigger also. I want there to be the ability to click into that map image and have it expand seamlessely into a full map. and I also want the address to be clickable and will directly lead you to google or apple maps for routing
+
+
+Worked for 3m 4s
+Here’s what changed:
+
+Bigger map cutout
+~96px on list cards, ~104px on court detail
+Label Tap map so it’s clear it’s interactive
+Tap → full map
+Tapping the cutout opens a full interactive map (pan/zoom) centered on that court
+Pin on the court, court name in the header
+Get directions button at the bottom
+Clickable address → routing
+Address is a link
+iPhone/iPad → Apple Maps directions
+Everything else → Google Maps directions
+Same routing from the expanded map
+Try Courts → list → tap the map snippet, or tap any address for turn-by-turn.
+
+make sure that in the map snippet the austin label is always visable . this is the main way for users to tell where the court is in coralation to the city.
+
+
+Worked for 1m 20s
+Updated.
+
+Every map snippet now always shows:
+
+AUSTIN badge (top-left) — fixed label, never depends on map tiles
+Neighborhood or Austin, TX at the bottom
+Slightly wider city zoom so the pin sits in metro context
+So users can always place the court in Austin at a glance, even if street labels don’t render.
+
+remvoe the dark black ausitn label. leave the one on the map
+
+
+Worked for 12s
+Removed the dark Austin badge overlay. The cutout now only uses the basemap’s own Austin label (plus a light neighborhood line at the bottom when available).
+
+
+
+this is what happens when i click the map snippet. its just greyed out.
+
+
+Worked for 2m 10s
+Fixed. The expanded map was opening inside the court detail sheet, so overflow / animation transform clipped it into a grey box.
+
+Fix
+Expand map now portals to the full screen (above everything)
+Map container gets a real height before MapLibre loads
+ResizeObserver + delayed resize() so tiles paint after the sheet animates
+Light basemap background so it’s never a black void while loading
+Tap the map snippet again — you should get a full Austin map with the court pin and Get directions.
+
+
+
+now its covering the get directions button.
+
+
+Worked for 33s
+Fixed.
+
+Get directions sits in a solid footer under the map (not under it), with safe-area padding. Zoom controls moved to the top-right so they don’t collide with the button.
+
+the image carasel doesnt work when trying to go to the next image
+
+
+Worked for 1m 48s
+Fixed. The carousel was hard to use because:
+
+Next/prev arrows only showed on hover — invisible on mobile
+Overlays (map cutout, distance chip, heart) sat on top of the controls
+Swipe used a fragile transform approach
+Now
+Arrows always visible and tappable
+Swipe via native scroll-snap (works on phones)
+Dots still jump to a photo
+Counter is top-center so it doesn’t clash with the map cutout
+Try list view or court detail — swipe or tap the arrows to flip photos.
+
+inqucik match dont limit it right now to games within 20 miles. just open it up for the entire city of austin whne showing created games
+
+
+Worked for 1m 4s
+Done. Quick Match open games are citywide Austin now.
+
+No personal radius (20 mi / 10 mi) filter
+No rating-band filter on the open list
+Shows every open game in the Austin metro for the selected mode (1v1 / 3v3 / 5v5)
+Still sorted nearest first, with distance shown
+New games post as citywide so anyone in Austin can see them
+there shoudl not be a courts and scene tab. Move the courts tab inside the scene tab and put the court icon near the top of the screen.
+
+
+Worked for 2m 56s
+Done. The Courts | Scene bottom switch is gone.
+
+How navigation works now
+You’re always in the main app (Leaderboard · Play · Community · You)
+Court pin icon top-right (next to your rating) opens Courts — map, list, favorites, everything that used to be the Courts tab
+Tap the pin again or Back to scene to return
+Courts lives inside the app, not as a separate half.
+
+actaully reemove the you tab and replace it with courts . the you can be accessed on the top right where there is already a human icon up there
+
+
+Worked for 51s
+Rewriting the corrupted scene shell.
+
+
+
+actually leave it like it was but just put the courts tab in the middle in a circle like the image i attached.
+
+
+Worked for 1m 16s
+Restored the original tabs and added Courts as a raised center circle.
+
+Bottom bar
+Leaderboard · Play · ⬤ Courts · Community · You
+
+Orange circular Courts button in the middle
+You stays on the right; profile also opens from the avatar chip top-right
+Tap the center pin for courts anytime.
+
+make that icon say courts or something similar to let people know that this is where the nearby courts are.
+
+
+Worked for 16s
+The center pin now has a Courts label under it so it’s clear that’s where nearby courts live.
+
+make that bottle bar wih all the options mor compact and take up less space
+
+
+Worked for 1m 32s
+Bottom bar is tighter now:
+
+Less padding and smaller icons/type
+Courts center button slightly smaller
+Less bottom padding so more content shows
+Tabs: Board · Play · Courts · Social · You
+
+in courts i dont like how you have to scroll over to the right in order to get to the list view option.
+
+
+Worked for 22s
+Map and List stay pinned on the right now — no more scrolling sideways to reach them. Filters can still scroll if needed, but the view toggle never leaves the screen.
+
+
+
+i feel like there is just too much clutter going on . clean it up also, the list view should be the default view
+
+
+Worked for 48s
+Courts is cleaned up and list is the default.
+
+What changed
+List first — map is optional via a small toggle
+One search row with Near me
+One slim strip: All · Saved · Shade · radius · List/Map icons
+Dropped Refresh as a always-on control (still on empty/error)
+Removed extra “Public outdoor courts…” line
+Less padding so more courts show on screen
+remove your rating from the courts view. wasting space. Also the search bar just mak it the magnifying glass and once clicked it expands. The only real use case for the search bar is to type and address and the closest courts appear here. Nobody knows the court names or neighborhoods - nothing shows up in the search results anyways.
+
+
+Worked for 52s
+Done.
+
+Courts view
+Your rating chip is hidden on Courts (still available on other tabs + top avatar)
+Search is a magnifying glass — tap to expand, X to close
+Search is address-based: type a street/address in Austin → courts re-sort by closest to that spot
+Placeholder: “Type an address…” — not court names
+now something is over the top of the shade option.
+
+
+Worked for 1m 23s
+Fixed. All · Saved · Shade sit on their own row now, with radius / near me / list-map on the row below — nothing covers Shade.
+
+
+
+thre are too many things blocking the view of the court images. Make everything fit better so it doesnt seem as corwded
+
+
+Worked for 1m 23s
+Court photos are much cleaner now.
+
+On the image only
+Small map cutout (top-left)
+Compact heart (top-right)
+Subtle swipe dots (bottom)
+Moved off the photo
+Distance → under the court name
+Neighborhood → next to distance
+No more 1/4 counter, big arrows, shade chip, or heavy badges on the image
+Swipe still works for photos; the court itself stays the focus.
+
+bring back the arrows just push them over to the sides more to make them less noticable. And i need that snippet of the map a little bigger so I can actuall y see it. It's okay to move it either furtehr up to the left top closer to the border.
+
+
+Worked for 42s
+Updated:
+
+Arrows are back, tucked to the far left/right edges (slim, low contrast so they don’t dominate the photo)
+Map cutout is larger (72px on cards) and sits tighter in the top-left corner so you can actually read the map
+
+
+this is taken up to much of the screen as well. Just a lot of wasted space. Move everyting up you can get rid of upsetcity play and replace it with qucik match find a run open games acreoss austin.
+
+
+Worked for 3m 44s
+Play is tighter now.
+
+What changed
+Removed the extra Upset City / Play header on that tab
+Top of Play is now: Quick Match · Find a run · Open games across Austin (+ your rating chip)
+Smaller Quick Match / Squads switch
+Create sits on one compact row with the open-game count
+More of the screen goes to open games instead of stacked titles.
+
+
+
+similar thing with this secion. Need everything condensed too much space not utilized
+
+
+Worked for 5m 39s
+Leaderboard is tightened up like Play.
+
+What changed
+Removed the extra Upset City / Leaderboard block
+One compact header: Austin · 1v1 rating · Leaderboard · #rank · Rank/Stats · profile chip
+Smaller Players / 3v3 / 5v5 row
+Tighter All time · Weekly · Hottest
+Less padding so more of the list shows on screen
+You get straight into rankings without the stacked titles.
+
+you dont need to put height under player just record. and make the recod a little bit more noticeable. for weekly show how many rating total rating points they have gained the past week. The players that have gained the most show up at the top .Hottest is winning streak (how many wins in a row have they gotten? those people with the most show up at the top. Instead of players put Top Player Rating 1v1. underneath it say. The only way to increse player rating is playing 1v1 matches.
+
+
+Worked for 2m 4s
+Updated the leaderboard:
+
+Player rows
+Height removed — only name + record (58W–22L), record is bolder
+All time still shows rating + rank move arrows
+Weekly
+Sorted by most rating points gained this week
+Shows +XX pts this week (not spot movement)
+Hottest
+Sorted by longest win streak
+Shows N wins in a row
+Ladder label
+Players → Top Player Rating 1v1
+Under it: “The only way to increase player rating is playing 1v1 matches.”
+Top Player Rating 1v1 is too long.
+
+
+Worked for 6s
+Renamed to 1v1 Rating — shorter fit in the tab. The line under it still explains that only 1v1 games move that number.
+
+under weekly but the weekly record instead of overall record
+
+
+Worked for 12s
+On Weekly, rows now show this week’s record (e.g. 3W–1L this week) instead of the all-time W–L.
+
+put 3v3 squards and 5v5 squads
+
+
+Worked for 5s
+Tabs now read 1v1 Rating · 3v3 Squads · 5v5 Squads.
+
+make the hottest wins in a row number green if its on a streak
+
+
+Worked for 1m 20s
+Done — on Hottest, the win-streak number is green when someone’s on a streak.
+
+continue
+
+
+Worked for 24s
+Hottest win-streak numbers are green and live in the preview.
+
+Also in place from recent changes:
+
+1v1 Rating · 3v3 Squads · 5v5 Squads
+Weekly shows this week’s record + rating points gained
+Hottest sorted by wins in a row (green when on a streak)
+Compact Play / Leaderboard / Courts chrome
+What next?
+
+i want each player icon to have an image of their face a high quality image meidum size. Im big on high quality images
+
+
+Worked for 4m 2s
+Every player now has a real face photo — not initials.
+
+What you get
+12 high-quality headshots (one per player), face-centered circular crops
+Medium size on leaderboard rows (48px) so faces actually read
+Larger on catalog / profile
+Soft ring + shadow so they feel premium, not flat dots
+Where photos show
+Leaderboard · Play / Quick Match · Community · Squads · profiles · match cards · your top-right chip
+
+Refresh the preview if faces don’t show yet (seed version bumped).
+
+lets stick to just 1v1 right now. Eentually we'll add in 3v3 5v5 and squads. remove all that has to do with those including leaderboard etc
+
+
+Worked for 4m 32s
+App is 1v1 only now.
+
+Removed from the UI
+Squads tab / hub from Play
+3v3 / 5v5 mode pickers in Quick Match
+3v3 Squads / 5v5 Squads leaderboard ladders
+Team size / team-play create options
+What’s left
+Area	Focus
+Leaderboard	City 1v1 rating · All time / Weekly / Hottest · Stats
+Play	Rated 1v1 open games · create · invite · join
+Community	Players, map, messages
+Courts	Finder as before
+Seed open games are all 1v1. 3v3 / 5v5 / squads can come back later when you’re ready.
+
+actaully revert back and instead have squads 3v3 and 5v5 greyed out and say coming soon.
+
+
+Worked for 2m 22s
+Restored with Coming soon placeholders:
+
+Leaderboard
+1v1 Rating — live
+3v3 Squads / 5v5 Squads — greyed · “Coming soon”
+Play
+Quick Match — live
+Squads — greyed with Soon badge
+Quick Match formats
+1v1 — live
+3v3 / 5v5 — greyed · “Soon”
+Only 1v1 games can be created or joined for now; the other modes stay visible so people know they’re on the way.
+
+say coming soon over squads. If you click on it say something like once player rating are established for more players , we will roll out squads which are teams that stick together and compete against other squads in touranments
+
+
+Worked for 27s
+Done. Squads now shows a Coming soon badge, and tapping it opens a short note:
+
+Once player ratings are established for more players, we’ll roll out Squads — teams that stick together and compete against other squads in tournaments.
+
+Plus a line that 1v1 rating is how you prep for that.
+
+City ranking by 1v1 rating · you're #10. Only rated 1v1 games move this number. delete Only rated 1v1 games move this number. delete . we already have that below it repetitive.
+
+
+Worked for 43s
+Removed. The line now just says City ranking by 1v1 rating · you're #N, and the “only way to increase…” note stays once below.
+
+Once player ratings are established for more players, we’ll roll out Squads — teams that stick together and compete against other squads in tournaments. i dont like how you siad this. Doesnt make a lot of sense
+
+
+Worked for 24s
+Updated. Squads now reads:
+
+Build a crew of 3 or 5. Name it, claim a home court, and run as a unit against other Austin squads.
+
+We’re launching 1v1 first so everyone has a clear rating. Squad matchmaking and tournaments come next.
+
+have the same pop up if they click on 3v3 or 5v5 squads on leaderboard tab
+
+
+Worked for 51s
+Done. Tapping 3v3 Squads or 5v5 Squads on Leaderboard opens the same coming-soon popup (titled for that size) with the same crew / 1v1-first copy.
+
+allow others to invite friends to 1v1 matches doesnt make sesne . remove this. that only makes sense for 3v3 or 5v5 games
+
+
+Worked for 1m 37s
+Removed. Create 1v1 no longer has “Allow others to invite friends.”
+
+For 1v1, only the host can invite an opponent. Guest invites will make sense later for 3v3 / 5v5.
+
+say coming soon not just soon evrywher eyou have it. like you do on squads
+
+
+Worked for 6s
+Updated. The 3v3 / 5v5 chips now say Coming soon (same as Squads), not just “Soon.”
+
+when you are vieweing open games and you click on one. i want the images that I have set for that specificcourts very similar to what we have in the courts tab. with the map cut out ont he top left corner and the ability to click into it and see the map. I want it to be visually apealing like the courts tab
+
+
+Worked for 1m 35s
+Open game detail now matches the Courts tab look:
+
+Photo carousel for that court’s images (swipe / arrows)
+Map cutout top-left — tap to expand the full Austin map
+Address (when available) opens directions
+Distance, neighborhood, time, amenities, host card below
+The open games list also shows a small court thumb so each run is easier to scan.
+
+I want the players face as the image instead of the court on the open games on the elft side. I also want the court image present as well.
+
+
+Worked for 1m 48s
+Updated the open games list:
+
+Left: host’s face (large avatar)
+Corner badge: that court’s photo
+Text: host name + rating, court name + time, distance
+Tap still opens the full court photo carousel with map cutout.
+
+how about leave the court image out of it until you click into the match. Here it should show the court like you have it but put the players face that is hosting on the left VS the players face that is challenging on the right.
+
+
+Worked for 49s
+Here’s the layout now:
+
+Open games list
+
+Host face only on the left
+Court photo removed until you open the match
+Match detail
+
+Court carousel + map cutout (same as Courts)
+Below: Host face (left) · VS · Challenger face (right)
+Empty challenger slot shows Open / Waiting… until someone joins
+when you accept a game. there should be an upcoming games section in the play tab to see which games are coming up that you have to play.
+
+
+Worked for 57s
+Play tab now has an Upcoming games section.
+
+After you accept a match (or you’re locked in as host/opponent), it shows up there with:
+
+Both faces (host + challenger)
+Court + time
+You host / You accepted
+Accepting also shows: “You’re in — see Upcoming games below.”
+
+There’s a sample upcoming game seeded so you can see it right away. Open posts you’re still waiting on challengers for sit under Your open posts.
+
+Put a vs between the two players.
+
+
+Worked for 7s
+Done. Upcoming games now show host face · vs · challenger face.
+
+similar to college baskeball teams. If the player is ranked in the top 50 I want that to be labeled right next to their profil picture so people know who the big dawgs are
+
+
+Worked for 1m 3s
+Done. Top 50 city-rated players get a college-style rank badge on their face:
+
+#1 — gold
+#2–#10 — court orange
+#11–#50 — dark badge
+Shows anywhere the avatar appears (leaderboard, open games, upcoming, host vs challenger, catalog). Outside the top 50, no badge.
+
+in leaderboards there is already a number next ot the face so we dont ned it here.
+
+
+Worked for 7s
+Leaderboard rows hide the rank badge now — the place number next to each face covers that. Rank badges still show everywhere else.
+
+when putting the number over the face be careful not to cover the face
+
+
+Worked for 22s
+Moved the rank chip so it sits under the photo, centered on the bottom edge of the circle — not over the face. Only the rim is near the badge.
+
+under play i like upcoming game but I want the date and time more visable . right now it blends in. This infomration is important. Same with posted open games. Also there needs to be a seperation between upcoming ames and open games
+
+
+Worked for 41s
+Here’s what changed on Play:
+
+Date & time
+
+Shown as a bold chip: Fri, Aug 7 · 7:00 PM
+Upcoming games use a high-contrast dark chip so it stands out
+Open games use a clear bordered chip
+Separation
+
+Upcoming games (your locked-in slate) first
+Divider label: Open games · city
+Open games board below
+Court name stays under the opponent; time is no longer buried in muted text.
+
+the number ranking should be off to the left side . right now its to centered on the face
+
+
+Worked for 18s
+Rank badges now sit to the left of the face (vertically centered), not under or over the photo.
+
+the number should be lower towards the bottom of the image of the face to teh left
+
+
+Worked for 5s
+Moved. Rank sits bottom-left of the face, still clear of the photo.
+
+a little lower and to the right a tad
+
+
+Worked for 8s
+Nudged it lower and a bit to the right so it sits on the bottom-left rim of the face.
+
+just a tad bit larger barely
+
+
+Worked for 5s
+Bumped the rank badge up a hair — just slightly larger.
+
+just a little bit bigger
+
+
+Worked for 6s
+Bumped again — rank badge is a little larger.
+
+when clicking on an open game make the image a little small it takes up to much room. Also , have the time and date more viably known like before. and put in there best of 3 games to 11. some version of that. and make it take it. Right now you just have best of 3.
+
+
+Worked for 1m 20s
+Updated the open-game detail:
+
+Shorter court photos (shorter strip, smaller map cutout)
+Bold date/time chip (same high-contrast style as the list)
+Rules line: Best of 3 · games to 11 · make it take it (default on new posts and seeded games)
+no now it looks off. The image should still take up the width but just doesnt go down as far. At least make it center on the screen
+
+
+Worked for 12s
+Fixed. Court photos are full width again, just shorter (16:8), with the crop centered so the hoop/court stays in the middle.
+
+
+
+
+
+I want the versus and the faces (see attached)somewhere towards the bottom of the court image in the center as shown in the attached as well. this will save space and provide a cool graphic
+
+
+Worked for 57s
+Done. On open game detail:
+
+Host face · VS · Challenger sits on the bottom center of the court photo
+Soft dark gradient behind it so faces and ranks stay readable
+Separate VS card under the image is removed to save space
+Tap either face still opens their profile.
+
+no i wanted the same layout just the faces and versus on the bottom of the image. You belnding everythng into one grapic. I still want seperation from the image to the rosewood park courts and time adn date like we had before
+
+
+Worked for 2m 45s
+Fixed. Layout is split again:
+
+Court photo — full width, with only face · VS · face on the bottom center
+Separate card under it — court name (e.g. Rosewood), bold date/time chip, rules, address
+No shared gradient blending the photo into the details.
+
+make the verssus graphic smaller
+
+
+Worked for 13s
+Shrunk the VS graphic — smaller faces and a smaller VS so it sits lighter on the court photo.
+
+the host profile image should also appear in the game chat section as well.
+
+
+Worked for 49s
+Game chat now shows the host’s face in the header (Host · name) and next to their messages. Your face sits by the compose field when you type.
+
+when you click on your upcoming game .the top part where it has the qucik match and swauds tab should not be there. only the back to open games should be there.
+
+
+Worked for 39s
+When you open an upcoming or open game, the Play header and Quick Match / Squads tabs hide. You only get ← Back to open games and the match content. Going back restores the tabs.
+
+when checking out opening games. when you click on one. I want to be able to see if he has played anyone I played in the past and the result. You should be able to see his history . I would also want to see what former players have said about his game. So reviews of the player. I also want the host to have the ability to add notes to the game, like looking for someone that is my size, and skill level. etc. so the person looking can have a good idea of their skill level.
+
+
+Worked for 2m 49s
+When you open a game, you now get:
+
+Host notes · who they want
+
+Size, skill, vibe they’re looking for
+Host can Edit and save notes
+Create flow also has a notes field
+Players you’ve both faced
+
+Shared opponents with host result and your result (W/L + scores)
+Host history
+
+Recent confirmed 1v1s: opponent, court, scoreline, W/L
+What players say
+
+Reviews of their game from people who’ve run with them (stars + text)
+Open an open game (Sean / Noah / Kai) to see seeded scouting data.
+
+u should have the ability to cancel game. write a note that says the reason so the host will know why. If it is more than 24 hours then no penalty. However, if a player cancled more than 3 times in a month then their sportsmanship rating will be effected
+
+
+Worked for 1m 29s
+Cancel game is live on open / matched / scheduled games you’re on.
+
+How it works
+
+Tap Cancel game → write a reason (required so the host/opponent sees why)
+Reason is saved on the match and posted in game chat
+Rules
+
+More than 24h before tip-off → no penalty
+Within 24h → late cancel, counted for the month
+More than 3 late cancels in 30 days → sportsmanship drops (−0.15 each late cancel after that)
+You’ll get a short confirmation of which rule applied.
+
+and no I dont want the reviews, and who they want stuff on matches that have already been accepted . just those that are still open.
+
+
+Worked for 12s
+Done. Host notes, shared opponents, history, and reviews only show on open games.
+
+Once a match is accepted (upcoming / scheduled), those sections are hidden — just the match details, chat, and cancel.
+
+and if you click into players youve both faced it should expand on just that player or player youve faced giving a side by side comparision so you can tell if this would be a fiar matchup
+
+
+Worked for 1m 3s
+Tap a player under Players you’ve both faced and it expands into a side-by-side fair-matchup view:
+
+Host vs that player (W/L + scores)
+You vs that player (W/L + scores)
+Shared signal (both beat them / both lost / split)
+Rating gap + height for a quick “is this fair?” read
+Tap again to collapse; full profile is still available at the bottom of the expand.
+
+host histoy you should be able to click into it where you can view the hosts complete game history showing scores and result and who they layed against and their rating
+
+
+Worked for 1m 6s
+Host history is now full and tappable:
+
+Preview shows the last 3 games
+View complete history opens a sheet with every confirmed game
+Each game: opponent face, name, rating, W/L, series score
+Expand a game for game-by-game scores, court, and opponent profile (rating, record, height)
+Tap any preview row to jump straight into that game in the full history.
+
+if you have a scheduled game with someone there should not be an option to challenge them if you click on the profile it says challenge towards the bottom.
+
+
+Worked for 53s
+If you already have a scheduled / matched game with someone, their profile no longer shows Challenge.
+
+Instead you see Game already scheduled (court + time). Message / friend still work. The same rule is enforced when sending a challenge so it can’t be bypassed.
+
+under common player they played when you click into it. It should tell you to view noahs full profile ( the player you both played) just show the results of when you played that person and when they played that person.
+
+
+Worked for 43s
+Simplified. Tapping a common player now only shows the two results:
+
+When [host] played Noah — W/L, scores, court, date
+When you played Noah — W/L, scores, court, date
+No full-profile link or extra matchup chrome.
+
+the host notes are showing up twice. They only need to show once.
+
+
+Worked for 22s
+Fixed. Scoring rules show once (Best of 3 · games to 11 · make it take it). Host notes (“who they want”) show only under Host notes — not duplicated above.
+
+when creating youe own game and then going to view the listing. it says players you've both faced. That doesnt make any sense because its just me so that is irrelevant to the person who created the match.
+
+
+Worked for 21s
+When you open your own listing, Players you’ve both faced is hidden — that section only shows for people scouting someone else’s open game.
+
+same goes for host history. If im th ehost and go check out my game I shouldnt see this either
+
+
+Worked for 57s
+Same rule for Host history — if you’re the host looking at your own game, that section is hidden. It’s only for people scouting someone else’s open listing.
+
+if you are the host and you cancel the game you will not be penalized at all if noone has joined it yet. If someone has, then you will have to give a reason, that reason will be sent ot the player who joinged already, and if you do this more than 3 times in a month you will be penalized.
+
+
+Worked for 1m 48s
+Host cancel rules are updated:
+
+Situation	What happens
+You host, no one joined	Close listing freely — no reason, no penalty
+You host, someone joined	Reason required → sent to that player. More than 3 times in a month → sportsmanship hit
+You joined / accepted	Same as before: reason required; late (≤24h) cancels count toward the monthly limit
+The cancel UI matches those cases (empty listing says “Close listing,” joined games ask for a reason).
+
+
+
+this is too cluttered. Anyway to clean this up?
+
+
+Worked for 1m 59s
+Cleaned it up a lot.
+
+App header
+
+One line: Upset City · Austin, TX (dropped the extra subtitle)
+Leaderboard
+
+One toolbar: Rankings | Stats + your #rank · rating
+All time / Weekly / Hottest as small pills (not a wall of labels)
+Removed “Player rating”, “Austin · 1v1 rating”, the big 1v1/3v3/5v5 bar, and the long helper line
+Squads tucked behind a quiet Squads soon link (still opens coming soon)
+Most of the screen is the list now.
+
+on leaderbboards delte squads soon . Need to put on here 1v1 Player Ratings. the only way to increase your rating is to play 1v1 matches. say that in a better way
+
+
+Worked for 1m 8s
+Updated:
+
+Removed Squads soon
+Title: 1v1 Player Ratings
+Line under it: Rating only moves when you play rated 1v1.
+instead of rating put rankings
+
+
+Worked for 17s
+Updated to 1v1 Player Rankings, with: Rank only moves when you play rated 1v1.
+
+put matches after 1v1 in the sub text
+
+
+Worked for 3s
+Done — now: Rank only moves when you play rated 1v1 matches.
+
+when you create a game people dont know the names of the court that well . so we need to figure out a better way to put a name with the lcoation of the court and wha tit looks like in a way where they can see all of them quickly and select seamlessly.
+
+
+Worked for 4m 2s
+Create game court pick is visual now — no more name-only dropdown.
+
+How it works
+
+Swipeable photo cards sorted nearest-first
+Each card shows: court photo, neighborhood, distance, short name + street
+Tap to select (orange ring)
+Summary strip under the carousel with full name, area, distance, and address
+Browse by look and location, not by memorizing park names.
+
+continue
+
+
+Worked for 4m 2s
+Court picker for Create 1v1 is improved:
+
+2-column photo grid — scan many courts at once (scroll)
+Near me / neighborhood chips (East Austin, Zilker, etc.)
+Selected court strip stays on top with photo, area, distance, address
+Sorted nearest first — tap a photo to select
+You don’t need to know park names — pick by how it looks and where it is.
+
+should also add the map view to view all the courts and clearly show them where they are at on the map. in map view
+
+
+Worked for 1m 28s
+Create game court pick now has Photos and Map:
+
+Photos — 2-column photo grid (as before)
+Map — interactive map of courts, your location, pins; tap a pin to select; zoom to expand clusters
+Near me / neighborhood chips work in both views
+Selected court strip stays on top with photo, area, distance, address
+Orange pin = selected. Switch modes anytime while creating a 1v1.
+
+and there should be a way to read more about the court. Upset City will write a short descirption on each court . once this is done it will appear once user clicks the info icon on the top left of the court graphic when picking a court
+
+
+Worked for 2m 8s
+Done. When creating a game and picking a court:
+
+ⓘ info sits on the top-left of each court photo
+Tap it for an Upset City court note — short write-up, photo, neighborhood, amenities, address
+Same info button on the selected court strip
+Every Austin catalog court has a short description. If a court is missing one, a clean fallback still shows.
+
+upset city will have receommend courts as a way sort option and also shaded courts option, user can select more than one sorting options at a time.
+
+
+Worked for 50s
+Court picker now supports multi-select sort & filter:
+
+Chip	What it does
+Upset City picks	Recommended courts first (hand-picked + quality score)
+Shaded	Only courts with shade
+Nearest	Closest to you
+Stack them however you want (e.g. Upset City picks + Shaded). Cards show Pick / Shade badges. Area chips still work as All areas + neighborhoods.
+
+make it sliding left to right and not going down.Its to much scrolling down and takes up to much room
+
+
+Worked for 1m 3s
+Tightened the create-court picker so it scrolls sideways, not down:
+
+UC picks · Shaded · Nearest + areas — one horizontal row, swipe left/right
+Court photos — horizontal snap carousel again (not a tall 2-column grid)
+Selected court strip is shorter
+Less vertical bulk; same multi-select filters and info button.
+
+if they select near me they should have to select a radius in miles
+
+
+Worked for 34s
+When Near me is on, a radius control appears:
+
+Slider 1–25 miles
+Quick chips: 1, 3, 5, 8, 10, 15, 20, 25 mi
+Only courts inside that radius are listed
+Near me stays multi-selectable with UC picks / Shaded. Turn Near me off to ignore radius.
+
+it should never be preselected . it is preselected right now. User must select a court before prcoeeding.
+
+
+Worked for 39s
+Updated:
+
+Nothing preselected — Near me, UC picks, Shaded all start off
+No court selected until the user taps one
+Post open 1v1 stays disabled until a court is chosen (“Select a court to continue”)
+Near me radius only appears after they turn Near me on
+they shouldnt have to select a sort option. Right now you are making the user select near me pill. they can deselect all sorting option if they want
+
+
+Worked for 45s
+Confirmed and clarified:
+
+No sort/filter starts selected (including Near me)
+User can leave all off and still browse every court
+Filters are labeled Optional · none selected is fine
+Only picking a court is required to post
+Highest rated instead of uc picks
+
+
+Worked for 26s
+Renamed UC picks → Highest rated.
+
+It sorts courts by quality score (amenities, hoops, location) instead of filtering them out. Still optional and multi-selectable with Shaded / Near me.
+
+you should be able to click the info icon and then when it pops up you can carasel to the next images
+
+
+Worked for 4m 18s
+Court info popup now has a photo carousel:
+
+Tap ⓘ → sheet opens with multiple photos
+Swipe or use the arrows to go through images
+Caption notes how many photos and to swipe
+Description, amenities, and address stay below the photos.
+
+when selecting near me. If location is not shared aready they should have the option to share location . if that doesnt work they shoudl have the option to type in address. Google autofill should help with the address populating
+
+
+Worked for 1m 37s
+When you turn on Near me:
+
+Share my location — browser GPS (if not shared yet)
+If GPS fails / denied / unavailable → type an address
+Address autofill — suggestions appear as you type (Austin-area streets, parks, landmarks); tap one to set your point
+Then set radius (1–25 mi) and courts sort/filter from that spot
+You can Change location anytime (new GPS or a different address). Without a location, Near me won’t pretend you’re at city center.
+
+on map view you shoudl be able to view more info about the court your looking at. so having the ability to click into it read about it and then view images carasel
+
+
+Worked for 43s
+Map view now supports a full court preview:
+
+Tap a pin → selects the court
+Card under the map with photo carousel (swipe / arrows)
+About court / Read more & photos → full sheet with notes, amenities, address, and more images
+Use this court to confirm selection
+Same info experience as the photo picker, from the map.
+
+istead of putting it beneaeth just have it popup upon click to see more infomration. from there you can then selec tthe court if you want
+
+
+Worked for 4m 34s
+Map flow is popup-only now:
+
+Tap a pin → court info popup opens (photos carousel, notes, amenities)
+Select this court if you want it — or Close without selecting
+No card under the map
+Selected court still shows in the compact strip at the top once you confirm.
+
+i want these same filters options on the courts tab at the top with the current options
+
+
+Worked for 2m 20s
+Courts tab top filters now match create:
+
+All — clear filters
+Saved · Shaded · Highest rated — multi-select (stack any combo)
+Still have search, radius, Near me, list/map
+Highest rated sorts by quality; Shaded/Saved filter the list.
+
+when i go on the map when created a match. and then click one of the pins. its letting me scroll down but everyting that is scrollable lives behind the image/popup . can you make sure this is functioning correctly.
+
+
+Worked for 5m 56s
+Fixed the create-match map popup:
+
+Renders above everything — portal to the page body (not trapped under the map/scroll area)
+Background doesn’t scroll while it’s open
+Layout is three clean layers:
+Photos stay at the top
+Notes/amenities scroll under the photos (not behind them)
+Select / Close stay pinned at the bottom
+Tap a pin → read & swipe photos → Select this court when ready.
+
+remove the map that lives in socail. im going to change this entire tab. I want Media on the top left where map currently is, i havent decided on the other to so lets just leave those two for now. For media, Everytime there is a match scheduled I want it to be written here in the feed. This is a place where players can see league updates, upsets, winning streaks, and other cool things within the feed, players can share photos here and people can like and comment on every post that is posted. Players can also post vieos, phots or write something if they want. Like if there is a top 10 game I want that to be written in here.
+
+
+Worked for 4m
+Social is rebuilt around Media:
+
+Tabs (top)
+
+Media (left) — main feed
+More — placeholder until you decide the second tab
+Map removed from Social.
+
+Media feed includes
+
+League updates, upsets, majors, top-10 games, win streaks
+Every scheduled / open / locked match auto-posted
+Players can Post text, photo, or video
+Like and comment on feed posts
+Open Social → Media to try the feed and composer.
+
+when you create a game and go to invite oponets you should be able to sort by player rating and height and win streak count. you can select as many as you want at a time.
+
+
+Worked for 55s
+Invite opponents now supports multi-select sorts and filters:
+
+Filter (any combo): Friends · Available · Active
+
+Sort (any combo, high → low):
+
+Player rating
+Height
+Win streak
+Multiple sorts stack in order: rating → height → streak. List also shows each player’s height, rating, and streak.
+
+forget everything i said about the cup and the cup standing . im not doing that naymore I saw that you posted about it.
+
+
+Worked for 1m 15s
+Got it — ATX Cup and cup standings are out.
+
+Media feed no longer shows:
+
+Cup races / standings / majors
+“ATX Cup” league posts
+It’s only city 1v1 content now: wins, upsets, streaks, top games, scheduled matches, and player posts.
+
+when i go to create a post then its not posting
+
+
+Worked for 1m 47s
+Posting is fixed.
+
+What was wrong: the old media store was tangled with dead Cup state and could fail silently.
+
+What works now:
+
+Post opens the composer
+Type text and/or add a photo/video
+Share publishes to the top of the feed
+You’ll see a “Posted to Media” confirmation
+Text posts stick after refresh; likes & comments work on your posts
+Try Social → Media → Post → Share again.
+
+I think my created game is posting like a ton on the media. is that the case?
+
+
+Worked for 28s
+Yes — that was happening.
+
+Before: every open 1v1 (including yours) was auto-added to Media, so the feed filled up with listings.
+
+Now: open “looking for opponent” games stay on Play only. Media only auto-posts when a game is locked in (both players set) — one card per match, not a spam of open posts.
+
+Creating a game no longer dumps a bunch of Media posts.
+
+when it says someone is on a winning sreak you should have the option to challenge him right on that post. so put a call to action button there
+
+
+Worked for 1m 18s
+Done. On any win streak post in Media you’ll see:
+
+Challenge [Name] · end the streak
+
+One tap sends them a rated 1v1 challenge (uses their home court when available). You get a short confirmation at the top — or a note if you already have a game with them.
+
+same for someone who just created a game. there should be an easy path from the post to join the game. Maybe it just takes you to the that listing where you can view the games details and see if t would be a good fit (play tab)
+
+
+Worked for 1m 42s
+Done. Open game posts in Media now have a clear path into Play:
+
+View listing · see if it’s a fit
+(or View your listing on Play if it’s yours)
+
+That button jumps you to Play and opens that exact game detail so you can scout the host, notes, court, and decide before accepting.
+
+Open listings are capped (latest 8) so Media doesn’t flood again. Locked games still show View game on Play.
+
+when i click challenge sean it doesnt take me anywhere
+
+
+Worked for 42s
+Fixed. Challenge Sean now actually takes you somewhere:
+
+Sends the challenge (rated 1v1)
+Jumps to Play and opens that game so you can see details, chat, and manage it
+If you already have a game with them → opens that listing instead
+If something fails → opens their profile and shows why
+You should also see a short confirmation banner when it fires.
+
+it is possible to @ a players name so they get notified . so @(starttyping players name) it should aautopopulate to find them )
+
+
+Worked for 1m 56s
+@mentions are live on Media.
+
+How to use
+
+Open Post (or a comment)
+Type @ then start a name (e.g. @Sea)
+Autocomplete list pops up — tap the player
+Their name is inserted as @Sean Rivera
+When you share, they get notified
+Works in posts and comments. Mentions highlight in teal and open their profile on tap. You’ll see a short “Posted · notified …” confirmation, and tagged people get a Mentions note on Media.
+
+when you select them the name in the text box turns another color
+
+
+Worked for 1m 6s
+Done. When you pick someone from the @ list, their name in the text box shows in court green (same as mentions in posts), while the rest of the text stays normal.
+
+Works in both the post composer and comments.
+
+you dont need to provide instructions on how to @ someone. People already know this.
+
+
+Worked for 9s
+Removed the @ instructions. The composer is clean now — people who know, know.
+
+the number one ranked player has a crown around his head and a gold ring around their picture. the top 10 have a silver ring around their pictures
+
+
+Worked for 40s
+Player faces now reflect city rank:
+
+#1 — gold ring around the photo + crown above the head
+Top 10 (#2–#10) — silver ring around the photo
+Everyone else — normal border
+Shows anywhere PlayerAvatar is used (leaderboard, media, matches, profiles).
+
+did you change the color of the nubmers ?
+
+
+Worked for 6s
+Yes — only for top 10.
+
+Rank	Numbers before	After (what I changed)
+#1	Gold badge	Still gold
+#2–10	Green (court) badge	Silver/zinc badge
+#11–50	Dark badge	Unchanged
+I only meant to change the rings (and #1 crown). If you want the numbers back to green for top 10 (or anything else), say the word and I’ll revert just those.
+
+leave them how they were just add the platium silver shiny ring around their profile photo. Only change the color of the number for the 1st place guy
+
+
+Worked for 14s
+Updated:
+
+#1 — gold number + gold ring + crown
+Top 10 — numbers back to green (as before) + platinum/silver shiny ring on the photo only
+Everyone else — unchanged
+what would be better than the silver ring to show people these are eltie hoopers the top 10 in the elague
+
+
+Worked for 6s
+A silver ring is easy to miss — it reads as chrome, not “elite.” Better signals for top 10:
+
+Strong options (best → good)
+Elite badge / plate (best overall)
+Small chip on the avatar: TOP 10 or ELITE in tight type (not just #7). Numbers alone feel like a list; a label feels like a status.
+Tiered metal system (clear hierarchy)
+#1 — gold + crown (keep)
+#2–3 — gold-lite / bronze dual (podium)
+#4–10 — platinum plate, not just a ring
+People already get “medal tiers.” Rings alone don’t.
+Subtle glow / heat, not a thicker ring
+Soft outer halo (court-green or cool white) that pulses once on load. Reads “live threat” without eating face space. Rings compete with the photo; a glow sits behind it.
+Streak + rank combo for real elite feel
+Top 10 and on a win streak → small fire or “heater” mark. Pure rank is static; heat feels dangerous.
+Leaderboard-only treatment + carry a mini mark everywhere
+Full treatment on Board (row background, “ELITE” rail). Everywhere else: tiny ◆ or E on the face so it doesn’t clutter Media/Play.
+What I’d ship for Upset City
+Rank	Treatment
+#1	Crown + gold ring + gold #1 (keep)
+#2–10	Platinum “TOP 10” micro-badge under or beside the face + soft cool halo (not a flat silver ring)
+#11–50	Rank number only
+Why: Elite status needs a word or symbol, not only a border color. Silver rings look like premium UI; TOP 10 / ELITE looks like a league honor.
+
+If you want one change only: replace the silver ring with a small TOP 10 plate + keep the green rank number. Highest clarity, least noise.
+
+Want me to implement that version?
+
+add it
+
+
+Worked for 49s
+Shipped:
+
+Rank	Look
+#1	Crown + gold ring + gold #1
+#2–10	Soft platinum halo + TOP 10 plate on the face + green rank numbers (unchanged)
+#11–50	Rank number only
+The TOP 10 plate is the elite signal — not just a silver ring.
+
+out these features in the leaderboards as well
+
+
+Worked for 1m 5s
+Leaderboard now shows the elite treatment too:
+
+#1 (city rating) — crown + gold ring + gold list number + soft gold row
+Top 10 — halo + TOP 10 plate (no duplicate # on the face — the list already has the number)
+Your chip in the header gets the same elite marks
+Rank numbers on Board stay in the list column only; faces carry the status.
+
+nevermind tak away that top 10 and just add a color ring that makes sesne to add to the top ten players
+
+
+Worked for 42s
+Done. TOP 10 plate is gone.
+
+What’s left:
+
+#1 — gold ring + crown (+ gold #1 where rank chips show)
+#2–10 — clean platinum ring only
+Rank numbers stay as before (green for top 10, gold only for #1)
+make sure the crown is above him right now its kind fo covering his face
+
+
+Worked for 25s
+Moved the crown above the head so it sits on top of the gold ring instead of over the face. Extra top spacing so it doesn’t get clipped in lists.
+
+when commenting you rprofile pphoto and number and ring color is aplicapable should follow
+
+Request was interrupted by the user.
+
+when commenting you rprofile pphoto and number and ring color is aplicapable should follow. along with your name . right now its just the name of the person.
+
+
+Worked for 30s
+Comments now show full identity:
+
+Photo (with gold / platinum ring when they’re elite)
+Rank number when top 50
+Name (tappable → profile)
+Then the comment text
+When you write a comment, your face + rank/ring sit next to the box too.
+
+make sure the comments dont flow to far down. it looks like there isnt enough spacing between the last comment and the next actual post.
+
+
+Worked for 22s
+Tightened comment spacing:
+
+More space between posts so the next card doesn’t sit on the last comment
+Comment threads scroll inside a max height instead of stretching forever
+Extra padding at the bottom of each post card
+Long threads stay contained; the feed should read cleaner.
+
+what does facebook do? or instagram? use their logic
+
+
+Worked for 47s
+Comments now follow Instagram / Facebook logic:
+
+Behavior	How it works
+Preview	Only the last 2 comments under the post
+View all N comments	Expands the full thread (no mini scrollbar box)
+Hide comments	Collapses back to preview
+Name + text	Same block as IG (**Name** comment…) with photo, rank, ring
+Add a comment…	Always under the post (your face + field), like IG
+Post / Enter	Sends; Escape closes composer
+Posts stay separated; long threads don’t crush the next post.
+
+the gap from post to its comments is to far. make it more compact
+
+
+Worked for 55s
+Tightened it — less space between the post actions and comments, and between each comment. Should sit closer like IG/FB now.
+
+when you challenge a player from the media page it shouldnt automatically put you in the game. It is still up to you once you get to that screen to join the game
+
+
+Worked for 1m 43s
+Fixed. Challenge from Media no longer books you in.
+
+What happens now:
+
+Opens their open listing on Play (or creates one if they don’t have one)
+You land on the detail screen with host, notes, court, etc.
+You’re not the opponent yet — you still tap Join 1v1 if you want it
+Same idea as browsing an open game: scout first, commit second.
+
+on leaderboards weekly the +50 or whatever rating points they increased should go on the right in green. The weekly record and total rating should go on the left . also for the hottest tab the win streak should go on the right in green and the rating an overall record should go on the left.
+
+
+Worked for 18s
+Updated:
+
+Weekly
+
+Left: weekly record · total rating
+Right: +50 (green)
+Hottest
+
+Left: rating · overall record
+Right: 6W streak (green)
+
+
+this is kind of cutoff and there isnt enough room for everything else below it. The image takes up way to much room. This is on the courts tab
+
+2 / 2
+
+Worked for 27s
+Shrunk the court detail hero so it doesn’t eat the sheet:
+
+Photo height capped around ~176px / 28% of the screen (was a tall 16:11 block)
+More room for tabs, chips, and details below without feeling cut off
+Details and the rest of the sheet should scroll cleanly under it now.
+
+get rid of 1 rated players run here - no games posted yet. compact everything above it reviews, favorited . those 2 shoudlnt take up that much room.
+
+
+Worked for 45s
+Done.
+
+Removed “X rated players run here · no games posted yet”
+Favorited + Reviews are one tight line under the name (no big cards)
+remove the ladder from this tab.
+
+
+Worked for 17s
+Removed Ladder from the court detail tabs. You’re left with Details, Reviews, Work order, and Chat.
+
+remove chat from here too
+
+
+Worked for 35s
+Removed Chat from court detail. Tabs are now just Details, Reviews, and Work order.
+
+put aan icon that represent word order so users can easily submit a work order without having to click into the court details. Pop up should appear with broken rim, missing net, something else.
+
+
+Worked for 51s
+Added a wrench icon on each court card (top-right, next to favorite).
+
+Tap it → popup without opening court details:
+
+Broken rim
+Replace net
+Something else (with a note field)
+Submit sends the work order and closes the sheet.
+
+all those admin requests will go to my acccount somehwere where i can viw. This will only be visbel for me since im the admin
+
+
+Worked for 1m 50s
+Work orders now land in your admin inbox.
+
+Where: You (profile icon) → Court work orders
+Who sees it: Only your account (p-you / admin). Other players never see this.
+
+What you get:
+
+Every report (wrench on cards or from court details)
+Court name, issue type, optional note, who filed it
+Status chips: New → Received → In progress → Resolved
+A couple sample requests are already there so the inbox isn’t empty.
+
+remove one rated player run here unclaimed on these images.
+
+
+Worked for 26s
+Removed that line from the court cards — no more “X rated players run here · unclaimed.” Cards now just show name, distance, address, amenities, and king when there is one.
+
+and remove any king of the court information as well like names or icons etc from these images
+
+
+Worked for 47s
+Removed all king-of-the-court stuff from the court cards — no names, crowns, or “runs this court” lines. Also cleared it from the court detail sheet.
+
+also for the work orders. have a way for customer to easily take a photo and upload .
+
+
+Worked for 1m 17s
+Work orders can include a photo now.
+
+When filing (wrench on cards or Work order tab):
+
+Take photo — opens the camera on phones
+Upload — pick from the library
+Preview + remove before submit
+On your admin inbox: the photo shows next to the request (tap to open larger).
+
+Photos are compressed so they stay light and usable.
+
+is the admin account connected only to seanvoss23@gmail.com
+
+
+Worked for 8s
+No. Nothing in the app is tied to seanvoss23@gmail.com.
+
+Admin is just the seeded local player p-you (the “You” profile). The check is:
+
+playerId === "p-you"
+There’s no email login wired to that admin inbox, and no Gmail allowlist. Anyone using this app as the default “You” account sees the work-order admin section.
+
+If you want it locked to your email only, we can wire that next (e.g. only show admin when the signed-in user is seanvoss23@gmail.com).
+
+also admin will have access to updating courts including photos and details which admin can edit at any time. Mak it easy to add and replace, remove photos from the courts tab . have a dedicating photo slot for the preview image(the one that shows up first)
+
+
+Worked for 2m 39s
+Admin court editing is live on Courts (only for your admin account).
+
+How to edit
+On any court card (or detail), tap the pencil next to the wrench.
+
+What you can do
+Preview photo (dedicated slot)
+
+Always the first image on cards and carousels
+Take / upload / replace / remove
+Gallery
+
+Add more photos
+Replace or remove each one
+Take photo or upload
+Details
+
+Name, address, neighborhood
+Upset City description
+Surface, hoops, amenities
+Lights hours, park hours
+Photos save as soon as you change them. Details save with Save court details.
+Everyone else only sees the updated court — no edit controls.
+
+yes I would like admin to be tied to my account seanvoss23@gmail.com. I guess that means we have to make people create an account where they can sign up with google, facebook, or maunel type in email. And then passsword fields. Whataver is standarad.
+
+
+Worked for 1m 46s
+Done. Here’s how accounts and admin work now:
+
+Sign in / sign up
+Go to You → Sign in / Create account (or /login):
+
+Method	Status
+Google	Supported (via Grok auth)
+X	Supported (via Grok auth)
+Email + password	Supported (create account or sign in)
+Facebook	Not available on this stack — only Google, X, and email are supported
+Admin lock
+Admin (work orders + court editor pencil) only unlocks when the signed-in email is:
+
+seanvoss23@gmail.com
+
+Anyone else can use the app as a normal player. They will not see admin tools.
+
+How you get admin
+Sign in with Google using that Gmail, or
+Create an email account with seanvoss23@gmail.com + password
+You’ll see “Admin access · work orders & court editor” under Account on the You tab.
+
+okay are you just reading seanvoss23@gmail.com? right? Liike i singe din with my google gmail account. thats what it is
+
+
+Worked for 15s
+Yes. Admin is just a check on the signed-in email.
+
+When you use Continue with Google and pick the account whose email is seanvoss23@gmail.com, that email comes from Google through auth. The app compares it (case-insensitive) to:
+
+seanvoss23@gmail.com
+
+If it matches → you get admin (work orders + court edit).
+If you sign in with any other Google account or email → normal player, no admin.
+
+Nothing else is special about the account — it’s not looking at a password or a separate “admin password,” just that email on the active session.
+
+once work order tasks have been resolved they dissapear andgo into archieved wordk orders that I can access later on.
+
+
+Worked for 36s
+Updated admin work orders:
+
+Open — active tickets only (New / Received / In progress)
+Resolve · archive — marks it resolved and removes it from Open
+Archive — all resolved tickets live here for later; you can reopen by changing status
+Switch between Open and Archive with the tabs at the top of the admin inbox.
+
+can i have when a game is secrued and their are two people vs eachother at a court a time and date. can I have an automaic reminder created on their phone for 24 hours before and 3 hours before the scheduled time? or something similar?
+
+
+Worked for 1m 19s
+Short answer: a web app can’t silently set iPhone/Android system alarms by itself. What does work well is calendar events with alerts — that’s how you get real phone reminders.
+
+What I added (when a game is locked in — both players, time + court)
+On the game page you’ll see Game reminders:
+
+Add to phone calendar (best option)
+Downloads a calendar file
+Opens on iPhone/Android Calendar
+Built-in alerts: 24 hours before and 3 hours before tip-off
+Open in Google Calendar
+Same event; set alerts to 1 day + 3 hours if prompted
+Browser alerts (optional / best-effort)
+Only if you allow notifications
+Weaker than Calendar (depends on the browser staying able to notify)
+After you Join, you stay on the game page so you can add reminders right away.
+
+Bottom line: use Add to phone calendar for reliable 24h + 3h pings on your lock screen.
+
+you should be able to select multiple photos/images form your computer at a time. Right now its one at a time.
+
+
+Worked for 1m 37s
+You can multi-select now:
+
+Where
+Work orders — Upload accepts many images at once (camera still one shot each)
+Admin court gallery — Add / Upload can pick multiple from your computer in one go
+Preview slot stays one image (the dedicated first photo)
+Remove any photo with the ✕ before submitting.
+
+the calender event added and game reminders should disapear after theve done it. No need for it to remain their on the screen taking up space. maybe the next time they come in its not there or something like that
+
+
+Worked for 1m
+Done.
+
+After someone adds the calendar event (or Google Calendar, or taps Not now):
+
+Short “got it” message
+Card disappears
+Won’t show again for that game next time they open it
+No more permanent “Calendar event added” block eating space.
+
+remember i said under stats in board tab i only want wins, win % and longest streak.
+
+
+Worked for 33s
+Stats on the leaderboard is now only:
+
+Wins
+Win %
+Longest streak
+Removed point differential, margin, and points given up.
+
+what can be imporved
+
+
+Worked for 20s
+Here’s a clear, prioritized take on what would improve Upset City most — based on what’s already built.
+
+High impact (do these first)
+Real accounts ↔ real player profiles
+Sign-in exists, but competition still largely lives on a seeded “You” player. Tie auth (email/Google) to a real profile, rating, friends, and history so games, favorites, and admin aren’t demo-shaped.
+Dual score confirmation
+Spec was clear: unverified scores kill the rating. Lock rating changes until both players confirm (or a dispute path). Without this, leaderboards feel fake.
+Empty-state / cold-start loop
+Open games at odd hours, empty Media, empty Upcoming — each needs a strong next step (“Post for tonight,” “Challenge #12,” “Find a court nearby”). Right now the map is the front door; the scene still needs to feel alive when nobody’s online.
+Push / SMS for matches (not only calendar)
+Calendar is good; real return traffic needs push (or email) for: invite, accept, cancel, 24h/3h reminders, “score ready to confirm.”
+Photo quality bar
+Faces carry leaderboards, match cards, media. Standardize upload crop, size, and “must be a face” for profiles so the product doesn’t look uneven.
+Product clarity
+Courts vs Scene
+Still easy to feel like two apps. One stronger bridge line on every court (“X open 1v1s · Y rated players”) and one clear CTA into Play.
+Quick Match discovery
+City-wide open games are fine for launch; later: better sort (soonest, closest, skill fit), filters that match rating band without feeling restricted.
+Reliability / sportsmanship
+Cancel rules are sketched; surface reliability before accept, and make penalties visible so no-shows don’t trash public games.
+Trust & ops (admin)
+Admin that scales
+Work orders + court edit are solid for you. Next: court approve/reject new submissions, report abuse, hide bad photos, simple audit (“who changed Zilker preview”).
+Work order → parks workflow
+Status is local. Eventually: email/export when submitted, photo required for broken rim, map pin on the ticket.
+Technical / quality
+Persistence & multi-device
+Favorites, work orders, court overrides, reminders are mostly local. Move critical data server-side once auth is real.
+Production map & data
+OSM/catalog mix is good for Austin; validate every court, drop weak pins, keep UC descriptions high quality. Bad court data = churn.
+Performance on mobile
+Carousels, maps, data-URL photos can get heavy. Compress aggressively, lazy-load list images, keep map light.
+Accessibility & polish
+Contrast on chips, focus states, reduced-motion for carousels, larger tap targets on dense leaderboard rows.
+Don’t build yet (unless you need them)
+3v3 / 5v5 / Squads (correctly “Coming soon”)
+ATX Cup / big tournament season
+Facebook login (not on this auth stack)
+Heavy social chat until match + rating loop is trusted
+If I had to pick three next:
+(1) real auth → player identity, (2) dual-confirm scores, (3) notifications for locked games. That turns a strong court finder + demo scene into a product people come back for.
+
+Want me to start implementing one of those three?
+
+what about your top 6 to add. think hard
+
+
+Worked for 18s
+Here’s a hard cut: top 6 to add, ordered by what actually protects Upset City’s core bet (map downloads → rated 1v1 returns).
+
+1. Dual-confirm scores (rating is real or it’s dead)
+Why #1: Everything competitive — leaderboards, “hottest,” #1 crown, “challenge the streak” — is fiction until both players lock the score. Your own kill-list said unverified scores kill the product.
+
+Done looks like:
+Host enters → opponent confirms or disputes → rating moves only on confirm → dispute path exists → no silent edits.
+
+Without this, polish is lipstick.
+
+2. Account = player (one identity everywhere)
+Why #2: You have Google/X/email, but the scene still feels like a seeded “You.” Friends, invites, history, reliability, work orders, favorites, and admin all need to hang off a real person.
+
+Done looks like:
+Sign-in creates/loads your profile · games you host/join are yours across sessions · friends and “players you’ve faced” are real · admin stays email-gated to you.
+
+This is the spine for multi-user Austin, not a demo.
+
+3. Reliability that people can see before they accept
+Why #3: Public 1v1 dies on no-shows. Cancel rules exist in spirit; they need to be visible and consequential before anyone taps Join.
+
+Done looks like:
+Reliability / late-cancel rate on host + challenger · soft block or warning after 3 late cancels in a month · “usually shows” chip on open games · no surprise after the fact.
+
+Trust > more open listings.
+
+4. The “I have a game” loop (not more features — completion)
+Why #4: Calendar is a start. Retention is: accept → upcoming is obvious → reminders fire → day-of path → score → rating. Most apps lose people between accept and tip-off.
+
+Done looks like:
+Upcoming is impossible to miss · 24h/3h reminders (calendar + in-app/push when you can) · day-of: directions + chat + “I’m here” · after game: forced score path into #1.
+
+This is why the rating loop happens twice a week instead of once a month.
+
+5. Liquidity when the city is quiet (empty states that create games)
+Why #5: Austin outdoor 1v1 will be empty often. An empty Open Games / Media feed is a bounce. You need engineered density, not fake spam.
+
+Done looks like:
+Every empty screen has one strong action: post for tonight · challenge someone in band · find a court and create · “6 people near you usually play weekday evenings” · media only posts meaningful game events (not flood).
+
+The map gets downloads; this keeps the scene from feeling dead on Tuesday at 2pm.
+
+6. Face + photo standard (the product’s visual language)
+Why #6: You’re already building around faces (avatars, VS cards, elite rings). Blurry or missing faces make the whole thing feel amateur. Bad court photos break the front door.
+
+Done looks like:
+Profile: crop guide, min resolution, face-forward · courts: preview slot enforced, gallery quality · leaderboards/media never look like random selfies at four sizes.
+
+This isn’t vanity — it’s conversion on list → profile → challenge.
+
+Why these six (and not others)
+Tempting	Why not top 6 yet
+Squads / 3v3 / 5v3	Correctly parked — no 1v1 density yet
+ATX Cup / majors	Season product on top of a weak weekly loop
+Fancy map chrome	Map is already the strength; scene trust isn’t
+More chat / league chat	Noise before reliability + scores
+Facebook login	Not on stack; Google/email is enough
+Build order (if you only ship six)
+1. Dual-confirm scores
+2. Account = player
+3. Reliability visible on accept
+4. Locked-game loop (upcoming → remind → score)
+5. Empty-state / quiet-city actions
+6. Photo/face standard
+1–2 make the economy real.
+3–4 make games actually happen.
+5–6 make the app feel alive and premium when people look.
+
+One-line thesis:
+Stop adding surfaces. Make a rated game that both people show up for, finish, and trust — six times a week in Austin. Everything else is decoration until that works.
+
+If you want execution next, start with #1 dual-confirm — highest leverage per line of code for the whole product.
+
+i dont unders tand number 5 explain more
+
+
+Worked for 5s
+#5 in plain English
+Liquidity = “are there enough people/games right now that I can actually get a run?”
+
+When the city is quiet (Tuesday afternoon, rain, first week of the app), that number is low. If the app then shows empty lists, people leave and never come back.
+
+So #5 is not a new tab. It’s: when nothing’s happening, the app still tells you what to do next — and that next step creates a game.
+
+What “empty” feels like today
+Imagine you open Play and see:
+
+No open games
+No upcoming games
+Media is quiet
+Or you open a streak post and nobody’s free.
+
+If the screen just says “nothing here,” the product feels dead — even if Austin has 200 players signed up who play at 7pm.
+
+What #5 fixes
+Every empty (or almost empty) screen should answer:
+
+“Okay, what do I do right now so I play soon?”
+
+Examples for Upset City:
+
+Where it feels empty	Bad	Better
+Open games	“No open games”	“Nobody’s up right now. Post a 1v1 for tonight 7pm at a court near you — 6 people in your area usually play weeknights.”
+Upcoming	Blank	“No games yet. Find a match or challenge someone within 500 rating.”
+Media	Dead feed	Don’t invent fake noise — but when quiet, a single clear card: “Be the first post tonight” / “3 open games near South Austin”
+Challenge from a streak	Dead end	If they can’t join, “Create your own run and invite them”
+Near me / courts late	Only map	“Courts are open. Create a game here for Friday.”
+The point: empty isn’t failure — empty is a conversion moment.
+
+Why it matters so much for this app
+Court map works alone (find a hoop with your kid).
+The 1v1 scene only works when people find each other.
+Early Austin will often be sparse.
+If sparse = blank screens → people only use the map and never build the competition half.
+#5 is how you survive until density is real without faking 50 fake open games (which destroys trust).
+
+What “done” looks like (concrete)
+No blank walls — every empty list has one primary button and a short reason.
+Honest copy — “nobody free now” + “post for tonight” (not “50 players online” lies).
+Soft social proof — “players near you often play after work” (patterns, not fake listings).
+One-tap create from that empty state (court + time half-filled).
+Media stays clean — only real events; empty feed still has a path to Play/create.
+Tiny example
+Bad:
+
+Open games
+(blank)
+
+Good:
+
+Open games
+Nobody’s looking for a 1v1 in the next few hours.
+[ Post a game for tonight ]
+South Austin usually picks up after 6pm.
+
+That second version still has zero games — but the user leaves having created supply, which helps the next person.
+
+One sentence:
+#5 means: when Austin is quiet, the app doesn’t look broken — it turns “nothing going on” into “I just posted / challenged / scheduled something.”
+
+what are 5 different more creative ways to fil the dead space without posting ?
+
+
+Worked for 4s
+Here are 5 creative ways to fill dead space that are not “post a game”:
+
+1. “Who’s near a hoop right now” heat — people, not listings
+Show bodies near courts, not open games.
+“4 rated players were active near Zilker in the last 2 hours.”
+Tap → soft profiles / “nudge” / “I’m heading there too” (not a formal match).
+Feels alive like Find My Friends for hoopers — zero need to post a listing.
+
+2. Court story of the night (auto narrative)
+Auto-write a short sportscast for quiet hours:
+“Tonight’s quiet board: #3 Sean is on a 4W streak. Pease has lights till 10. Your last court was Battle Bend.”
+Fill the void with story + hierarchy, not empty lists. Same energy as a ticker when the market’s closed.
+
+3. “Ghost run” / practice mode with ghosts of real scores
+When no humans: solo challenge vs last week’s ghost of a local player or your own last game.
+“Beat Cam’s 11–7 from Friday at Rosewood (ghost). No rating change.”
+Dead space becomes reps + story, not social pressure. When they finish: “Post result to Media?” optional.
+
+4. Watch the board move (spectator layer)
+If nobody’s free for you, show what’s happening without you:
+rank climbs, upsets from earlier, “#12 jumped 3 spots this week,” court favorites trending.
+You’re watching the league breathe — like checking standings mid-week. Engagement without creating supply.
+
+5. Micro-missions that earn status (not games)
+Fill dead time with city tasks that help the product and feel fun:
+“Verify 2 nets at Givens” · “Rate shade at Pease” · “Add a photo of the west hoop” · “Confirm lights still on till 10.”
+Reward: scout badge / reliability dust / “Austin contributor” — never fake opponents. Quiet hours turn into map quality, and power users feel useful.
+
+Quick contrast
+
+Idea	Fills dead space with…	Creates a game?
+1 Heat / near me	Presence	No
+2 Night story	Narrative	No
+3 Ghost run	Solo competition	No (rated later optional)
+4 Spectator board	Drama / FOMO	No
+5 Micro-missions	Purpose + map data	No
+If you want the most Upset City trio: 1 + 2 + 4 (alive city + story + drama) without ever saying “post a game.”
+
+i was thinking maybe imlinmenting spotrs trivia or something similar
+
+
+Worked for 4s
+Sports trivia can work if it’s glued to Upset City, not a random quiz bolted on.
+
+When trivia helps
+Quiet hours: something fun instead of empty lists
+Habit: open app even when no 1v1 is free
+Soft learning: Austin courts, local lore, hoop culture
+Bridge back to play: finish a round → “3 open games near you” / “challenge someone in band”
+When it hurts
+Feels like a different app (trivia island)
+No connection to rating, courts, or faces
+Notification spam (“Daily trivia!”) → mute → gone
+Rewards that mess with 1v1 rating (never do that)
+Better shapes than “generic sports trivia”
+1. Austin Court Trivia
+Questions about your map: which park has lights, shade, multi-hoop, neighborhood.
+Reward: scout badge / small profile flair — not rating points.
+
+2. “Know the league” (Upset City lore)
+Who’s on a streak, what “best of 3 to 11” means, sportsmanship rules, no-show rules.
+Teaches the product while filling dead space.
+
+3. Player card trivia (faces first)
+Show a top-10 face (blurred or silhouette) → guess who / rating band / home court.
+Fits your obsession with quality faces and elite rings.
+
+4. Ghost scoreline quiz
+“This score was posted at Rosewood Friday — who won?”
+Uses real (or seeded) match history so it feels like the scene.
+
+5. 60-second “Hoop IQ” daily
+3–5 questions, streak for trivia only, shareable result to Media.
+Then one CTA: Find a run / Near me courts.
+
+Product rules if you add it
+Do	Don’t
+Park it under Play or Media as “While you wait”	Make it a 5th main tab
+Optional, opt-in, quiet hours first	Push every morning
+Rewards = badges / Media brag / cosmetics	Touch 1v1 rating
+End screen → live open games / courts	Dead end after score
+Honest take
+Trivia is a good empty-state filler, not a growth engine.
+Best version for you: short, local, face/court-flavored, never rated — then hand them back to 1v1 or the map.
+
+If you want to build it, a strong v1 is:
+Daily 5 (Austin courts + league IQ) → streak badge → “Open games near you” — no leaderboard that competes with 1v1 rankings.
+
+Want me to sketch the exact screens, or implement a light “Hoop IQ” daily under Play?
+
+what about making this a money game
+
+
+Worked for 8s
+Short answer
+You can make it money-related, but peer-to-peer “bet on this 1v1” is the riskiest version. For Upset City, money works better as entry / prize / status, not as a betting app.
+
+What people usually mean by “money game”
+Model	What it is	Fit for outdoor 1v1
+Side bets (“$20 on this run”)	Players stake each other	High drama, high legal/fraud risk
+Entry fee → prize pool	$5–25 to enter a night/bracket; winner(s) take pot	Cleaner “tournament” feel
+Challenge purse	Host posts “$10 game”; accepter matches	Simple, but still wager-like
+Subscription / Pro	Pay for ranked, media boosts, analytics	Safer; not really a “money game”
+Sponsored pots	Brand funds ATX night; free entry	Best brand + legal posture
+Why money is tempting (and real)
+Makes people show up (no-shows hurt more when cash is on the line)
+Makes games feel serious
+Creates a reason to open the app when the map alone isn’t enough
+Separates “shoot around with kids” from “I’m competing”
+Why it can kill the product
+Law — Skill contests vs gambling depends on state (Texas is not casual about this). Peer betting apps get messy fast (age, escrow, KYC, disputes).
+Trust — Unverified scores + money = wars. Dual-confirm becomes mandatory, not nice-to-have.
+No-shows get uglier — Now it’s theft-of-time and money drama.
+Safety — Outdoor public courts + cash = real-world risk (especially if people think winners walk with cash).
+Brand split — Half your users just want a hoop for their kid. Money can scare that half away if it’s the default.
+Chargebacks / scams — Fake accounts, reverse after loss, “I never agreed.”
+Your own kill-list (unverified scores, no-shows, empty states) gets worse with money unless the foundation is iron.
+
+Smarter money shapes for this app
+1. Optional “Stakes night” (not default)
+Ranked 1v1 stays free. Separate mode: entry fee nights with clear rules, age gate, confirmed scores, reliability floor.
+Public finder stays pure; money lives in Scene → Play → Stakes.
+
+2. Club / season pass, not pot every game
+$10–20/month Austin league: access to rated ladder, priority invites, ATX events. Money = membership, not betting.
+
+3. Sponsored purse (best first money move)
+Local brand funds “Friday $200 open 1v1” at one court. You run format + verification; you never hold peer-to-peer bets. Cleaner story, real hype.
+
+4. “Skin in the game” without cash
+Refundable reputation bond: deposit or credit that burns on late cancel / no-show, returns if you show. Money enforces reliability, not who scored 11 first.
+
+5. Winner-take-entry only after dual confirm + both check-in
+If you ever do pots: money doesn’t move until GPS/check-in + dual score confirm. No confirm → refund.
+
+What I would not do first
+In-app “bet $20 on Sean vs Cam” feed
+Cash tips to players as the core loop
+Anything that mixes kids/family court finder with gambling UI on the same home screen
+Money before dual-confirm scores + reliability are solid
+Practical sequence
+Dual-confirm scores + reliability visible
+Free scene that actually runs
+Then either sponsored pot nights or optional entry tournaments
+Only later (if ever) true peer stakes — with lawyers, KYC, escrow
+Bottom line
+Money can raise seriousness and show-up rate, but the version that fits Upset City is:
+
+Free map forever · free casual 1v1 · optional paid / sponsored competition lanes with verification and reliability.
+
+Not:
+
+Every open game is a wager.
+
+If you want to go further, the useful product question is:
+Do you want money for seriousness (entry/prize), for no-shows (bonds), or for gambling energy (bets)?
+Those are three different apps. Which one are you actually after?
+
+i like the playing for something model
+
+
+Worked for 7s
+“Playing for something” is the right frame for Upset City — not a betting app, a stakes lane: you show up because the run means something.
+
+Core idea
+Free forever: find courts, shoot with your kid, casual 1v1.
+Optional stakes lane: when you want it, the game has a prize, pot, or bond so it feels like a real event.
+
+Same app, two temperatures:
+
+Mode	What you’re playing for	Who it’s for
+Open run	Rating / pride / streak	Everyday
+For something	Pot, trophy night, bond, or sponsored purse	People who want heat
+Never force money on the court map or family users.
+
+Three clean “playing for something” types (pick these, not peer betting)
+1. Entry pot (simplest money game)
+
+Both put in $X (e.g. $5 / $10 / $20)
+Winner takes pot (or 90% after thin platform cut later)
+Money moves only after dual score confirm (+ optional check-in)
+Cancel rules: late cancel = lose stake or strike reliability
+2. Bond games (play for reliability, not glory)
+
+Small hold ($5–10)
+Both show + finish → both get it back
+No-show / late cancel → bond goes to the other player or house charity
+Perfect “playing for something” without crowning a cash champ every time
+3. Event nights (best brand story)
+
+“Friday South Austin $100 night” — entry or sponsored
+Bracket or “play 3 games in the window”
+One clear champion, photo on Media, crown energy
+Map stays pure; Scene sells the night
+Start with 1 + 3. Add 2 when no-shows hurt.
+
+Product rules (non-negotiable)
+Opt-in only — “Play for something” toggle when creating / joining, not default.
+Rating and money are separate — rating always; cash only if both chose stakes.
+Dual confirm before any payout — no confirm = escrow holds / refund.
+Reliability gate — e.g. need X completed games or min sportsmanship to enter stakes.
+Age / identity — stakes only for signed-in adults (your auth stack).
+No kids UI — stakes never on court-finder primary path; only in Scene → Play.
+Clear copy: “Entry pot · skill contest · both must confirm score” — not “bet on yourself.”
+How it feels in the app
+Create game
+
+Mode: Ranked 1v1
+Toggle: Playing for something
+None
+Entry pot ($5 / $10 / $20)
+Bond (show-up stake)
+Notes still work (“looking for my size…”)
+Open games list
+
+Chip on card: $10 pot / Bond / Sponsored
+Filter: Free · For something
+After accept
+
+Both see: pot size, rules, cancel policy
+Reminders still 24h / 3h
+Check-in optional later
+After game
+
+Enter score → opponent confirms → pot releases
+Media auto: “Upset · $10 pot at Rosewood” (big share moment)
+Leaderboards
+
+Keep 1v1 rating pure
+Optional later: “Most pots won” under Stats (not mixed into rating)
+Why this fits your app
+Map half stays a public good
+Scene half gets seriousness and show-up
+Faces + VS cards + Media love a “pot win” story
+Empty Tuesday: “$10 Friday night board opens at 5” fills dead space better than trivia
+Aligns with “playing for something,” not casino energy
+Launch path (smart, not reckless)
+Ship dual-confirm scores (required before any real money).
+Ship “For something” as UI + rules with fake/escrow-later (or IOU among friends) so the model is tested.
+First real money = one sponsored night (you or a local brand hold the purse — simpler than P2P).
+Then peer entry pots with a real payments partner + Texas legal pass.
+Don’t wire Stripe pots before scores and reliability are trusted.
+
+One-line product definition
+Upset City: free courts for everyone · optional play for something 1v1s where both put skin in, both confirm the score, and the winner (or the one who showed up) walks with the pot.
+
+If you want to build next, the highest-leverage slice is:
+“Playing for something” on create + open-game chips + post-game flow (still no real payments) so the culture exists before the bank account does.
+
+Say the word and we implement that product surface.
+
+i want the players when creting a game to be able to their own money on the line like betting. then others can see how much money is up for steak. some wll just play for fun. you can have the option to play for chairty. point differental decides the amount thhat need to get paid out. So if someone loses 10-2 10-5 the lose has to donate 13$ to chairty (althemizers research chairty)
+
+
+Worked for 2m 30s
+Built “playing for something” into create + open games.
+
+When you create a 1v1
+Choose one:
+
+Option	What it means
+Just fun	Rating only — no money
+Stakes	Loser pays winner $ per point of series margin
+Charity	Loser donates $ per point of series margin to Alzheimer’s research
+Also set:
+
+$/point of margin (default $1)
+Optional cap (e.g. max $40)
+How the amount is calculated
+Total point differential across the series:
+
+Game 1: 10–2 → 8
+Game 2: 10–5 → 5
+Total margin = 13 → $13 at $1/pt
+(Exactly your example.)
+
+What others see
+Open / upcoming games show chips like:
+
+Charity · $1/pt margin
+Stakes · $1/pt margin
+Game detail explains the rules. After scores confirm, it shows the exact $ owed / donate. Loser can tap I donated / I paid — mark complete.
+
+Honest note
+This is in-app tracking + rules + charity link (Alzheimer’s Association donate page). It is not holding real money in-app yet (no Stripe escrow). Peer stakes are peer settlement after dual confirm; charity is a pledge workflow.
+
+Seed data includes charity and stakes examples on open games so you can see it immediately.
+
+is there something more private and less trackable than stripe?
+
+
+Worked for 19s
+Straight answer
+More private than Stripe, yes. “Invisible / untrackable,” no — and you shouldn’t design for that. Anything that moves real money at scale either creates a paper trail or creates legal/fraud risk.
+
+For Upset City, the right question is usually:
+Who holds the money, and how little do you need to touch it?
+
+Options, from least “platform” to more platform
+Approach	Privacy feel	Trackable?	Fit for your app
+Cash at the court	Highest	Low digital trail	Fine for small friend games; zero app liability
+Peer apps (Venmo, Cash App, Zelle, Apple Cash)	Medium	Yes (banks/apps)	Good for stakes — you never hold funds
+Direct charity donate (alz.org)	Medium	Yes (charity + their card)	Best for charity mode — you only record “I donated”
+Crypto P2P	Feels private	Often still trackable; messy UX	Usually worse for normal hoopers
+Stripe / similar	Low privacy	Highly tracked	Best if you ever hold pots/escrow
+Stripe is trackable because it’s the grown-up path (identity, disputes, chargebacks, tax forms).
+Peer apps are “more private from you” — you don’t see their bank — but not untrackable to banks/IRS.
+
+What I recommend for your two modes
+1. Charity (your Alzheimer’s model)
+Most private for you and cleanest ethically:
+
+App calculates: “You owe $13 to Alzheimer’s research”
+Loser opens charity’s own donate page (already linked)
+Optionally uploads receipt / marks complete
+You never touch the money
+That’s more private for Upset City than Stripe, and better brand.
+
+2. Peer stakes (“money on the line”)
+Don’t use Stripe unless you want to be a payments company.
+
+App shows: “Loser owes winner $13”
+Players settle via Venmo / Cash App / cash outside the app
+App only tracks: amount, settled yes/no, reliability if they flake
+You’re a scorekeeper + honor system, not a casino or bank.
+
+What not to chase
+“Untraceable” rails so people can hide stakes → looks like evading law / enabling shady pots
+In-app crypto escrow without compliance → pain + scams
+Fake privacy marketing (“anonymous betting”) → attracts the wrong users and heat
+Privacy that is fair product design:
+
+Don’t store full card numbers
+Don’t require you to intermediate
+Don’t put payout history on public Media unless they opt in
+Keep stake amounts visible on the listing (you wanted that), settlement details private to the two players
+Practical “most private” product setup
+Charity → direct donate to Alzheimer’s Association (you never hold $)
+Stakes → peer settle (Venmo/Cash App/cash); app only records the obligation
+Stripe later only if you do real escrow pots, refunds, sponsored nights
+Bottom line:
+Yes — peer settle + charity direct donate is more private for your company than Stripe, because you’re not the money pipe.
+Nothing honest is truly “untrackable,” and you don’t need that for a good product.
+
+If you want a next build step: add “Settle with Venmo / Cash App / Cash” buttons on the stake card (open their apps / copy amount), still no Stripe.
+
+privatey fcuse dpayment apps
+
+
+Worked for 13s
+Privacy-focused payment options (for peer stakes)
+These are more private than Stripe-as-your-platform (you never hold money). None are truly invisible.
+
+Stronger privacy / less “social feed”
+App	Why people pick it	Caveats	Fit for Upset City
+Cash App	Fast P2P, cashtag, less social than Venmo	Still KYC’d; activity can appear in-app	Good default “send $13”
+Zelle	Bank-to-bank, no social feed	Needs bank; irreversible mistakes	Good for people who already have it
+Apple Cash / Tap to Cash	On-device, simple between iPhones	Apple ecosystem only	Fine as an option
+Google Wallet / peer pay	Android path	Same bank-rail reality	Fine as an option
+PayPal (Friends & family)	Familiar	Fees/disputes rules; not “private”	Optional, not best privacy story
+Venmo	Ubiquitous among younger users	Public-by-default social feed unless set private	OK only if they set payments to Private
+“Privacy-focused” niche apps / rails
+Option	Privacy pitch	Reality for hoopers
+Signal (payments where available)	Messaging-first, less public	Limited rollout / not universal in US for everyone
+Crypto wallets (Lightning, etc.)	Feels private	Bad UX at the park; volatility; still often linkable; scams
+Prepaid / cash → load	Offline cash, then send	Clunky; not your product’s job
+Cash only	Maximum privacy	Best for small games; zero app risk
+For normal Austin outdoor 1v1, niche crypto/privacy apps usually lose more games than they protect privacy.
+
+What “private” actually means here
+Private from the public feed (Venmo set to private, Cash App, Zelle)
+Private from Upset City (you never see their bank — only “settled”)
+Private from banks/government — not realistic for real USD apps with KYC
+Design for 1 + 2. Don’t promise 3.
+
+Best product set for your app
+Stakes settle options (pick 3–4):
+
+Cash App
+Zelle
+Venmo (Private)
+Cash at the court
+Optional: Apple Cash
+Charity:
+
+Direct donate to Alzheimer’s Association (link you already have)
+Not a P2P privacy app — better ethically and for brand
+In UI after a loss:
+
+You owe $13
+[ Cash App ] [ Zelle ] [ Venmo ] [ Cash ]
+Amount copied · Mark settled when done
+
+Optional: host saves cashtag / Venmo handle on profile (never on the public court map).
+
+Ranking for Upset City
+Priority	Method
+1	Cash App / Zelle — private enough, common
+2	Cash — most private, zero platform
+3	Venmo Private — only if handles are already common
+4	Avoid leading with crypto unless your users ask for it
+Never as v1	You holding money via Stripe “for privacy” — opposite of private for you
+One-line recommendation
+Privacy-focused for players = peer apps with no social feed (Cash App, Zelle, cash) + you never intermediate.
+Privacy-focused for charity = donate on the charity site, not through a betting rail.
+
+I can add a Settle sheet on the stake card (Cash App / Zelle / Venmo / Cash + copy amount + mark settled) if you want that built next.
+
+add teh best possible version of this make it user freidnly clean premium seamless great ux
+
+
+Worked for 2m 38s
+Built a premium private settle experience. Upset City still never holds money.
+
+What you get
+1. Create game — Playing for
+
+Just fun · Stakes · Charity
+$/point of margin + optional cap
+Clear example: 10–2 + 10–5 → $13
+2. Open / upcoming lists
+
+Soft chips: Charity · $1/pt or Stakes · $1/pt (heart / cash icons)
+3. Game page — settle card
+
+Big amount after scores lock
+Margin breakdown
+Cash App · Venmo (Private) · Zelle · Cash
+Charity → Open donate page (Alzheimer’s Association)
+One-tap copy amount / cashtag / handle
+Open Cash App / Venmo deep links when the winner has handles
+I paid / I donated — mark settled
+Winner sees “Waiting on them” + their own handles
+4. Your profile — Private settle handles
+
+Save Cash App, Venmo, Zelle
+Used only for stakes settle — not on the court map
+Privacy model
+Role	What happens
+You (app)	Track amount + settled only
+Players	Cash App / Venmo / Zelle / cash peer-to-peer
+Charity	Donate on charity site
+Stripe	Not used
+Open a Charity or Stakes listing (seeded examples) or create one under Play → create game.
+
+I THINK IF YOUR plYING FOR Steaks you can nname your price so just put a ddolar amont
+
+
+Worked for 2m 1s
+Stakes = name your price.
+
+Stakes mode
+You enter a dollar amount (big field + quick picks: $5 / $10 / $20 / $50 / $100)
+Listings show Stakes · $20
+Loser pays winner that fixed amount after scores confirm
+Peer settle still: Cash App / Venmo / Zelle / cash
+Charity mode (unchanged)
+Still $/point of margin (e.g. 10–2 + 10–5 → $13 to Alzheimer’s research)
+Just fun
+Rating only — no money
+Create a game → Stakes → type your price → post. Everyone sees what’s on the line.
+
+make the max bet 5000
+
+
+Worked for 46s
+Max stake is $5,000.
+
+Input can’t go above $5,000
+Post is blocked if over the max
+Quick picks include $500 / $1,000 / $5,000
+Label shows Min $1 · Max $5,000
+make the money ("249")show better. make it green and clear and readable.
+
+
+Worked for 1m 19s
+Money amounts are clearer now — bright green, bigger type, easier to read.
+
+Where it shows
+Create stakes — large green $ input + green quick picks
+Open game chips — Stakes + green $249
+Game settle card — big green amount on a light green panel
+Copy / settle lines — dollar amounts in green
+So something like $249 reads as money at a glance, not muted gray text.
+
+dont put the greean circle around it. just the green number
+
+
+Worked for 31s
+Done. Green only on the number now — no green pill, circle, or background.
+
+if someone doesnt pay then we need to find that out and make th ewhoe community aware . if you do not pay then you are exiled from the league forever. If you need more time let us know whats going on so we can work with you.
+
+
+Worked for 2m 34s
+Built the pay or exile system.
+
+Rules
+After scores lock → 48h to settle
+Don’t pay → winner reports → permanent exile + Media post for the whole league
+Need more time? → loser explains what’s going on → deadline extends, note goes to winner and Media (“we work with people who communicate”)
+What players see
+Role	Actions
+Loser	Pay / donate · Need more time? Tell us what’s going on
+Winner	Wait · see extension note · They didn’t pay — report & exile (double confirm)
+Community	Media posts for extensions and for EXILED
+Exile means
+Marked EXILED on profile
+Off leaderboards
+Open games cancelled
+Can’t create or join games
+Reason stored (unpaid stakes/charity)
+Create stakes copy
+Reminds people: Don’t pay = permanent exile · Need time? Ask.
+
+This is honor-system + social consequence (you don’t hold the money) — the league enforces reputation, not the bank.
+
+one of the options should be play tomorrow if they choose to play for altheimers charity route
+
+
+Worked for 28s
+When you pick Charity (Alzheimer’s):
+
+Play tomorrow for Alzheimer’s — main button; sets tip-off to tomorrow 6pm
+Under When: Play tomorrow · 6pm and Tomorrow morning
+Still pick a court and post as usual — time is just one tap for charity runs.
+
+mmmm maybe the whoel thing should be like hey guys we have this goal of raiseing $50,000 dollars for Alzheimer's research and everygame you play will go towards this cause. You should also have the ability to play horse as well. what do you think? I feel like people would want to play and compete for this great cause. Id ont want this to turn into a fucking gambling underground dark ring.
+
+
+Worked for 12s
+You’re right to pull the wheel. Gambling energy will poison Upset City. The map + kids-with-a-hoop half and a dark peer-cash culture cannot share a brand.
+
+What I think
+Lead with the cause. Make competition the engine. Never make “name your price” the front door.
+
+A $50,000 Alzheimer’s research goal with every rated run feeding the pot is:
+
+Something people are proud to share
+Clear for Media (“$12,480 of $50,000”)
+A reason to play on a quiet Tuesday
+Still competitive without “I need my $200” drama
+Peer stakes (Cash App loser→winner) is what turns you into an underground ring. Charity margin + public progress is what turns you into a city movement.
+
+Better model (clean)
+Old (risky)	New (right for you)
+Stakes · name your $	Optional later / buried / or remove
+Loser pays winner	Loser (or both) contribute to Alzheimer’s
+Exile for non-pay (peer)	Exile only if you skip a pledged charity contribution
+“Money on the line”	“This run counts for the $50k”
+Every confirmed 1v1 (and HORSE):
+
+Computes a donation amount (simple rule: e.g. $1/pt margin, or flat $5–$10 “game gift”, or winner matches loser — keep it simple)
+Shows on settle: “Donate $X to Alzheimer’s Association”
+Marks complete → adds $X to city progress bar
+Media: “Kai donated $13 · Austin $18,240 / $50,000”
+People compete for rating, pride, streak, and the cause — not for each other’s wallets.
+
+H.O.R.S.E.
+Yes — it fits the charity story even better than only 1v1 to 11:
+
+Lower barrier, more playful, great for Media clips
+Still has a loser / margin or flat pledge
+Format option: 1v1 · HORSE when creating
+Rules can stay light: classic HORSE, outdoor, same dual-confirm + charity settle.
+
+Product spine (one sentence)
+Upset City Austin is racing to raise $50,000 for Alzheimer’s research. Every game you play moves the bar. Compete hard. Give clean.
+
+Courts stay free and pure. Scene is league + cause, not a cash app.
+
+What I’d change in the app next
+Hide or remove “Stakes / name your price” from create (or put behind a buried “advanced” no one markets)
+Charity = default for “playing for something”
+$50k campaign header on Play + Media (raised / goal / % )
+Every confirmed game with charity mode increments the total when donation marked complete
+HORSE as a format next to 1v1
+Keep need more time / exile only for skipped charity pledges, framed as “you committed to the cause,” not “you stiffed a bet”
+Honest take
+People will play harder for a real city goal + public progress than for sketchy peer pots. You keep:
+
+Competition
+Faces, rankings, streaks
+Seriousness
+You drop:
+
+Gambling stigma
+Payment fights that look like a bookie app
+Split brain (family courts vs cash games)
+If you want this direction, I can implement it as:
+
+$50k Alzheimer’s campaign (progress everywhere that matters)
+Charity-first create flow (Play tomorrow + HORSE + 1v1)
+Soft-remove peer stakes from the happy path
+Donation → city total on mark complete
+Say the word and I’ll build that version — no underground ring energy.
+
+yes
+
+
+Worked for 3m 8s
+Shipped the charity-first version.
+
+What changed
+Austin for Alzheimer's — $50k city goal
+
+Progress bar on Play and Media
+Raised total updates when a charity donation is marked complete
+Media posts: “+$13 for Alzheimer’s…”
+Create a run (happy path)
+
+Game type: 1v1 or HORSE
+This game counts toward:
+Alzheimer’s $50k (default)
+Just for fun (rating only)
+Play tomorrow for Alzheimer’s
+Peer cash is buried under Advanced: peer cash (not recommended) — not the front door
+After the game (charity)
+
+Margin → donation amount
+Donate on the charity site
+Mark complete → adds to the $50k bar
+Need more time / exile still apply to skipped donations, not peer gambling culture
+Seeds
+
+Open charity 1v1 + charity HORSE so the feed feels on-mission
+Product line
+Compete hard. Give clean. Every game can move Austin toward $50,000 for Alzheimer’s research — not a cash app underground.
+
+That’s the version that matches what you said you wanted.
+
+what about another thing could be the money is going to building something for the community of upset city. maybe a local 24/7 baskebtall gym just for upsetity residents. with a full gym, sauna ice bath and snack bar when we puchase it then the money from the community and league as it grows we continue to pay the bills and upkepp on it and buy other investments that will be good for the city. The only requirment would hav eto be active participation in the league. so its like the more the community palys for more we can get what we need.
+
+
+Worked for 6s
+This is a strong second act — but it should sit next to the Alzheimer’s cause, not replace it overnight.
+
+Why it works
+Play → build something real is more sticky than pure donations forever
+Active participation gate keeps freeloaders out and rewards the real league
+Gym / sauna / ice / snack bar is a lifestyle club, not a betting ring
+Story: “Austin hoopers funded their own house” — Media gold
+Why it can go wrong
+Risk	Fix
+Feels like a hustle / MLM	Transparent books: raised, spent, runway
+Conflicts with Alzheimer’s	Two buckets or phases, never mix unclearly
+“Pay to play” reputation	Access = activity + dues, not only cash
+Legal (club, membership, real estate)	LLC / nonprofit / PBC + lawyer before real $
+Empty gym promise	Don’t sell the building until $X + real plan
+Clean model (what I’d recommend)
+Two clear pots (never muddy):
+
+Cause pot — Alzheimer’s (what you just shipped)
+House pot — Upset City Club / community facility
+Players choose per game or season:
+
+“This run → Alzheimer’s”
+“This run → UC House fund”
+Or: season split (e.g. 70% cause / 30% house) voted by members.
+Membership = participation, not a cover charge for randos
+
+To be a Resident (facility access when it exists):
+
+Min games / month (e.g. 4 confirmed 1v1 or HORSE)
+Reliability floor (no unpaid exile)
+Optional small dues for upkeep once the place is real
+Ranking optional — activity is the key, not only elite rating
+More the community plays → more the house fund grows → more amenities / second location.
+
+Story you can put on the app now (before any building)
+“UC House” vision card under Play / Media:
+
+Goal: a 24/7 Upset City gym for active league residents — full court, strength, sauna, ice, snack bar.
+Funded by the community. Maintained by the community.
+Requirement: stay active in the league.
+Not open to the public as a random drop-in gym.
+
+Progress bar #2: House Fund $___ / $___ (even if aspirational at first).
+
+That motivates without overclaiming “we bought a building.”
+
+How money flows later (honest ladder)
+Phase A  Vision + transparent house fund (no facility yet)
+Phase B  Pop-up nights / rented gym hours for residents only
+Phase C  Long-term lease + fit-out (court, recovery, snack)
+Phase D  Second investments (another court, youth hours, etc.)
+Bills/upkeep: dues + house-fund games + sponsors — not peer bets.
+
+Vs Alzheimer’s (important)
+You just chose don’t be a gambling ring · lead with cause.
+
+Best combo:
+
+Alzheimer’s = public heart, city pride, soft power
+UC House = member club, long-term retention, “this is our gym”
+Don’t replace Alzheimer’s with “we’re buying a gym” in one breath — it can sound like bait-and-switch.
+Both is better than either alone, with clear labels.
+
+What I think
+Yes — community-owned hoop house for active residents is one of the best endgames for Upset City.
+It’s aspirational, competitive, and civic without going dark-cash.
+
+Ship order:
+
+Keep $50k Alzheimer’s as the public campaign (live now)
+Add UC House vision + second progress bar (story + optional allocation)
+Define Resident = activity rules
+Real money + real lease only when the fund and membership are real
+If you want this in the product next, I can add:
+
+UC House banner + goal
+On create: Where does this game’s gift go? → Alzheimer’s | UC House
+Resident status chip (based on games this month)
+Media posts when house fund moves
+Say if House should be equal to Alzheimer’s or a secondary “member fund” under the main cause.
+
+nah thats not going to wokr
+
+
+Worked for 10s
+Fair enough — dual pots (Alzheimer’s and a house fund) gets messy fast: confused money, weaker story, trust issues.
+
+Stick with one clear path.
+
+Right now the app is built around:
+
+Compete · give clean · Austin $50k for Alzheimer’s research
+
+That’s simple. People get it. It doesn’t smell like gambling or a real-estate pitch.
+
+The 24/7 gym / sauna / ice / residents club can stay a later dream, not a second fund on every game — or it can replace the cause entirely if you ever want a pure “build our house” product (different brand, different honesty requirements).
+
+What do you want as the only money story?
+
+Alzheimer’s only (keep what we shipped)
+UC House only (community facility fund — no dual)
+No money story — pure competition + courts
+Reply with 1, 2, or 3 (or your own one-liner) and we’ll align the app to that only.
+
+where is the full code?
+
+
+Worked for 2m 8s
+The full app lives in this project workspace — not as a separate download link.
+
+Project root
+/workspace (Upset City app)
+
+Where most of the product code is
+Area	Path
+App UI & routes	src/
+Courts + map + Scene	src/components/, src/routes/
+Competition / Play / Media	src/components/compete/
+Game state, players, matches	src/lib/upset/
+Courts data / social / admin	src/lib/courts/
+Rating engine	src/lib/rating/
+Auth	src/lib/auth/, API under routes
+Static images (courts, faces)	public/
+Config / start	package.json, vite.config.ts, startup.sh
+Core “brain” files
+src/lib/upset/store.ts — matches, scores, exile, etc.
+src/lib/upset/types.ts — data shapes
+src/lib/upset/campaign.ts — $50k Alzheimer’s progress
+src/lib/upset/stakes.ts — charity / settle math
+src/components/compete/scene-shell.tsx — Scene shell
+src/components/compete/quick-match-flow.tsx — Play / create / open games
+There isn’t a separate “full code zip” outside this workspace unless you export/clone it from wherever this project is hosted for you (e.g. connected repo or download from the builder). If you want, I can package a source zip of src/ + config for you next.
+
+i need to copy the entire html code file. i want to move it off this
