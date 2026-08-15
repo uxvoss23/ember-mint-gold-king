@@ -56,6 +56,7 @@ function RootDocument() {
         <style
           dangerouslySetInnerHTML={{
             __html: `
+html,body{overflow:hidden}
 #uc-static-boot{position:fixed;inset:0;z-index:2147483646;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#0c0c0d;color:#fafafa;font-family:system-ui,sans-serif}
 #uc-static-boot .uc-orb{width:4.25rem;height:4.25rem;border-radius:9999px;background:linear-gradient(180deg,#e0783a,#c45c26);display:grid;place-items:center;box-shadow:0 12px 40px rgba(196,92,38,.45)}
 #uc-static-boot p{margin:.75rem 0 0;letter-spacing:.28em;font-size:13px;font-weight:600;color:#c45c26;text-transform:uppercase}

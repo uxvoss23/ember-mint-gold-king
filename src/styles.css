@@ -55,6 +55,7 @@
     height: 100lvh;
     max-height: 100dvh;
     max-height: 100lvh;
+    overflow: hidden;
   }
 
   body {
@@ -63,6 +64,7 @@
     height: 100lvh;
     max-height: 100dvh;
     max-height: 100lvh;
+    overflow: hidden;
     background: var(--color-bg);
     color: var(--color-fg);
     font-family: var(--font-sans);

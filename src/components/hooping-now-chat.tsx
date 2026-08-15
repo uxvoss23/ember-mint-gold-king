@@ -16,17 +16,8 @@ import {
 import { cn } from "@/lib/utils";
 
 function unlockAppShell() {
-  document.body.style.removeProperty("overflow");
-  document.documentElement.style.removeProperty("overflow");
   document.documentElement.removeAttribute("data-uc-chat-open");
   document.body.removeAttribute("data-uc-chat-open");
-  // Let ViewportLock re-pin to visualViewport on next frame
-  try {
-    window.dispatchEvent(new Event("resize"));
-    window.scrollTo(0, 0);
-  } catch {
-    /* ignore */
-  }
 }
 
 /**

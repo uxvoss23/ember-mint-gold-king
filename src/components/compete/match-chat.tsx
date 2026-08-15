@@ -113,13 +113,6 @@ export function MatchChat({
     pendingNav.current = false;
     restoreTimers.current.forEach((t) => window.clearTimeout(t));
     restoreTimers.current = [];
-    try {
-      window.scrollTo(0, 0);
-      document.documentElement.scrollTop = 0;
-      document.body.scrollTop = 0;
-    } catch {
-      /* ignore */
-    }
     setFocused(false);
     setTabsHidden(false);
   };

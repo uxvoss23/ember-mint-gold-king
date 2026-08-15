@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   MapPinned,
   Trophy,
@@ -77,24 +77,6 @@ export function SceneShell({
     setPresetCourt(court);
     setHome("games");
   };
-
-  // Never leave body/scroll locks stuck after match swipe or tab switch
-  useEffect(() => {
-    const unlock = () => {
-      document.documentElement.style.overflow = "";
-      document.body.style.overflow = "";
-      document.body.style.touchAction = "";
-      document.documentElement.style.touchAction = "";
-      const sc = document.querySelectorAll<HTMLElement>("[data-app-scroll]");
-      sc.forEach((el) => {
-        el.style.overflow = "";
-        el.style.touchAction = "";
-        el.style.pointerEvents = "";
-      });
-    };
-    unlock();
-    return unlock;
-  }, [home]);
 
   const title =
     home === "leaderboard"

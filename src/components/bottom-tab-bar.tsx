@@ -53,12 +53,6 @@ export function BottomTabBar({ children }: { children: ReactNode }) {
       bar.style.removeProperty("opacity");
       pinBar(bar);
 
-      try {
-        window.scrollTo(0, 0);
-      } catch {
-        /* ignore */
-      }
-
       let safe = 0;
       try {
         const probe = document.createElement("div");

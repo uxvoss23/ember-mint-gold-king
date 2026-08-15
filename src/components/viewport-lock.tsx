@@ -10,6 +10,24 @@ export function ViewportLock() {
     let raf = 0;
 
     const pin = () => {
+      // Root lock first — do not wait for .app-shell (splash can paint first)
+      for (const node of [document.documentElement, document.body]) {
+        node.style.removeProperty("height");
+        node.style.removeProperty("max-height");
+        node.style.removeProperty("position");
+        node.style.removeProperty("inset");
+        node.style.removeProperty("top");
+        node.style.removeProperty("right");
+        node.style.removeProperty("bottom");
+        node.style.removeProperty("left");
+        node.style.overflow = "hidden";
+      }
+      try {
+        window.scrollTo(0, 0);
+      } catch {
+        /* ignore */
+      }
+
       const el = document.querySelector<HTMLElement>(".app-shell");
       if (!el) return;
 
@@ -35,7 +53,6 @@ export function ViewportLock() {
       el.style.flexDirection = "column";
       el.style.overflow = "hidden";
       el.style.boxSizing = "border-box";
-      // height lives in CSS (.app-shell { height: 100dvh })
 
       const booting =
         document.documentElement.getAttribute("data-uc-booting") === "1";
@@ -47,32 +64,6 @@ export function ViewportLock() {
 
       if (document.documentElement.getAttribute("data-uc-chat-open") !== "1") {
         el.style.removeProperty("pointer-events");
-      }
-
-      for (const node of [document.documentElement, document.body]) {
-        node.style.removeProperty("height");
-        node.style.removeProperty("max-height");
-        node.style.position = "fixed";
-        node.style.inset = "0";
-        node.style.overflow = "hidden";
-      }
-
-      try {
-        window.scrollTo(0, 0);
-      } catch {
-        /* ignore */
-      }
-
-      // After keyboard: snap tab bar back to the real bottom
-      const bar = document.getElementById("uc-bottom-tab-bar");
-      if (
-        bar &&
-        document.documentElement.getAttribute("data-uc-chat-open") !== "1" &&
-        document.documentElement.getAttribute("data-uc-kb-open") !== "1"
-      ) {
-        bar.style.setProperty("bottom", "0px", "important");
-        bar.style.setProperty("top", "auto", "important");
-        bar.style.setProperty("transform", "none", "important");
       }
     };
 
