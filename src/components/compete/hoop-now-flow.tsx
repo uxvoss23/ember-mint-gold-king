@@ -20,7 +20,6 @@ import {
 import {
   CreateWhenPicker,
   parseLocalDateTime,
-  toLocalDateTimeValue,
 } from "@/components/compete/create-when-picker";
 import { ImageCarousel } from "@/components/image-carousel";
 import { CourtsMap } from "@/components/courts-map";
@@ -372,10 +371,7 @@ export function HoopNowFlow({
     if (pending?.whenLocal) {
       setLockWhen(pending.whenLocal);
     } else {
-      const d = new Date();
-      d.setDate(d.getDate() + 1);
-      d.setHours(17, 0, 0, 0);
-      setLockWhen(toLocalDateTimeValue(d));
+      setLockWhen("");
     }
     if (pending?.proposerBall != null) setLockMyBall(pending.proposerBall);
     setLockMsg(null);

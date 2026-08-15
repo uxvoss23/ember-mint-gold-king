@@ -781,7 +781,7 @@ export function QuickMatchFlow({
     setCreateInviteIds([]);
     setCreateVisibility("public");
     setExploreLane("open");
-    setOpenDeskTab(inviteOnly ? "waiting" : "open");
+    setOpenDeskTab(inviteOnly ? "scheduled" : "open");
     setView("find");
   };
 
@@ -2604,8 +2604,8 @@ export function QuickMatchFlow({
         </button>
       </div>
 
-      {/* Lobby · Scheduled · Waiting */}
-      <div className="grid grid-cols-3 rounded-2xl border border-border bg-bg-elevated p-1">
+      {/* Lobby · My Games */}
+      <div className="grid grid-cols-2 rounded-2xl border border-border bg-bg-elevated p-1">
         {(
           [
             {
@@ -2615,29 +2615,21 @@ export function QuickMatchFlow({
             },
             {
               id: "scheduled" as const,
-              label: "Scheduled",
-              count: scheduledDeskGames.length,
-            },
-            {
-              id: "waiting" as const,
-              label: "Waiting",
-              count: myHostingOpen.length,
+              label: "My Games",
+              count: scheduledDeskGames.length + myHostingOpen.length,
             },
           ] as const
         ).map((tab, i) => {
-          const on = openDeskTab === tab.id;
+          const on =
+            tab.id === "open"
+              ? openDeskTab === "open"
+              : openDeskTab === "scheduled" || openDeskTab === "waiting";
           const unit =
             tab.id === "open"
-              ? tab.count === 1
-                ? "open"
-                : "open"
-              : tab.id === "scheduled"
-                ? tab.count === 1
-                  ? "game"
-                  : "games"
-                : tab.count === 1
-                  ? "post"
-                  : "posts";
+              ? "open"
+              : tab.count === 1
+                ? "game"
+                : "games";
           return (
             <div key={tab.id} className="flex min-w-0 items-stretch">
               {i > 0 ? (
@@ -2728,7 +2720,7 @@ export function QuickMatchFlow({
             <div className="rounded-2xl border border-border bg-bg-elevated px-4 py-8 text-center">
               <p className="text-sm font-semibold text-fg">No open games right now</p>
               <p className="mt-1 text-[12px] text-fg-muted">
-                Post a run or check back later. Your unfilled posts live under Waiting.
+                Post a run or check back later. Your own posts live under My Games.
               </p>
               <button
                 type="button"
@@ -2760,7 +2752,6 @@ export function QuickMatchFlow({
                     : null;
                 const gameType = m.format === "horse" ? "HORSE" : "1v1";
                 const isHorse = m.format === "horse";
-                const rank = host ? cityRankOf(players, host.id) : null;
                 let dateLine = "";
                 let timeLine = "";
                 try {
@@ -2787,9 +2778,6 @@ export function QuickMatchFlow({
                     : null;
                 const accent = isHorse ? "text-violet-400" : "text-court";
                 const badgeCls = isHorse
-                  ? "bg-violet-500 text-white"
-                  : "bg-court text-white";
-                const rankCls = isHorse
                   ? "bg-violet-500 text-white"
                   : "bg-court text-white";
 
@@ -2854,16 +2842,6 @@ export function QuickMatchFlow({
                         ) : (
                           <div className="size-[3.25rem] rounded-full bg-bg-subtle" />
                         )}
-                        {rank != null ? (
-                          <span
-                            className={cn(
-                              "absolute -bottom-0.5 -left-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-bold tabular-nums shadow-sm",
-                              rankCls,
-                            )}
-                          >
-                            #{rank}
-                          </span>
-                        ) : null}
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-1.5">
@@ -2906,8 +2884,8 @@ export function QuickMatchFlow({
         </div>
       ) : null}
 
-      {/* SCHEDULED — locked + score confirm until dual-lock */}
-      {openDeskTab === "scheduled" ? (
+      {/* MY GAMES — scheduled + your unfilled posts */}
+      {openDeskTab === "scheduled" || openDeskTab === "waiting" ? (
         <div className="space-y-3">
           {statusMsg?.includes("Scheduled") ||
           statusMsg?.includes("approved") ||
@@ -2916,12 +2894,11 @@ export function QuickMatchFlow({
               {statusMsg}
             </p>
           ) : null}
-          {scheduledDeskGames.length === 0 ? (
+          {scheduledDeskGames.length === 0 && myHostingOpen.length === 0 ? (
             <div className="rounded-2xl border border-border bg-bg-elevated px-4 py-8 text-center">
-              <p className="text-sm font-semibold text-fg">No scheduled games</p>
+              <p className="text-sm font-semibold text-fg">No games yet</p>
               <p className="mt-1 text-[12px] text-fg-muted">
-                When someone joins — or you join — it shows here through tip-off and
-                score confirm. It only leaves after both players lock the score.
+                Locked games and posts waiting for a player show up here.
               </p>
               <button
                 type="button"
@@ -2936,6 +2913,11 @@ export function QuickMatchFlow({
               <h3 className="px-0.5 text-[15px] font-semibold tracking-tight text-fg">
                 Your Scheduled Games
               </h3>
+              {scheduledDeskGames.length === 0 ? (
+                <p className="px-0.5 text-[12px] text-fg-muted">
+                  None locked yet. When someone joins, it shows here.
+                </p>
+              ) : (
               <div className="space-y-2.5">
                 {scheduledDeskGames.map((m) => {
                   const host = playerById.get(m.hostId);
@@ -3104,6 +3086,7 @@ export function QuickMatchFlow({
                   );
                 })}
               </div>
+              )}
 
               {/* Footer alerts status (mock) */}
               {(() => {
@@ -3132,85 +3115,69 @@ export function QuickMatchFlow({
                   </div>
                 );
               })()}
-            </>
-          )}
-        </div>
-      ) : null}
 
-      {/* WAITING — your unfilled posts only */}
-      {openDeskTab === "waiting" ? (
-        <div className="space-y-2">
-          {myHostingOpen.length === 0 ? (
-            <div className="rounded-2xl border border-border bg-bg-elevated px-4 py-8 text-center">
-              <p className="text-sm font-semibold text-fg">No waiting posts</p>
-              <p className="mt-1 text-[12px] text-fg-muted">
-                Games you create show here until someone joins. Then they move to
-                Scheduled.
-              </p>
-              <button
-                type="button"
-                onClick={startCreate}
-                className="mt-3 text-sm font-semibold text-court"
-              >
-                Post a game
-              </button>
-            </div>
-          ) : (
-            <>
-              <p className="px-0.5 text-[10px] font-bold tracking-wide text-fg-subtle uppercase">
-                Your listings · waiting on a player
-              </p>
-              {myHostingOpen.map((m) => {
-                const { day, time } = whenParts(m.preferredAt);
-                const miles = haversineMi(origin.lat, origin.lon, m.lat, m.lon);
-                const gameType = m.format === "horse" ? "HORSE" : "1v1";
-                return (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => openGame(m.id)}
-                    className="flex w-full items-center gap-3 rounded-2xl border border-border bg-bg-elevated p-2.5 text-left active:scale-[0.99]"
-                  >
-                    <div className="flex size-12 shrink-0 items-center justify-center rounded-full border border-dashed border-court/40 bg-court/10 text-[10px] font-bold text-court">
-                      {gameType}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <p className="truncate text-sm font-semibold text-fg">
-                          {m.courtName}
-                        </p>
-                        <span
-                          className={cn(
-                            "shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold tracking-wide uppercase",
-                            m.format === "horse"
-                              ? "bg-violet-500/20 text-violet-400"
-                              : "bg-court/15 text-court",
-                          )}
-                        >
+              <div className="space-y-2">
+                <p className="px-0.5 pt-1 text-[10px] font-bold tracking-wide text-fg-subtle uppercase">
+                  Waiting for a player
+                </p>
+                {myHostingOpen.length === 0 ? (
+                  <p className="px-0.5 text-[12px] text-fg-muted">
+                    Games you post show here until someone joins.
+                  </p>
+                ) : (
+                  myHostingOpen.map((m) => {
+                    const { day, time } = whenParts(m.preferredAt);
+                    const miles = haversineMi(origin.lat, origin.lon, m.lat, m.lon);
+                    const gameType = m.format === "horse" ? "HORSE" : "1v1";
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => openGame(m.id)}
+                        className="flex w-full items-center gap-3 rounded-2xl border border-border bg-bg-elevated p-2.5 text-left active:scale-[0.99]"
+                      >
+                        <div className="flex size-12 shrink-0 items-center justify-center rounded-full border border-dashed border-court/40 bg-court/10 text-[10px] font-bold text-court">
                           {gameType}
-                        </span>
-                      </div>
-                      <div className="mt-0.5 flex flex-wrap items-center gap-1">
-                        <StakeChip stakes={m.stakes} />
-                        {m.inviteOnly ? (
-                          <span className="rounded-full border border-border bg-bg-elevated px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-fg-muted uppercase">
-                            Private
-                          </span>
-                        ) : null}
-                      </div>
-                      <div className="mt-1.5 inline-flex gap-1.5 rounded-lg bg-fg/90 px-2 py-1 text-bg">
-                        <span className="text-[11px] font-bold">{day}</span>
-                        <span className="opacity-50">·</span>
-                        <span className="text-[11px] font-bold">{time}</span>
-                      </div>
-                      <p className="mt-1 text-[11px] text-fg-subtle">
-                        {formatMiles(miles)} · nobody joined yet
-                      </p>
-                    </div>
-                    <ChevronRight className="size-4 text-fg-subtle" />
-                  </button>
-                );
-              })}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <p className="truncate text-sm font-semibold text-fg">
+                              {m.courtName}
+                            </p>
+                            <span
+                              className={cn(
+                                "shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold tracking-wide uppercase",
+                                m.format === "horse"
+                                  ? "bg-violet-500/20 text-violet-400"
+                                  : "bg-court/15 text-court",
+                              )}
+                            >
+                              {gameType}
+                            </span>
+                          </div>
+                          <div className="mt-0.5 flex flex-wrap items-center gap-1">
+                            <StakeChip stakes={m.stakes} />
+                            {m.inviteOnly ? (
+                              <span className="rounded-full border border-border bg-bg-elevated px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-fg-muted uppercase">
+                                Private
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="mt-1.5 inline-flex gap-1.5 rounded-lg bg-fg/90 px-2 py-1 text-bg">
+                            <span className="text-[11px] font-bold">{day}</span>
+                            <span className="opacity-50">·</span>
+                            <span className="text-[11px] font-bold">{time}</span>
+                          </div>
+                          <p className="mt-1 text-[11px] text-fg-subtle">
+                            {formatMiles(miles)} · nobody joined yet
+                          </p>
+                        </div>
+                        <ChevronRight className="size-4 text-fg-subtle" />
+                      </button>
+                    );
+                  })
+                )}
+              </div>
             </>
           )}
         </div>
