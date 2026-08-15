@@ -66,14 +66,18 @@ export function CreateWhenPicker({
   onChange,
   guide,
   roomy,
+  variant = "default",
 }: {
   value: string;
   onChange: (v: string) => void;
   guide?: CreateWhenGuide | null;
   /** Taller time-slot grid so more hours stay on screen */
   roomy?: boolean;
+  /** Plan screen: always open, no legend, orange selected time */
+  variant?: "default" | "plan";
 }) {
-  const [open, setOpen] = useState(() => Boolean(guide)); // open when matching with guide
+  const isPlan = variant === "plan";
+  const [open, setOpen] = useState(() => Boolean(guide) || isPlan);
   const [dayDraft, setDayDraft] = useState<Date | null>(null);
   const hasValue = Boolean(value);
   const selected = hasValue ? parseLocalDateTime(value) : null;
@@ -141,7 +145,7 @@ export function CreateWhenPicker({
     next.setHours(h, m, 0, 0);
     onChange(toLocalDateTimeValue(next));
     setDayDraft(null);
-    setOpen(false);
+    if (!isPlan) setOpen(false);
   };
 
   const dayShort =
@@ -173,7 +177,15 @@ export function CreateWhenPicker({
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2.5">
+      {isPlan ? (
+        hasValue && dayShort && timeShort ? (
+          <p className="text-[13px] font-semibold text-fg">
+            {dayShort} · {timeShort}
+            <span className="ml-1.5 text-court">✓</span>
+          </p>
+        ) : null
+      ) : (
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -216,9 +228,15 @@ export function CreateWhenPicker({
           )}
         />
       </button>
+      )}
 
       {open ? (
-        <div className="space-y-2.5 rounded-xl border border-border bg-bg p-2">
+        <div
+          className={cn(
+            "space-y-2.5",
+            !isPlan && "rounded-xl border border-border bg-bg p-2",
+          )}
+        >
           <div className="-mx-0.5 flex gap-1 overflow-x-auto px-0.5 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {days.map((d) => {
               const key = dateKey(d);
@@ -280,41 +298,63 @@ export function CreateWhenPicker({
           </div>
 
           {guide ? (
-            <div className="space-y-1 rounded-lg bg-bg-elevated px-2 py-1.5">
+            <div className="space-y-0.5">
               {preferredLabels.length > 0 ? (
-                <p className="text-[11px] leading-snug text-fg">
-                  <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                    {firstName} usually free ·{" "}
+                <p className="text-[12px] leading-snug text-fg-muted">
+                  <span className="font-semibold text-fg">
+                    {firstName} is usually free
                   </span>
-                  {preferredLabels.join(" · ")}
+                  {activeDay
+                    ? ` ${activeDay.toLocaleDateString(undefined, { weekday: "long" })}`
+                    : ""}
+                  <span className="block text-fg-muted">
+                    {preferredLabels.join(" · ")}
+                  </span>
                 </p>
               ) : (
-                <p className="text-[11px] text-fg-muted">
-                  {firstName} hasn't set usual free times.
+                <p className="text-[12px] text-fg-muted">
+                  {firstName} hasn’t set usual free times.
                 </p>
               )}
-              <p className="text-[10px] text-fg-subtle">
-                <span className="font-semibold text-rose-600 dark:text-rose-400">
-                  Red days
-                </span>{" "}
-                = not available · green times = best chance they accept
-              </p>
+              {!isPlan ? (
+                <p className="text-[10px] text-fg-subtle">
+                  <span className="font-semibold text-rose-600 dark:text-rose-400">
+                    Red days
+                  </span>{" "}
+                  = not available · green times = best chance they accept
+                </p>
+              ) : null}
             </div>
+          ) : null}
+
+          {isPlan ? (
+            <p className="text-[11px] font-semibold tracking-wide text-fg-subtle uppercase">
+              Suggested times
+            </p>
           ) : null}
 
           <div
             className={cn(
-              "grid grid-cols-4 gap-1 overflow-y-auto overscroll-contain pr-0.5",
-              roomy ? "max-h-[min(38dvh,280px)]" : "max-h-36",
+              "grid gap-1.5 overflow-y-auto overscroll-contain pr-0.5",
+              isPlan
+                ? "grid-cols-2 max-h-[min(32dvh,240px)]"
+                : roomy
+                  ? "grid-cols-4 max-h-[min(38dvh,280px)]"
+                  : "grid-cols-4 max-h-36",
             )}
           >
             {TIME_SLOTS.filter((slot) => {
               const day = activeDay ?? new Date();
-              if (!sameCalendarDay(day, new Date())) return true;
-              const now = new Date();
-              return (
-                slot.h * 60 + slot.m > now.getHours() * 60 + now.getMinutes()
-              );
+              if (sameCalendarDay(day, new Date())) {
+                const now = new Date();
+                if (slot.h * 60 + slot.m <= now.getHours() * 60 + now.getMinutes())
+                  return false;
+              }
+              if (isPlan) {
+                if (preferred.size > 0) return preferred.has(hourToBand(slot.h));
+                return slot.h >= 16 && slot.h <= 21;
+              }
+              return true;
             }).map((slot) => {
               const active =
                 selected != null &&
@@ -332,11 +372,12 @@ export function CreateWhenPicker({
                   disabled={dayBlocked}
                   onClick={() => setTime(slot.h, slot.m)}
                   className={cn(
-                    "relative h-9 rounded-lg border text-[11px] font-semibold tabular-nums",
+                    "relative rounded-lg border font-semibold tabular-nums",
+                    isPlan ? "h-11 text-[13px]" : "h-9 text-[11px]",
                     dayBlocked
                       ? "cursor-not-allowed border-border bg-bg-subtle text-fg-subtle opacity-40"
                       : active
-                        ? "border-fg bg-fg text-bg"
+                        ? "border-court bg-court text-white"
                         : inPref
                           ? "border-emerald-500/45 bg-emerald-500/12 text-fg"
                           : "border-border bg-bg-elevated text-fg-muted opacity-70",
@@ -350,7 +391,7 @@ export function CreateWhenPicker({
               );
             })}
           </div>
-          {!hasValue ? (
+          {!hasValue && !isPlan ? (
             <p className="text-center text-[10px] text-fg-subtle">
               Pick an open day, then a green time slot
             </p>

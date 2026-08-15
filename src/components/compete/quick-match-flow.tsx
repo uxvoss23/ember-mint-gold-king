@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Bell,
   Calendar,
@@ -252,6 +252,7 @@ export function QuickMatchFlow({
   const [changeWhen, setChangeWhen] = useState("");
   const chatComposerRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLInputElement>(null);
+  const createGridRef = useRef<HTMLDivElement>(null);
   const [keyboardInset, setKeyboardInset] = useState(0);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [actionExpandId, setActionExpandId] = useState<string | null>(null);
@@ -311,6 +312,29 @@ export function QuickMatchFlow({
     );
     return () => onImmersiveChange?.(false);
   }, [view, onImmersiveChange]);
+
+  useLayoutEffect(() => {
+    if (view !== "create") return;
+    const el = createGridRef.current;
+    const nav = document.getElementById("uc-bottom-tab-bar");
+    if (!el || !nav) return;
+    const apply = () => {
+      el.style.maxHeight = "";
+      const g = el.getBoundingClientRect();
+      const n = nav.getBoundingClientRect();
+      const overlap = g.bottom - n.top;
+      if (overlap > 1) {
+        el.style.maxHeight = `${Math.max(0, Math.round(g.height - overlap))}px`;
+      }
+    };
+    apply();
+    const t1 = window.setTimeout(apply, 80);
+    const t2 = window.setTimeout(apply, 320);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
+  }, [view]);
 
   useEffect(() => {
     if (!parentLooksLikeGps || nearOrigin) return;
@@ -845,7 +869,15 @@ export function QuickMatchFlow({
       .filter((p): p is Player => !!p);
 
     return (
-      <div className="space-y-2.5">
+      <div
+        ref={createGridRef}
+        className="grid min-h-0 flex-1 overflow-hidden"
+        style={{ gridTemplateRows: "minmax(0, 1fr) auto" }}
+      >
+      <div
+        data-uc-create-scroll="1"
+        className="min-h-0 space-y-2.5 overflow-y-auto overscroll-contain px-4 pt-2 pb-6 touch-pan-y [-webkit-overflow-scrolling:touch]"
+      >
         <CampaignBanner compact />
 
         <button type="button" onClick={() => setView("explore")} className="text-xs font-medium text-fg-muted">
@@ -1363,6 +1395,10 @@ export function QuickMatchFlow({
           )}
         </div>
 
+        {aboutSheet}
+      </div>
+
+      <div className="border-t border-border bg-bg px-4 pt-2 pb-3">
         <button type="button" onClick={submitCreate}
           disabled={
             !createCourtId ||
@@ -1387,8 +1423,8 @@ export function QuickMatchFlow({
               ? `Post public match · ${createInviteIds.length} invite${createInviteIds.length === 1 ? "" : "s"}`
               : "Post public match"}
         </button>
-
-        {aboutSheet}
+      </div>
+      <div className="h-4 shrink-0" aria-hidden />
 
         {createInviteOpen ? (
           <InviteSheet
@@ -1452,13 +1488,14 @@ export function QuickMatchFlow({
     const { day, time } = whenParts(selected.scheduledAt ?? selected.preferredAt);
 
     return (
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div
-        className="space-y-3"
+        className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 pt-2 touch-pan-y [-webkit-overflow-scrolling:touch]"
         style={{
           paddingBottom:
             keyboardInset > 0
               ? keyboardInset + 24
-              : "max(5.5rem, calc(4.75rem + env(safe-area-inset-bottom, 0px)))",
+              : "max(1.5rem, env(safe-area-inset-bottom, 0px))",
         }}
       >
         <button type="button" onClick={() => { setView("find"); setSelectedId(null); setGameTab("details"); }}
@@ -2166,6 +2203,7 @@ export function QuickMatchFlow({
           />
         ) : null}
       </div>
+      </div>
     );
   }
 
@@ -2410,7 +2448,8 @@ export function QuickMatchFlow({
     }
 
     return (
-      <div className="flex min-h-[min(78dvh,720px)] flex-col px-0.5 pb-6">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-0.5 pb-6 touch-pan-y [-webkit-overflow-scrolling:touch]">
         <div className="mb-3 text-center">
           <p className="text-[10px] font-bold tracking-[0.14em] text-court uppercase">
             Plan approved
@@ -2463,6 +2502,7 @@ export function QuickMatchFlow({
         <p className="mt-4 text-center text-[11px] text-fg-subtle">
           You’ll open Scheduled automatically after alerts.
         </p>
+      </div>
       </div>
     );
   }
@@ -2529,7 +2569,8 @@ export function QuickMatchFlow({
         : "Join · show up · or manage your posts";
 
   return (
-    <div className="space-y-2.5">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+    <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain px-4 pt-2 pb-6 touch-pan-y [-webkit-overflow-scrolling:touch]">
       {statusMsg ? (
         <p className="rounded-lg bg-court/15 px-3 py-2 text-xs font-medium text-court">
           {statusMsg}
@@ -3173,6 +3214,7 @@ export function QuickMatchFlow({
           )}
         </div>
       ) : null}
+    </div>
     </div>
   );
 }

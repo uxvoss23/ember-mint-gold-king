@@ -8,6 +8,7 @@ import {
 } from "react";
 import {
   ChevronLeft,
+  ChevronRight,
   Heart,
   MessageCircle,
   RotateCcw,
@@ -539,132 +540,159 @@ export function HoopNowFlow({
               Propose time & place
             </p>
             <p className="text-[11px] text-fg-muted">
-              Best court picked for you and {firstName}
+              Best options for you and {firstName}
             </p>
           </div>
         </header>
 
-        {picked ? (
-          <div className="shrink-0 border-b border-border px-3 py-2">
-            <div className="flex items-center gap-2.5">
-              {pickedImgs[0] ? (
-                <img
-                  src={pickedImgs[0]}
-                  alt=""
-                  className="size-14 shrink-0 rounded-xl object-cover"
-                />
-              ) : (
-                <div className="size-14 shrink-0 rounded-xl bg-bg-subtle" />
-              )}
-              <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-semibold tracking-[0.12em] text-court uppercase">
-                  {isAuto ? "Auto-picked · best meet" : "You chose this court"}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 [-webkit-overflow-scrolling:touch]">
+          {picked ? (
+            <div className="overflow-hidden rounded-2xl border border-border bg-bg-elevated">
+              <div className="relative aspect-video bg-bg-subtle">
+                {pickedImgs[0] ? (
+                  <img
+                    src={pickedImgs[0]}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+                ) : null}
+              </div>
+              <div className="space-y-1 px-3 py-2.5">
+                <p className="text-[10px] font-semibold tracking-[0.14em] text-court uppercase">
+                  {isAuto ? "Best meet" : "You chose this court"}
                 </p>
-                <p className="truncate font-display text-[16px] leading-tight font-semibold text-fg">
+                <p className="font-display text-lg leading-tight font-semibold text-fg">
                   {courtShort(picked.name)}
                 </p>
-                <p className="truncate text-[11px] text-fg-muted">
+                {rankedPicked?.reasons?.length ? (
+                  <p className="text-[12px] text-fg-muted">
+                    {rankedPicked.reasons.slice(0, 3).join(" · ")}
+                  </p>
+                ) : null}
+                <p className="text-[12px] text-fg-muted">
                   {[
-                    picked.neighborhood,
                     rankedPicked
-                      ? `${rankedPicked.youMi.toFixed(1)} mi you · ${rankedPicked.themMi.toFixed(1)} mi ${firstName}`
+                      ? `${rankedPicked.youMi.toFixed(1)} mi from you`
                       : null,
+                    rankedPicked
+                      ? `${rankedPicked.themMi.toFixed(1)} mi ${firstName}`
+                      : null,
+                    lockOpponent.homeCourtId === picked.id
+                      ? `${firstName}'s home`
+                      : null,
+                    picked.neighborhood,
                   ]
                     .filter(Boolean)
                     .join(" · ")}
                 </p>
+                <button
+                  type="button"
+                  onClick={() => setLockPickOpen((v) => !v)}
+                  className="flex min-h-10 items-center gap-0.5 pt-0.5 text-[13px] font-semibold text-fg"
+                >
+                  {lockPickOpen ? "Done" : "Change court"}
+                  <ChevronRight className="size-4 text-fg-muted" />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setLockPickOpen((v) => !v)}
-                className="shrink-0 rounded-full border border-border px-2.5 py-1.5 text-[11px] font-semibold text-fg"
-              >
-                {lockPickOpen ? "Done" : "Change"}
-              </button>
+              {lockPickOpen ? (
+                <div className="flex gap-2 overflow-x-auto overscroll-x-contain border-t border-border px-2.5 py-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  {ranked.map((c) => {
+                    const thumb = courtImagesFor(c.id, 1)[0];
+                    const selected = c.id === lockCourtId;
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => {
+                          setLockCourtId(c.id);
+                          setLockPickOpen(false);
+                        }}
+                        className={cn(
+                          "w-[38%] max-w-[8.5rem] shrink-0 overflow-hidden rounded-xl border text-left",
+                          selected
+                            ? "border-court ring-2 ring-court/40"
+                            : "border-border bg-bg",
+                        )}
+                      >
+                        <div className="relative aspect-[5/4] bg-bg-subtle">
+                          {thumb ? (
+                            <img
+                              src={thumb}
+                              alt=""
+                              className="h-full w-full object-cover"
+                            />
+                          ) : null}
+                          {c.isTopPick ? (
+                            <span className="absolute top-1 left-1 rounded-full bg-court px-1.5 py-0.5 text-[8px] font-bold text-white uppercase">
+                              Best
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="px-1.5 py-1">
+                          <p className="line-clamp-1 text-[11px] font-semibold text-fg">
+                            {courtShort(c.name)}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
             </div>
-            {rankedPicked?.reasons?.length ? (
-              <p className="mt-1 truncate text-[11px] text-fg-muted">
-                {rankedPicked.reasons.slice(0, 3).join(" · ")}
-              </p>
-            ) : null}
-            {lockPickOpen ? (
-              <div className="mt-2 flex gap-2 overflow-x-auto overscroll-x-contain pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {ranked.map((c) => {
-                  const thumb = courtImagesFor(c.id, 1)[0];
-                  const selected = c.id === lockCourtId;
-                  return (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => {
-                        setLockCourtId(c.id);
-                        setLockPickOpen(false);
-                      }}
-                      className={cn(
-                        "w-[38%] max-w-[8.5rem] shrink-0 overflow-hidden rounded-xl border text-left",
-                        selected
-                          ? "border-court ring-2 ring-court/40"
-                          : "border-border bg-bg-elevated",
-                      )}
-                    >
-                      <div className="relative aspect-[5/4] bg-bg-subtle">
-                        {thumb ? (
-                          <img
-                            src={thumb}
-                            alt=""
-                            className="h-full w-full object-cover"
-                          />
-                        ) : null}
-                        {c.isTopPick ? (
-                          <span className="absolute top-1 left-1 rounded-full bg-court px-1.5 py-0.5 text-[8px] font-bold text-white uppercase">
-                            Best
-                          </span>
-                        ) : null}
-                      </div>
-                      <div className="px-1.5 py-1">
-                        <p className="line-clamp-1 text-[11px] font-semibold text-fg">
-                          {courtShort(c.name)}
-                        </p>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
+          ) : null}
+
+          <div className="mt-4">
+            <p className="mb-2 text-[11px] font-semibold tracking-wide text-fg-subtle uppercase">
+              When
+            </p>
+            <CreateWhenPicker
+              value={lockWhen}
+              onChange={setLockWhen}
+              variant="plan"
+              roomy
+              guide={{
+                opponentName: firstName,
+                blockedDates: theirSoft?.blockedDates,
+                preferredBands: theirSoft?.timeBands,
+              }}
+            />
+            {lockMsg ? (
+              <p className="mt-2 text-[12px] text-danger">{lockMsg}</p>
             ) : null}
           </div>
-        ) : null}
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-2.5 [-webkit-overflow-scrolling:touch]">
-          <p className="mb-1.5 text-[12px] font-medium text-fg-muted">When</p>
-          <CreateWhenPicker
-            value={lockWhen}
-            onChange={setLockWhen}
-            roomy
-            guide={{
-              opponentName: firstName,
-              blockedDates: theirSoft?.blockedDates,
-              preferredBands: theirSoft?.timeBands,
-            }}
-          />
-          {lockMsg ? (
-            <p className="mt-2 text-[12px] text-danger">{lockMsg}</p>
-          ) : null}
+          <div className="mt-4">
+            <p className="mb-2 text-[11px] font-semibold tracking-wide text-fg-subtle uppercase">
+              Basketball
+            </p>
+            <label className="flex min-h-12 items-center gap-2.5 rounded-xl border border-border bg-bg-elevated px-3 py-2.5 text-[13px] font-medium text-fg">
+              <input
+                type="checkbox"
+                checked={lockMyBall === true}
+                onChange={(e) => setLockMyBall(e.target.checked)}
+                className="size-4 accent-[var(--color-court)]"
+              />
+              I’ll bring a basketball
+            </label>
+          </div>
         </div>
 
-        <div className="shrink-0 border-t border-border bg-bg px-3 pt-2 pb-2">
-          <label className="mb-2 flex items-center gap-2.5 rounded-xl border border-border bg-bg-elevated px-3 py-2.5 text-[13px] font-medium text-fg">
-            <input
-              type="checkbox"
-              checked={lockMyBall === true}
-              onChange={(e) => setLockMyBall(e.target.checked)}
-              className="size-4 accent-[var(--color-court)]"
-            />
-            I’ll bring a basketball
-          </label>
+        <div className="shrink-0 border-t border-border bg-bg px-3 pt-2.5 pb-2">
+          <p className="truncate text-[14px] font-semibold text-fg">
+            {picked ? courtShort(picked.name) : "Pick a court"}
+          </p>
+          <p className="text-[12px] text-fg-muted">
+            {lockWhen ? formatWhenLabel(lockWhen) : "Choose a day and time"}
+          </p>
+          <p className="mt-0.5 text-[12px] text-fg-muted">
+            {lockMyBall === true
+              ? "You’re bringing a ball"
+              : "No ball confirmed yet"}
+          </p>
           <button
             type="button"
             onClick={confirmLock}
-            className="w-full rounded-full bg-court py-3.5 text-[15px] font-semibold text-white"
+            className="mt-2.5 w-full rounded-full bg-court py-3.5 text-[15px] font-semibold text-white"
           >
             Send proposed plan
           </button>
