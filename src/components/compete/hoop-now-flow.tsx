@@ -10,8 +10,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Heart,
+  Info,
   MessageCircle,
   RotateCcw,
+  SlidersHorizontal,
   X,
   Zap,
 } from "lucide-react";
@@ -21,6 +23,8 @@ import {
   toLocalDateTimeValue,
 } from "@/components/compete/create-when-picker";
 import { ImageCarousel } from "@/components/image-carousel";
+import { CourtsMap } from "@/components/courts-map";
+import { CourtAboutSheet } from "@/components/compete/court-about-sheet";
 import { PlayerAvatar } from "@/components/compete/player-avatar";
 import { PlayerBrowseFilters } from "@/components/compete/player-browse-filters";
 import { MatchChat } from "@/components/compete/match-chat";
@@ -47,6 +51,23 @@ import { cn, formatHeightInches } from "@/lib/utils";
 
 function courtShort(name: string) {
   return name.replace(/\s*Courts?\s*$/i, "") || name;
+}
+
+const RECOMMENDED_COURT_IDS = new Set([
+  "cat-butler","cat-wooldridge","cat-rosewood","cat-zaragoza","cat-givens","cat-metz",
+  "cat-hancock","cat-ramsey","cat-domain","cat-battle-bend","cat-pease","cat-bartholomew",
+  "cat-reed","cat-garrison","cat-walnut-creek","cat-circle-c","cat-searight",
+]);
+function isShadedCourt(c: { amenities?: string[] }) {
+  return (c.amenities ?? []).includes("shade");
+}
+function isRecommendedCourt(c: { id: string }) {
+  return RECOMMENDED_COURT_IDS.has(c.id);
+}
+function formatMiles(mi: number) {
+  if (mi < 0.1) return "<0.1 mi";
+  if (mi < 10) return `${mi.toFixed(1)} mi`;
+  return `${Math.round(mi)} mi`;
 }
 
 function formatWhenLabel(local: string) {
@@ -112,6 +133,14 @@ export function HoopNowFlow({
   const [lockMyBall, setLockMyBall] = useState<boolean | null>(true);
   const [lockMsg, setLockMsg] = useState<string | null>(null);
   const [lockPickOpen, setLockPickOpen] = useState(false);
+  const [lockFiltersOpen, setLockFiltersOpen] = useState(false);
+  const [lockSorts, setLockSorts] = useState<Set<string>>(
+    () => new Set(["highest_rated", "nearest"]),
+  );
+  const [lockHood, setLockHood] = useState("all");
+  const [lockRadiusMi, setLockRadiusMi] = useState(5);
+  const [lockPickMode, setLockPickMode] = useState<"photos" | "map">("photos");
+  const [lockInfoId, setLockInfoId] = useState<string | null>(null);
   const [lastAction, setLastAction] = useState<{
     id: string;
     kind: "pass" | "like";
@@ -519,6 +548,47 @@ export function HoopNowFlow({
     ).some((c) => c.kind === "proposal");
     const pickedImgs = picked ? courtImagesFor(picked.id, 5) : [];
     const isAuto = rankedPicked != null && picked?.id === ranked[0]?.id;
+    const courtOptions = courts
+      .map((c) => ({
+        ...c,
+        miles: haversineMi(youGeo, { lat: c.lat, lon: c.lon }),
+        isTopPick: ranked[0]?.id === c.id,
+      }))
+      .sort((a, b) => a.miles - b.miles);
+    const hoods = Array.from(
+      new Set(
+        courtOptions
+          .map((c) => c.neighborhood)
+          .filter((n): n is string => !!n && n.length > 0),
+      ),
+    ).sort();
+    const wantHighest = lockSorts.has("highest_rated");
+    const wantShaded = lockSorts.has("shaded");
+    const wantNearest = lockSorts.has("nearest");
+    let filteredCourts = [...courtOptions];
+    if (lockHood !== "all") {
+      filteredCourts = filteredCourts.filter((c) => c.neighborhood === lockHood);
+    }
+    if (lockSorts.size > 0) {
+      if (wantHighest)
+        filteredCourts = filteredCourts.filter((c) => isRecommendedCourt(c));
+      if (wantShaded)
+        filteredCourts = filteredCourts.filter((c) => isShadedCourt(c));
+      if (wantNearest) {
+        filteredCourts = filteredCourts.filter(
+          (c) => c.miles <= lockRadiusMi + 0.05,
+        );
+      }
+    }
+    filteredCourts.sort((a, b) => {
+      if (wantHighest) {
+        const aUc = RECOMMENDED_COURT_IDS.has(a.id) ? 1 : 0;
+        const bUc = RECOMMENDED_COURT_IDS.has(b.id) ? 1 : 0;
+        if (bUc !== aUc) return bUc - aUc;
+      }
+      return a.miles - b.miles;
+    });
+    const filterCount = lockSorts.size + (lockHood !== "all" ? 1 : 0);
     return (
       <div
         className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-bg"
@@ -547,98 +617,325 @@ export function HoopNowFlow({
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 [-webkit-overflow-scrolling:touch]">
           {picked ? (
-            <div className="overflow-hidden rounded-2xl border border-border bg-bg-elevated">
-              <div className="relative aspect-video bg-bg-subtle">
-                {pickedImgs[0] ? (
-                  <img
-                    src={pickedImgs[0]}
-                    alt=""
-                    className="h-full w-full object-cover"
-                  />
-                ) : null}
-              </div>
-              <div className="space-y-1 px-3 py-2.5">
-                <p className="text-[10px] font-semibold tracking-[0.14em] text-court uppercase">
-                  {isAuto ? "Best meet" : "You chose this court"}
-                </p>
-                <p className="font-display text-lg leading-tight font-semibold text-fg">
-                  {courtShort(picked.name)}
-                </p>
-                {rankedPicked?.reasons?.length ? (
-                  <p className="text-[12px] text-fg-muted">
-                    {rankedPicked.reasons.slice(0, 3).join(" · ")}
+            <div className="overflow-hidden rounded-2xl border border-court/40 bg-court/10">
+              {pickedImgs.length > 0 ? (
+                <ImageCarousel
+                  images={pickedImgs}
+                  alt={picked.name}
+                  className="w-full"
+                  priority
+                />
+              ) : (
+                <div className="aspect-[16/10] w-full bg-bg-subtle" />
+              )}
+              <div className="flex items-center gap-2 px-2 py-1.5">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1">
+                    <p className="truncate text-[13px] font-semibold text-fg">
+                      {courtShort(picked.name)}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setLockInfoId(picked.id)}
+                      className="flex size-5 shrink-0 items-center justify-center rounded-full bg-court/20 text-court"
+                      aria-label="About this court"
+                    >
+                      <Info className="size-3" strokeWidth={2.25} />
+                    </button>
+                  </div>
+                  <p className="truncate text-[11px] text-fg-muted">
+                    {picked.neighborhood ?? "Austin"}
+                    {` · ${formatMiles(
+                      haversineMi(youGeo, { lat: picked.lat, lon: picked.lon }),
+                    )}`}
+                    {isAuto ? " · Best meet" : ""}
                   </p>
-                ) : null}
-                <p className="text-[12px] text-fg-muted">
-                  {[
-                    rankedPicked
-                      ? `${rankedPicked.youMi.toFixed(1)} mi from you`
-                      : null,
-                    rankedPicked
-                      ? `${rankedPicked.themMi.toFixed(1)} mi ${firstName}`
-                      : null,
-                    lockOpponent.homeCourtId === picked.id
-                      ? `${firstName}'s home`
-                      : null,
-                    picked.neighborhood,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </p>
+                </div>
                 <button
                   type="button"
                   onClick={() => setLockPickOpen((v) => !v)}
-                  className="flex min-h-10 items-center gap-0.5 pt-0.5 text-[13px] font-semibold text-fg"
+                  className="shrink-0 text-[11px] font-semibold text-fg-subtle underline-offset-2"
                 >
-                  {lockPickOpen ? "Done" : "Change court"}
-                  <ChevronRight className="size-4 text-fg-muted" />
+                  {lockPickOpen ? "Done" : "Change"}
                 </button>
               </div>
               {lockPickOpen ? (
-                <div className="flex gap-2 overflow-x-auto overscroll-x-contain border-t border-border px-2.5 py-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  {ranked.map((c) => {
-                    const thumb = courtImagesFor(c.id, 1)[0];
-                    const selected = c.id === lockCourtId;
-                    return (
-                      <button
-                        key={c.id}
-                        type="button"
-                        onClick={() => {
-                          setLockCourtId(c.id);
-                          setLockPickOpen(false);
-                        }}
+                <div className="overflow-hidden border-t border-border">
+                  <div className="px-2.5 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setLockFiltersOpen((v) => !v)}
+                      className="flex min-h-11 w-full items-center gap-2 rounded-xl border border-court/45 bg-court/10 px-3 text-left"
+                      aria-expanded={lockFiltersOpen}
+                    >
+                      <SlidersHorizontal
+                        className="size-4 shrink-0 text-court"
+                        strokeWidth={2.25}
+                      />
+                      <span className="text-[14px] font-semibold text-fg">
+                        Filters
+                      </span>
+                      {filterCount > 0 ? (
+                        <span className="rounded-full bg-court/20 px-2 py-0.5 text-[11px] font-semibold text-court">
+                          {filterCount} active
+                        </span>
+                      ) : (
+                        <span className="text-[11px] font-medium text-fg-muted">
+                          off
+                        </span>
+                      )}
+                      <ChevronRight
                         className={cn(
-                          "w-[38%] max-w-[8.5rem] shrink-0 overflow-hidden rounded-xl border text-left",
-                          selected
-                            ? "border-court ring-2 ring-court/40"
-                            : "border-border bg-bg",
+                          "ml-auto size-4 shrink-0 text-fg-muted transition-transform",
+                          lockFiltersOpen && "rotate-90",
+                        )}
+                      />
+                    </button>
+                    {lockFiltersOpen ? (
+                      <div className="mt-2 space-y-1.5">
+                        <p className="text-[10px] font-medium text-fg-subtle">
+                          Deselect all to see every court
+                        </p>
+                        <div className="flex gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                          {(
+                            [
+                              { id: "highest_rated", label: "Highest rated" },
+                              { id: "nearest", label: "Near me" },
+                              { id: "shaded", label: "Shaded" },
+                            ] as const
+                          ).map((opt) => {
+                            const on = lockSorts.has(opt.id);
+                            return (
+                              <button
+                                key={opt.id}
+                                type="button"
+                                onClick={() =>
+                                  setLockSorts((prev) => {
+                                    const next = new Set(prev);
+                                    if (next.has(opt.id)) next.delete(opt.id);
+                                    else next.add(opt.id);
+                                    return next;
+                                  })
+                                }
+                                className={cn(
+                                  "shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold",
+                                  on
+                                    ? "bg-fg text-bg"
+                                    : "border border-border bg-bg-elevated text-fg-muted",
+                                )}
+                              >
+                                {on ? "✓ " : ""}
+                                {opt.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div className="flex gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                          <button
+                            type="button"
+                            onClick={() => setLockHood("all")}
+                            className={cn(
+                              "shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold",
+                              lockHood === "all"
+                                ? "bg-fg text-bg"
+                                : "border border-border bg-bg-elevated text-fg-muted",
+                            )}
+                          >
+                            {lockHood === "all" ? "✓ " : ""}
+                            All areas
+                          </button>
+                          {hoods.map((h) => (
+                            <button
+                              key={h}
+                              type="button"
+                              onClick={() =>
+                                setLockHood((prev) => (prev === h ? "all" : h))
+                              }
+                              className={cn(
+                                "shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold",
+                                lockHood === h
+                                  ? "bg-fg text-bg"
+                                  : "border border-border bg-bg-elevated text-fg-muted",
+                              )}
+                            >
+                              {lockHood === h ? "✓ " : ""}
+                              {h}
+                            </button>
+                          ))}
+                        </div>
+                        {wantNearest ? (
+                          <div className="flex gap-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                            {[1, 3, 5, 8, 10, 15].map((mi) => (
+                              <button
+                                key={mi}
+                                type="button"
+                                onClick={() => setLockRadiusMi(mi)}
+                                className={cn(
+                                  "h-7 shrink-0 rounded-full px-2 text-[10px] font-semibold tabular-nums",
+                                  lockRadiusMi === mi
+                                    ? "bg-court text-white"
+                                    : "border border-border bg-bg-elevated text-fg-muted",
+                                )}
+                              >
+                                {mi}mi
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="flex items-center gap-1.5 px-2.5 py-1">
+                    <p className="min-w-0 flex-1 truncate text-[10px] text-fg-subtle">
+                      {lockPickMode === "map"
+                        ? "Tap a pin to select"
+                        : wantNearest
+                          ? `Near you · ${lockRadiusMi}mi`
+                          : "Browse courts"}
+                    </p>
+                    <div className="flex shrink-0 rounded-full border border-border bg-bg-elevated p-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setLockPickMode("photos")}
+                        className={cn(
+                          "rounded-full px-2.5 py-1 text-[11px] font-semibold",
+                          lockPickMode === "photos"
+                            ? "bg-fg text-bg"
+                            : "text-fg-muted",
                         )}
                       >
-                        <div className="relative aspect-[5/4] bg-bg-subtle">
-                          {thumb ? (
-                            <img
-                              src={thumb}
-                              alt=""
-                              className="h-full w-full object-cover"
-                            />
-                          ) : null}
-                          {c.isTopPick ? (
-                            <span className="absolute top-1 left-1 rounded-full bg-court px-1.5 py-0.5 text-[8px] font-bold text-white uppercase">
-                              Best
-                            </span>
-                          ) : null}
-                        </div>
-                        <div className="px-1.5 py-1">
-                          <p className="line-clamp-1 text-[11px] font-semibold text-fg">
-                            {courtShort(c.name)}
-                          </p>
-                        </div>
+                        List
                       </button>
-                    );
-                  })}
+                      <button
+                        type="button"
+                        onClick={() => setLockPickMode("map")}
+                        className={cn(
+                          "rounded-full px-2.5 py-1 text-[11px] font-semibold",
+                          lockPickMode === "map"
+                            ? "bg-fg text-bg"
+                            : "text-fg-muted",
+                        )}
+                      >
+                        Map
+                      </button>
+                    </div>
+                  </div>
+                  {lockPickMode === "map" ? (
+                    <CourtsMap
+                      courts={filteredCourts}
+                      location={{
+                        lat: youGeo.lat,
+                        lon: youGeo.lon,
+                        label: "You",
+                      }}
+                      selectedId={lockCourtId || null}
+                      onSelect={(c) => setLockCourtId(c.id)}
+                      variant="finder"
+                      mapClassName="h-[min(38dvh,260px)]"
+                    />
+                  ) : (
+                    <div className="flex gap-2 overflow-x-auto overscroll-x-contain px-2.5 pb-2 snap-x snap-mandatory [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                      {filteredCourts.map((c) => {
+                        const thumb = courtImagesFor(c.id, 1)[0];
+                        const selected = c.id === lockCourtId;
+                        return (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => {
+                              setLockCourtId(c.id);
+                              setLockPickOpen(false);
+                            }}
+                            className={cn(
+                              "w-[44%] max-w-[10.5rem] shrink-0 snap-start overflow-hidden rounded-2xl border text-left",
+                              selected
+                                ? "border-court ring-2 ring-court/50 shadow-md"
+                                : "border-border bg-bg-elevated",
+                            )}
+                          >
+                            <div className="relative aspect-[5/4] bg-bg-subtle">
+                              {thumb ? (
+                                <img
+                                  src={thumb}
+                                  alt=""
+                                  className="h-full w-full object-cover"
+                                  loading="lazy"
+                                />
+                              ) : null}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  e.preventDefault();
+                                  setLockInfoId(c.id);
+                                }}
+                                className="absolute top-1.5 left-1.5 z-10 flex size-7 items-center justify-center rounded-full bg-black/55 text-white"
+                                aria-label={`About ${c.name}`}
+                              >
+                                <Info className="size-3.5" strokeWidth={2.25} />
+                              </button>
+                              <div className="absolute top-1.5 right-1.5 z-10 flex flex-col items-end gap-0.5">
+                                {selected ? (
+                                  <span className="rounded-full bg-court px-1.5 py-0.5 text-[9px] font-bold text-white">
+                                    ✓
+                                  </span>
+                                ) : null}
+                                {isRecommendedCourt(c) ? (
+                                  <span className="rounded-full bg-court px-1.5 py-0.5 text-[8px] font-bold text-white uppercase">
+                                    Top
+                                  </span>
+                                ) : null}
+                                {isShadedCourt(c) ? (
+                                  <span className="rounded-full bg-black/55 px-1.5 py-0.5 text-[8px] font-bold text-white uppercase">
+                                    Shade
+                                  </span>
+                                ) : null}
+                              </div>
+                              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-2 pt-6 pb-1.5">
+                                <p className="text-[10px] font-bold tracking-wide text-white uppercase">
+                                  {c.neighborhood ?? "Austin"}
+                                </p>
+                                <p className="text-[10px] font-medium text-white/90">
+                                  {formatMiles(c.miles)} away
+                                </p>
+                              </div>
+                            </div>
+                            <div className="px-2 py-1.5">
+                              <p className="line-clamp-1 text-[12px] font-semibold text-fg">
+                                {courtShort(c.name)}
+                              </p>
+                            </div>
+                          </button>
+                        );
+                      })}
+                      {filteredCourts.length === 0 ? (
+                        <p className="w-full py-3 text-center text-[11px] text-fg-muted">
+                          No courts match. Turn off a filter or expand radius.
+                        </p>
+                      ) : null}
+                    </div>
+                  )}
                 </div>
               ) : null}
             </div>
+          ) : null}
+
+          {lockInfoId && lockPickMode !== "map" ? (
+            <CourtAboutSheet
+              court={
+                courtOptions.find((c) => c.id === lockInfoId) ??
+                courts.find((c) => c.id === lockInfoId) ??
+                null
+              }
+              onClose={() => setLockInfoId(null)}
+              onSelectCourt={(id) => {
+                setLockCourtId(id);
+                setLockInfoId(null);
+              }}
+              isSelected={lockCourtId === lockInfoId}
+              userLat={youGeo.lat}
+              userLon={youGeo.lon}
+            />
           ) : null}
 
           <div className="mt-4">
@@ -648,7 +945,6 @@ export function HoopNowFlow({
             <CreateWhenPicker
               value={lockWhen}
               onChange={setLockWhen}
-              variant="plan"
               roomy
               guide={{
                 opponentName: firstName,

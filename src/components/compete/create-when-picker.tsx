@@ -77,7 +77,7 @@ export function CreateWhenPicker({
   variant?: "default" | "plan";
 }) {
   const isPlan = variant === "plan";
-  const [open, setOpen] = useState(() => Boolean(guide) || isPlan);
+  const [open, setOpen] = useState(() => isPlan);
   const [dayDraft, setDayDraft] = useState<Date | null>(null);
   const hasValue = Boolean(value);
   const selected = hasValue ? parseLocalDateTime(value) : null;
