@@ -11,24 +11,26 @@ import type { HoopChatMsg, HoopMatch } from "@/lib/upset/hoop-now";
 import type { Player } from "@/lib/upset/types";
 import { displayRating } from "@/lib/rating/engine";
 import { PlayerAvatar } from "@/components/compete/player-avatar";
+import { useTabBarGate } from "@/lib/ui/tab-bar-gate";
 import { cn } from "@/lib/utils";
 
 function courtShort(name: string) {
   return name.replace(/\s*Courts?\s*$/i, "") || name;
 }
 
-function unlockShell() {
-  document.body.style.removeProperty("overflow");
-  document.documentElement.style.removeProperty("overflow");
-  document.documentElement.removeAttribute("data-uc-chat-open");
-  document.body.removeAttribute("data-uc-chat-open");
-  document.documentElement.removeAttribute("data-uc-match-chat-open");
-  try {
-    window.dispatchEvent(new Event("resize"));
-    window.scrollTo(0, 0);
-  } catch {
-    /* ignore */
-  }
+function updateChatViewport() {
+  const vv = window.visualViewport;
+  const height = Math.round(vv?.height ?? window.innerHeight);
+  const offsetTop = Math.round(vv?.offsetTop ?? 0);
+  const root = document.documentElement;
+  root.style.setProperty("--chat-vh", `${height}px`);
+  root.style.setProperty("--viewport-offset-top", `${offsetTop}px`);
+}
+
+function clearChatViewport() {
+  const root = document.documentElement;
+  root.style.removeProperty("--chat-vh");
+  root.style.removeProperty("--viewport-offset-top");
 }
 
 export function MatchChat({
@@ -55,15 +57,16 @@ export function MatchChat({
   error?: string | null;
 }) {
   const [portalEl, setPortalEl] = useState<HTMLElement | null>(null);
-  const [kbInset, setKbInset] = useState(0);
-  const [headerH, setHeaderH] = useState(56);
-  const [composerH, setComposerH] = useState(64);
+  const [focused, setFocused] = useState(false);
   const [tabH, setTabH] = useState(72);
+  const setTabsHidden = useTabBarGate((s) => s.setHidden);
 
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const headerRef = useRef<HTMLElement>(null);
-  const composerRef = useRef<HTMLDivElement>(null);
+  const closedVv = useRef({ height: 0, offsetTop: 0 });
+  const pendingNav = useRef(false);
+  const restoreTimers = useRef<number[]>([]);
+  const restoreNavRef = useRef<() => void>(() => {});
 
   const firstName = opponent.name.split(" ")[0];
   const chat = hoopMatch.chat ?? [];
@@ -82,6 +85,45 @@ export function MatchChat({
 
   const thread = chat.filter((m) => m.kind !== "proposal");
 
+  const snapshotClosedVv = () => {
+    const vv = window.visualViewport;
+    const height = Math.round(vv?.height ?? window.innerHeight);
+    const offsetTop = Math.round(vv?.offsetTop ?? 0);
+    if (!closedVv.current.height || height >= closedVv.current.height - 8) {
+      closedVv.current = { height, offsetTop };
+    }
+  };
+
+  const viewportRestored = () => {
+    const vv = window.visualViewport;
+    const height = Math.round(vv?.height ?? window.innerHeight);
+    const offsetTop = Math.round(vv?.offsetTop ?? 0);
+    const closed = closedVv.current;
+    if (closed.height < 100) return true;
+    return (
+      Math.abs(height - closed.height) <= 24 &&
+      Math.abs(offsetTop - closed.offsetTop) <= 16
+    );
+  };
+
+  restoreNavRef.current = () => {
+    if (!pendingNav.current) return;
+    updateChatViewport();
+    if (!viewportRestored()) return;
+    pendingNav.current = false;
+    restoreTimers.current.forEach((t) => window.clearTimeout(t));
+    restoreTimers.current = [];
+    try {
+      window.scrollTo(0, 0);
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    } catch {
+      /* ignore */
+    }
+    setFocused(false);
+    setTabsHidden(false);
+  };
+
   useEffect(() => {
     setPortalEl(document.body);
   }, []);
@@ -92,62 +134,38 @@ export function MatchChat({
     const bar = document.getElementById("uc-bottom-tab-bar");
     if (bar && bar.offsetHeight > 40) setTabH(bar.offsetHeight);
 
-    document.documentElement.setAttribute("data-uc-chat-open", "1");
-    document.body.setAttribute("data-uc-chat-open", "1");
+    snapshotClosedVv();
+    updateChatViewport();
     document.documentElement.setAttribute("data-uc-match-chat-open", "1");
 
-    const app = document.querySelector<HTMLElement>(".app-shell");
-    if (app) app.style.pointerEvents = "none";
-
-    const measureChrome = () => {
-      if (headerRef.current) {
-        setHeaderH(Math.ceil(headerRef.current.getBoundingClientRect().height));
-      }
-      if (composerRef.current) {
-        setComposerH(
-          Math.max(56, Math.ceil(composerRef.current.getBoundingClientRect().height)),
-        );
-      }
+    const onVv = () => {
+      updateChatViewport();
+      restoreNavRef.current();
     };
-
-    const measureKb = () => {
-      const vv = window.visualViewport;
-      if (!vv) {
-        setKbInset(0);
-        return;
-      }
-      const raw = Math.round(window.innerHeight - vv.height - vv.offsetTop);
-      setKbInset(raw >= 80 ? raw : 0);
-    };
-
-    measureChrome();
-    measureKb();
-
-    const ro = new ResizeObserver(() => measureChrome());
-    if (headerRef.current) ro.observe(headerRef.current);
-    if (composerRef.current) ro.observe(composerRef.current);
-
     const vv = window.visualViewport;
-    vv?.addEventListener("resize", measureKb);
-    vv?.addEventListener("scroll", measureKb);
-    window.addEventListener("resize", measureChrome);
+    vv?.addEventListener("resize", onVv);
+    vv?.addEventListener("scroll", onVv);
+    window.addEventListener("resize", onVv);
+    window.addEventListener("orientationchange", onVv);
 
     return () => {
-      ro.disconnect();
-      vv?.removeEventListener("resize", measureKb);
-      vv?.removeEventListener("scroll", measureKb);
-      window.removeEventListener("resize", measureChrome);
+      vv?.removeEventListener("resize", onVv);
+      vv?.removeEventListener("scroll", onVv);
+      window.removeEventListener("resize", onVv);
+      window.removeEventListener("orientationchange", onVv);
+      restoreTimers.current.forEach((t) => window.clearTimeout(t));
+      restoreTimers.current = [];
+      pendingNav.current = false;
       try {
         inputRef.current?.blur();
       } catch {
         /* ignore */
       }
-      if (app) app.style.removeProperty("pointer-events");
-      unlockShell();
-      window.setTimeout(unlockShell, 120);
-      window.setTimeout(unlockShell, 400);
+      setTabsHidden(false);
+      clearChatViewport();
+      document.documentElement.removeAttribute("data-uc-match-chat-open");
     };
-  }, [portalEl]);
+  }, [portalEl, setTabsHidden]);
 
   useEffect(() => {
     const el = listRef.current;
@@ -155,7 +173,7 @@ export function MatchChat({
     requestAnimationFrame(() => {
       el.scrollTop = el.scrollHeight;
     });
-  }, [chat.length, kbInset, headerH, composerH, draft, portalEl]);
+  }, [chat.length, draft, focused, portalEl]);
 
   const grow = (el: HTMLTextAreaElement) => {
     el.style.height = "auto";
@@ -165,10 +183,34 @@ export function MatchChat({
   const send = useCallback(() => {
     if (!draft.trim()) return;
     onSend();
-    if (inputRef.current) {
-      inputRef.current.style.height = "auto";
-    }
+    if (inputRef.current) inputRef.current.style.height = "auto";
   }, [draft, onSend]);
+
+  const handleFocus = () => {
+    pendingNav.current = false;
+    restoreTimers.current.forEach((t) => window.clearTimeout(t));
+    restoreTimers.current = [];
+    snapshotClosedVv();
+    setFocused(true);
+    setTabsHidden(true);
+    updateChatViewport();
+  };
+
+  const handleBlur = () => {
+    pendingNav.current = true;
+    restoreTimers.current.forEach((t) => window.clearTimeout(t));
+    restoreTimers.current = [
+      window.setTimeout(() => restoreNavRef.current(), 280),
+      window.setTimeout(() => {
+        if (!pendingNav.current) return;
+        pendingNav.current = false;
+        updateChatViewport();
+        setFocused(false);
+        setTabsHidden(false);
+      }, 800),
+    ];
+    restoreNavRef.current();
+  };
 
   const handleBack = useCallback(() => {
     try {
@@ -177,14 +219,13 @@ export function MatchChat({
     } catch {
       /* ignore */
     }
-    unlockShell();
+    setTabsHidden(false);
+    clearChatViewport();
+    document.documentElement.removeAttribute("data-uc-match-chat-open");
     onBack();
-  }, [onBack]);
+  }, [onBack, setTabsHidden]);
 
   if (!portalEl) return null;
-
-  const kbOpen = kbInset >= 80;
-  const overlayBottom = kbOpen ? 0 : tabH;
 
   return createPortal(
     <div
@@ -195,24 +236,29 @@ export function MatchChat({
       className="bg-bg text-fg"
       style={{
         position: "fixed",
-        top: 0,
+        top: "var(--viewport-offset-top, 0px)",
         left: 0,
         right: 0,
-        bottom: overlayBottom,
         width: "100%",
         maxWidth: "32rem",
         marginLeft: "auto",
         marginRight: "auto",
-        zIndex: 80,
+        height: focused
+          ? "var(--chat-vh, 100dvh)"
+          : `calc(var(--chat-vh, 100dvh) - ${tabH}px)`,
+        display: "flex",
+        flexDirection: "column",
         overflow: "hidden",
-        background: "var(--color-bg)",
+        zIndex: 80,
+        transform: "none",
+        zoom: 1,
       }}
     >
       <header
-        ref={headerRef}
-        className="absolute inset-x-0 top-0 z-30 border-b border-border bg-bg"
+        className="shrink-0 border-b border-border bg-bg"
         style={{
           paddingTop: "max(8px, env(safe-area-inset-top, 0px))",
+          transform: "none",
         }}
       >
         <div className="flex items-center gap-2 px-3 py-2">
@@ -238,14 +284,11 @@ export function MatchChat({
 
       <div
         ref={listRef}
-        className="absolute inset-x-0 overflow-x-hidden overflow-y-auto overscroll-contain px-3 py-3"
-        style={{
-          top: headerH,
-          bottom: composerH,
-          WebkitOverflowScrolling: "touch",
-        }}
+        data-uc-chat-messages="1"
+        className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-3 py-3"
+        style={{ WebkitOverflowScrolling: "touch" }}
         onPointerDown={() => {
-          if (kbOpen) inputRef.current?.blur();
+          if (focused) inputRef.current?.blur();
         }}
       >
         <div className="space-y-3">
@@ -279,14 +322,13 @@ export function MatchChat({
       </div>
 
       <div
-        ref={composerRef}
         data-uc-match-composer="1"
-        className="absolute inset-x-0 z-30 border-t border-border bg-bg px-3 pt-2"
+        className="shrink-0 border-t border-border bg-bg px-3 pt-2"
         style={{
-          bottom: kbInset,
-          paddingBottom: kbOpen
+          paddingBottom: focused
             ? 8
             : "max(8px, env(safe-area-inset-bottom, 0px))",
+          transform: "none",
         }}
       >
         <div className="flex items-end gap-2">
@@ -298,15 +340,18 @@ export function MatchChat({
             autoComplete="off"
             autoCorrect="on"
             autoCapitalize="sentences"
+            onFocus={handleFocus}
+            onBlur={handleBlur}
             onChange={(e) => {
               onDraftChange(e.target.value);
               grow(e.target);
             }}
             placeholder={`Message ${firstName}…`}
-            className="max-h-[120px] min-h-11 min-w-0 flex-1 resize-none rounded-2xl border border-border bg-bg-elevated px-4 py-2.5 text-[16px] leading-snug text-fg outline-none placeholder:text-fg-subtle focus:border-court"
+            className="chat-input max-h-[120px] min-h-11 min-w-0 flex-1 resize-none rounded-2xl border border-border bg-bg-elevated px-4 py-2.5 text-[16px] text-fg outline-none placeholder:text-fg-subtle focus:border-court"
           />
           <button
             type="button"
+            onPointerDown={(e) => e.preventDefault()}
             onClick={send}
             disabled={!draft.trim()}
             className={cn(
@@ -430,12 +475,12 @@ function ThreadItem({
   }
 
   if (msg.system) {
-    const confirmed = /game confirmed/i.test(msg.text);
+    const isConfirmed = /game confirmed/i.test(msg.text);
     return (
       <div
         className={cn(
           "mx-auto max-w-[88%] rounded-2xl px-3.5 py-2.5 text-center",
-          confirmed
+          isConfirmed
             ? "border border-court/40 bg-court/10"
             : "border border-border bg-bg-elevated",
         )}

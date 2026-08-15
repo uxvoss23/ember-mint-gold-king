@@ -25,6 +25,7 @@ import { displayRating } from "@/lib/rating/engine";
 import { formatLocalWhen, useUpsetStore } from "@/lib/upset/store";
 import type { Match, Player } from "@/lib/upset/types";
 import { cn } from "@/lib/utils";
+import { useTabBarGate } from "@/lib/ui/tab-bar-gate";
 
 type SceneHome = "leaderboard" | "games" | "community" | "you" | "courts";
 
@@ -59,6 +60,7 @@ export function SceneShell({
   showTabBar = true,
 }: SceneShellProps) {
   const store = useUpsetStore();
+  const tabsHidden = useTabBarGate((s) => s.hidden);
   const [home, setHome] = useState<SceneHome>("leaderboard");
   const [selectedCourt, setSelectedCourt] = useState<Court | null>(null);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
@@ -269,7 +271,7 @@ export function SceneShell({
       </div>
 
       {/* Portaled tabs — only after boot splash fully unmounts */}
-      {showTabBar ? (
+      {showTabBar && !tabsHidden ? (
       <BottomTabBar>
         <div className="pointer-events-auto relative flex w-full max-w-lg items-end rounded-2xl border border-border-strong bg-bg-elevated/95 px-0.5 py-0.5 shadow-soft backdrop-blur-md">
           {(

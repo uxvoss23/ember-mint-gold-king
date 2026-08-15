@@ -393,17 +393,6 @@
     padding-bottom: 0 !important;
   }
 
-  /* Match chat: keep tabs visible until the keyboard opens */
-  html[data-uc-chat-open][data-uc-match-chat-open]:not([data-uc-kb-open])
-    #uc-bottom-tab-bar,
-  html[data-uc-chat-open][data-uc-match-chat-open]:not([data-uc-kb-open])
-    [data-uc-tab-bar="true"] {
-    display: flex !important;
-    pointer-events: auto !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-  }
-
   /* Tab bar: glued to the *large* viewport bottom. Never ride the keyboard. */
   #uc-bottom-tab-bar {
     position: fixed !important;
@@ -424,11 +413,24 @@
   /* Match chat portal */
   [data-uc-match-chat="1"] {
     overscroll-behavior: none;
-    touch-action: pan-y;
+    touch-action: none;
+    transform: none;
+    zoom: 1;
   }
 
-  [data-uc-match-composer="1"] input {
+  /* Only while match chat is open — do not affect boot or other screens */
+  html[data-uc-match-chat-open] #uc-bottom-tab-bar {
+    touch-action: none;
+    overscroll-behavior: none;
+  }
+
+  [data-uc-match-composer="1"] input,
+  [data-uc-match-composer="1"] textarea,
+  [data-uc-match-chat="1"] .chat-input {
     font-size: 16px !important;
+    line-height: normal;
+    transform: none !important;
+    zoom: 1;
   }
 
   /* Boot splash */

@@ -23,30 +23,24 @@ const mm = page.getByRole("button", { name: /Match Mode/i }).first();
 if (await mm.count()) await mm.click({ force: true });
 await page.waitForTimeout(700);
 
-// Instant-match: swipe right until celebration (demo likes-you set)
 for (let i = 0; i < 8; i++) {
-  const cele = await page.getByText("It’s a match").count();
-  if (cele) break;
+  if (await page.getByText("It’s a match").count()) break;
   const like = page.getByRole("button", { name: "Like" });
   if (await like.count()) {
     await like.click({ force: true });
     await page.waitForTimeout(500);
   } else break;
 }
-
 const gd = page.getByRole("button", { name: /Game details/i });
 if (await gd.count()) {
   await gd.click({ force: true });
   await page.waitForTimeout(600);
 }
-
 const sendPlan = page.getByRole("button", { name: /Send proposed plan/i });
 if (await sendPlan.count()) {
   await sendPlan.click({ force: true });
   await page.waitForTimeout(800);
 }
-
-// If we landed on matches instead, open first
 if (!(await page.locator("[data-uc-match-chat]").count())) {
   const matchesBtn = page.getByRole("button", { name: /^Matches$/i });
   if (await matchesBtn.count()) await matchesBtn.click({ force: true });
@@ -58,117 +52,179 @@ if (!(await page.locator("[data-uc-match-chat]").count())) {
 
 const chat = page.locator("[data-uc-match-chat]");
 if (!(await chat.count())) {
-  console.log("NO_CHAT", (await page.locator("body").innerText()).slice(0, 400));
-  await page.screenshot({ path: "/workspace/screenshots/mm-chat-fail.png" });
+  console.log("NO_CHAT");
+  await page.screenshot({ path: "/workspace/screenshots/mm-chat-arch-fail.png" });
   await browser.close();
   process.exit(1);
 }
 
-const ta = chat.locator("textarea");
-await ta.click();
-await page.waitForTimeout(200);
-await ta.fill("See you at the court");
-await chat.getByRole("button", { name: "Send" }).click();
-await page.waitForTimeout(400);
-
 const closed = await page.evaluate(() => {
   const root = document.querySelector("[data-uc-match-chat]");
   const ta = root?.querySelector("textarea");
-  const header = root?.querySelector("header");
   const composer = root?.querySelector("[data-uc-match-composer]");
   const tabs = document.getElementById("uc-bottom-tab-bar");
   const cs = ta ? getComputedStyle(ta) : null;
-  const hr = header?.getBoundingClientRect();
+  const rs = root ? getComputedStyle(root) : null;
+  const cos = composer ? getComputedStyle(composer) : null;
   const cr = composer?.getBoundingClientRect();
   const tr = tabs?.getBoundingClientRect();
-  const body = document.body;
+  let ancestorTransform = false;
+  let n = ta?.parentElement;
+  while (n && n !== document.body) {
+    const t = getComputedStyle(n).transform;
+    if (t && t !== "none") ancestorTransform = true;
+    n = n.parentElement;
+  }
   return {
-    hasChat: Boolean(root),
-    compact: /MATCH/i.test(root?.innerText ?? "") && /View \/ Edit Plan/i.test(root?.innerText ?? ""),
-    noGiant: !/Proposed plan/i.test(root?.innerText ?? ""),
-    sent: /See you at the court/.test(root?.innerText ?? ""),
+    display: rs?.display,
+    flexDir: rs?.flexDirection,
+    composerPos: cos?.position,
     font: cs ? parseFloat(cs.fontSize) : 0,
-    headerTop: hr ? Math.round(hr.top) : null,
-    headerVisible: Boolean(hr && hr.top >= 0 && hr.height > 20),
-    composerBottom: cr ? Math.round(cr.bottom) : null,
-    composerVisible: Boolean(cr && cr.height > 20 && cr.bottom <= 844 + 2),
-    overflowX: body.scrollWidth > 390 + 2 || (root?.scrollWidth ?? 0) > 390 + 2,
-    pageWidth: Math.round(body.getBoundingClientRect().width),
-    tabsVisible: Boolean(tr && tr.height > 20 && getComputedStyle(tabs).visibility !== "hidden"),
+    taTransform: cs?.transform,
+    ancestorTransform,
+    tabsMounted: Boolean(tabs),
     tabsTop: tr ? Math.round(tr.top) : null,
+    composerBottom: cr ? Math.round(cr.bottom) : null,
     composerAboveTabs: Boolean(cr && tr && cr.bottom <= tr.top + 4),
-    matchChatOpen: document.documentElement.getAttribute("data-uc-match-chat-open") === "1",
+    overflowX: document.body.scrollWidth > 392,
+    chatH: rs ? rs.height : null,
+    chatTop: rs ? rs.top : null,
   };
 });
 
-await page.screenshot({ path: "/workspace/screenshots/mm-chat-closed.png" });
+await page.screenshot({ path: "/workspace/screenshots/mm-chat-arch-closed.png" });
 
-// Simulate software keyboard: visualViewport shrinks, layout viewport stays
-await page.evaluate(() => {
-  const vv = window.visualViewport;
-  if (!vv) return;
-  const fakeH = 480;
-  const proto = Object.getPrototypeOf(vv);
-  Object.defineProperty(proto, "height", { configurable: true, get: () => fakeH });
-  Object.defineProperty(proto, "offsetTop", { configurable: true, get: () => 0 });
-  vv.dispatchEvent(new Event("resize"));
-});
-await page.waitForTimeout(250);
+const ta = chat.locator("textarea");
 await ta.click();
 await page.waitForTimeout(200);
 
-const open = await page.evaluate(() => {
+const focused = await page.evaluate(() => {
+  const tabs = document.getElementById("uc-bottom-tab-bar");
   const root = document.querySelector("[data-uc-match-chat]");
   const ta = root?.querySelector("textarea");
-  const header = root?.querySelector("header");
   const composer = root?.querySelector("[data-uc-match-composer]");
-  const tabs = document.getElementById("uc-bottom-tab-bar");
-  const hr = header?.getBoundingClientRect();
   const cr = composer?.getBoundingClientRect();
-  const tr = tabs ? getBoundingClientRectSafe(tabs) : null;
-  const kb = Math.round(window.innerHeight - (window.visualViewport?.height ?? window.innerHeight));
-  function getBoundingClientRectSafe(el) {
-    return el.getBoundingClientRect();
-  }
-  const tabHidden =
-    !tabs ||
-    getComputedStyle(tabs).display === "none" ||
-    getComputedStyle(tabs).visibility === "hidden";
+  const ir = ta?.getBoundingClientRect();
   return {
-    kbInset: kb,
-    headerStillTop: Boolean(hr && hr.top >= 0 && hr.top < 80 && hr.height > 20),
-    composerVisible: Boolean(cr && cr.height > 20 && cr.bottom <= 844 + 2),
-    inputVisible: Boolean(ta && ta.getBoundingClientRect().bottom <= 844),
-    composerAboveKb: Boolean(cr && cr.bottom <= 480 + 8),
-    noHScroll: document.body.scrollWidth <= 392,
-    widthStill: Math.round(document.body.getBoundingClientRect().width),
-    tabHidden,
-    tabsDisplay: tabs ? getComputedStyle(tabs).display : null,
-    overlayBottom: root ? getComputedStyle(root).bottom : null,
+    tabsMounted: Boolean(tabs),
+    caretInside:
+      Boolean(ir && cr && ir.top >= cr.top - 1 && ir.bottom <= cr.bottom + 1),
+    inputInComposer: Boolean(composer && ta && composer.contains(ta)),
+    composerInFlow:
+      composer != null && getComputedStyle(composer).position === "static" ||
+      getComputedStyle(composer).position === "relative",
   };
 });
 
-await page.screenshot({ path: "/workspace/screenshots/mm-chat-kb.png" });
-console.log({ closed, open });
+// Simulate iOS visualViewport shrink (keyboard overlays-content)
+await page.evaluate(() => {
+  const vv = window.visualViewport;
+  if (!vv) return;
+  const proto = Object.getPrototypeOf(vv);
+  Object.defineProperty(proto, "height", { configurable: true, get: () => 480 });
+  Object.defineProperty(proto, "offsetTop", { configurable: true, get: () => 0 });
+  vv.dispatchEvent(new Event("resize"));
+});
+await page.waitForTimeout(200);
+
+const kb = await page.evaluate(() => {
+  const root = document.querySelector("[data-uc-match-chat]");
+  const composer = root?.querySelector("[data-uc-match-composer]");
+  const header = root?.querySelector("header");
+  const ta = root?.querySelector("textarea");
+  const rr = root?.getBoundingClientRect();
+  const cr = composer?.getBoundingClientRect();
+  const hr = header?.getBoundingClientRect();
+  const chatVh = getComputedStyle(document.documentElement).getPropertyValue("--chat-vh").trim();
+  return {
+    tabsMounted: Boolean(document.getElementById("uc-bottom-tab-bar")),
+    chatVh,
+    rootH: rr ? Math.round(rr.height) : null,
+    rootTop: rr ? Math.round(rr.top) : null,
+    headerTop: hr ? Math.round(hr.top) : null,
+    composerBottom: cr ? Math.round(cr.bottom) : null,
+    inputBottom: ta ? Math.round(ta.getBoundingClientRect().bottom) : null,
+    composerAtChatBottom: Boolean(rr && cr && Math.abs(cr.bottom - rr.bottom) <= 2),
+    noHScroll: document.body.scrollWidth <= 392,
+    width: Math.round(document.body.getBoundingClientRect().width),
+  };
+});
+
+await page.locator("textarea").fill("See you at the court");
+await chat.getByRole("button", { name: "Send" }).click();
+await page.waitForTimeout(200);
+
+// Blur while viewport is still the keyboard size — nav must stay gone
+await page.evaluate(() => {
+  document.querySelector("[data-uc-match-chat] textarea")?.blur();
+});
+await page.waitForTimeout(120);
+const midDismiss = await page.evaluate(() => ({
+  tabsMounted: Boolean(document.getElementById("uc-bottom-tab-bar")),
+}));
+
+// Viewport finishes restoring (keyboard animation done)
+await page.evaluate(() => {
+  const vv = window.visualViewport;
+  if (!vv) return;
+  const proto = Object.getPrototypeOf(vv);
+  Object.defineProperty(proto, "height", {
+    configurable: true,
+    get: () => window.innerHeight,
+  });
+  Object.defineProperty(proto, "offsetTop", {
+    configurable: true,
+    get: () => 0,
+  });
+  vv.dispatchEvent(new Event("resize"));
+  window.dispatchEvent(new Event("resize"));
+});
+await page.waitForTimeout(200);
+
+const after = await page.evaluate(() => {
+  const tabs = document.getElementById("uc-bottom-tab-bar");
+  const tr = tabs?.getBoundingClientRect();
+  const composer = document.querySelector("[data-uc-match-composer]");
+  const cr = composer?.getBoundingClientRect();
+  return {
+    tabsMounted: Boolean(tabs),
+    tabsBottom: tr ? Math.round(tr.bottom) : null,
+    tabsTop: tr ? Math.round(tr.top) : null,
+    tabsAtBottom: Boolean(tr && Math.abs(tr.bottom - 844) <= 2),
+    composerAboveTabs: Boolean(cr && tr && cr.bottom <= tr.top + 4),
+    sent: /See you at the court/.test(document.body.innerText),
+  };
+});
+
+await page.screenshot({ path: "/workspace/screenshots/mm-chat-arch-after.png" });
+console.log({ closed, focused, kb, midDismiss, after });
 
 await browser.close();
 const ok =
-  closed.hasChat &&
-  closed.compact &&
-  closed.noGiant &&
-  closed.sent &&
+  closed.display === "flex" &&
+  closed.flexDir === "column" &&
+  closed.composerPos !== "absolute" &&
+  closed.composerPos !== "fixed" &&
   closed.font >= 16 &&
-  closed.headerVisible &&
-  closed.composerVisible &&
-  !closed.overflowX &&
-  closed.pageWidth <= 390 &&
-  closed.tabsVisible &&
+  closed.taTransform === "none" &&
+  !closed.ancestorTransform &&
+  closed.tabsMounted &&
   closed.composerAboveTabs &&
-  open.headerStillTop &&
-  open.composerVisible &&
-  open.inputVisible &&
-  open.noHScroll &&
-  open.widthStill <= 390;
+  !closed.overflowX &&
+  !focused.tabsMounted &&
+  focused.caretInside &&
+  focused.inputInComposer &&
+  !kb.tabsMounted &&
+  kb.rootH != null &&
+  kb.rootH <= 482 &&
+  kb.composerAtChatBottom &&
+  kb.noHScroll &&
+  kb.width <= 390 &&
+  !midDismiss.tabsMounted &&
+  after.tabsMounted &&
+  after.tabsAtBottom &&
+  after.composerAboveTabs &&
+  after.sent;
 if (!ok) {
   console.error("FAIL");
   process.exit(1);

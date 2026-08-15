@@ -127,6 +127,7 @@ export function BottomTabBar({ children }: { children: ReactNode }) {
       window.visualViewport?.removeEventListener("scroll", schedule);
       mo.disconnect();
       ro?.disconnect();
+      document.documentElement.removeAttribute("data-uc-kb-open");
     };
   }, [mount]);
 
