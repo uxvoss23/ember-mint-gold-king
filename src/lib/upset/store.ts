@@ -27,7 +27,7 @@ import type {
 } from "@/lib/upset/types";
 
 const STORAGE_KEY = "upset-city-v22";
-const SEED_VERSION = 25;
+const SEED_VERSION = 26;
 
 function uid(prefix = "id") {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36).slice(-4)}`;
@@ -144,6 +144,43 @@ function seedMatches(players: Player[]): Match[] {
       comments: [],
       chat: [],
       createdAt: new Date(now - 1800e3).toISOString(),
+    },
+    {
+      id: "m-seed-invite",
+      kind: "broadcast",
+      format: "1v1",
+      allowGuestInvites: false,
+      inviteOnly: true,
+      hostId: "p-tess",
+      guestInviteIds: ["p-you"],
+      courtId: "cat-pease",
+      courtName: "Pease Park Courts",
+      lat: 30.2819,
+      lon: -97.7528,
+      preferredAt: new Date(fri.getTime() + 2 * 86400e3).toISOString(),
+      status: "open",
+      notes: "Private 1v1 — invite only.",
+      stakes: { mode: "fun", dollarsPerPoint: 1 },
+      filters: {
+        heightMinIn: 60,
+        heightMaxIn: 90,
+        ratingMin: 1300,
+        ratingMax: 2200,
+        sportsmanshipMin: 3,
+        radiusMiles: 20,
+      },
+      predictions: {},
+      comments: [],
+      chat: [
+        {
+          id: "sys-invite-1",
+          authorName: "Upset City",
+          text: "Private match — Tess invited you.",
+          at: new Date(now - 900e3).toISOString(),
+          system: true,
+        },
+      ],
+      createdAt: new Date(now - 900e3).toISOString(),
     },
     {
       id: "m-seed-upcoming",
@@ -2523,6 +2560,33 @@ export function useUpsetStore() {
     [],
   );
 
+  const declinePrivateInvite = useCallback((matchId: string) => {
+    setState((s) => {
+      const meName = s.players.find((p) => p.id === s.meId)?.name ?? "Player";
+      return {
+        ...s,
+        matches: s.matches.map((m) => {
+          if (m.id !== matchId) return m;
+          if (!(m.guestInviteIds ?? []).includes(s.meId)) return m;
+          return {
+            ...m,
+            guestInviteIds: (m.guestInviteIds ?? []).filter((id) => id !== s.meId),
+            chat: [
+              ...(m.chat ?? []),
+              {
+                id: uid("sys"),
+                authorName: "Upset City",
+                text: `${meName} declined the invite.`,
+                at: new Date().toISOString(),
+                system: true,
+              },
+            ],
+          };
+        }),
+      };
+    });
+  }, []);
+
   return {
     ...snap,
     me,
@@ -2570,6 +2634,7 @@ export function useUpsetStore() {
     postMatchChat,
     inviteToMatch,
     respondGuestInvite,
+    declinePrivateInvite,
   };
 }
 

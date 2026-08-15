@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { CourtAboutSheet, courtAboutText } from "@/components/compete/court-about-sheet";
 import { HoopNowFlow } from "@/components/compete/hoop-now-flow";
+import { ChallengesPanel } from "@/components/compete/challenges-panel";
 import { PlayerBrowseFilters } from "@/components/compete/player-browse-filters";
 import { MatchRemindersCard } from "@/components/compete/match-reminders-card";
 import {
@@ -50,7 +51,7 @@ import { cn, formatHeightInches } from "@/lib/utils";
 import { useVisualKeyboard } from "@/hooks/use-visual-keyboard";
 import { DEFAULT_BROWSE_FILTERS, loadBrowseFilters, persistBrowseFilters, clearPersistedBrowseFilters, playerMatchesBrowseFilters, type BrowseFilters } from "@/lib/upset/browse-filters";
 
-type View = "explore" | "find" | "game" | "create" | "hoop_now" | "alerts_setup";
+type View = "explore" | "find" | "game" | "create" | "hoop_now" | "alerts_setup" | "challenges";
 type ExploreLane = "open" | "tonight" | "rated" | "charity" | "fun";
 type InviteFilter = "friends" | "available" | "active";
 type InviteSortKey = "rating" | "height" | "streak";
@@ -309,7 +310,8 @@ export function QuickMatchFlow({
         view === "create" ||
         view === "find" ||
         view === "hoop_now" ||
-        view === "alerts_setup",
+        view === "alerts_setup" ||
+        view === "challenges",
     );
     return () => onImmersiveChange?.(false);
   }, [view, onImmersiveChange]);
@@ -387,10 +389,8 @@ export function QuickMatchFlow({
           const fmt = m.format ?? "1v1";
           if (fmt !== "1v1" && fmt !== "horse") return false;
           if (!inAustinMetro(m.lat, m.lon)) return false;
-          // Invite-only games only visible to invited players
-          if (m.inviteOnly) {
-            return (m.guestInviteIds ?? []).includes(me.id);
-          }
+          // Private invites never appear in the public lobby
+          if (m.inviteOnly) return false;
           return true;
         })
         .map((m) => ({
@@ -573,6 +573,17 @@ export function QuickMatchFlow({
 
   const myHostingOpen = useMemo(
     () => matches.filter((m) => m.hostId === me.id && m.status === "open"),
+    [matches, me.id],
+  );
+  const incomingInvites = useMemo(
+    () =>
+      matches.filter(
+        (m) =>
+          m.status === "open" &&
+          !!m.inviteOnly &&
+          m.hostId !== me.id &&
+          (m.guestInviteIds ?? []).includes(me.id),
+      ),
     [matches, me.id],
   );
   const needsYou = useMemo(() => matchActionsForPlayer(matches, me), [matches, me]);
@@ -2245,7 +2256,7 @@ export function QuickMatchFlow({
     ];
 
     const secondary: {
-      id: ExploreLane | "squads";
+      id: ExploreLane | "squads" | "challenges";
       title: string;
       sub: string;
       count?: number;
@@ -2254,12 +2265,10 @@ export function QuickMatchFlow({
       soon?: boolean;
     }[] = [
       {
-        id: "charity",
-        title: "Play for a cause",
-        sub: "Toward the $50k Alzheimer’s goal.",
-        count: openCharityCount,
-        countLabel: "open",
-        tone: "from-violet-500 to-purple-700",
+        id: "challenges",
+        title: "Challenges",
+        sub: "Earn badges for ranked runs.",
+        tone: "from-amber-500 to-orange-700",
       },
       {
         id: "fun",
@@ -2358,6 +2367,10 @@ export function QuickMatchFlow({
                 disabled={tile.soon}
                 onClick={() => {
                   if (tile.soon) return;
+                  if (tile.id === "challenges") {
+                    setView("challenges");
+                    return;
+                  }
                   enterLane(tile.id as ExploreLane);
                 }}
                 className={cn(
@@ -2551,6 +2564,19 @@ export function QuickMatchFlow({
     );
   }
 
+  // CHALLENGES — badge goals
+  if (view === "challenges") {
+    return (
+      <ChallengesPanel
+        me={me}
+        players={players}
+        matches={store.matches.length > 0 ? store.matches : matches}
+        courtCount={courts.length}
+        onBack={() => setView("explore")}
+      />
+    );
+  }
+
   // FIND — Open / Scheduled / Waiting desk
   const laneTitle =
     exploreLane === "tonight"
@@ -2616,7 +2642,7 @@ export function QuickMatchFlow({
             {
               id: "scheduled" as const,
               label: "My Games",
-              count: scheduledDeskGames.length + myHostingOpen.length,
+              count: scheduledDeskGames.length + myHostingOpen.length + incomingInvites.length,
             },
           ] as const
         ).map((tab, i) => {
@@ -2894,11 +2920,13 @@ export function QuickMatchFlow({
               {statusMsg}
             </p>
           ) : null}
-          {scheduledDeskGames.length === 0 && myHostingOpen.length === 0 ? (
+          {scheduledDeskGames.length === 0 &&
+          myHostingOpen.length === 0 &&
+          incomingInvites.length === 0 ? (
             <div className="rounded-2xl border border-border bg-bg-elevated px-4 py-8 text-center">
               <p className="text-sm font-semibold text-fg">No games yet</p>
               <p className="mt-1 text-[12px] text-fg-muted">
-                Locked games and posts waiting for a player show up here.
+                Locked games, invites, and posts waiting for a player show up here.
               </p>
               <button
                 type="button"
@@ -2910,6 +2938,78 @@ export function QuickMatchFlow({
             </div>
           ) : (
             <>
+              {incomingInvites.length > 0 ? (
+                <div className="space-y-2">
+                  <h3 className="px-0.5 text-[15px] font-semibold tracking-tight text-fg">
+                    Invites
+                  </h3>
+                  {incomingInvites.map((m) => {
+                    const host = playerById.get(m.hostId);
+                    const { day, time } = whenParts(m.preferredAt);
+                    const gameType = m.format === "horse" ? "HORSE" : "1v1";
+                    return (
+                      <div
+                        key={m.id}
+                        className="rounded-2xl border border-court/35 bg-bg-elevated px-3 py-3"
+                      >
+                        <div className="flex items-start gap-3">
+                          {host ? (
+                            <PlayerAvatar
+                              player={host}
+                              size="md"
+                              showRank={false}
+                              className="!size-12 shrink-0"
+                            />
+                          ) : (
+                            <div className="size-12 shrink-0 rounded-full bg-bg-subtle" />
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[10px] font-bold tracking-wide text-court uppercase">
+                              {host?.name.split(" ")[0] ?? "Someone"} invited you
+                            </p>
+                            <p className="mt-0.5 truncate text-[14px] font-semibold text-fg">
+                              {m.courtName}
+                            </p>
+                            <p className="mt-0.5 text-[12px] text-fg-muted">
+                              {day} · {time} · {gameType} · Private
+                            </p>
+                          </div>
+                        </div>
+                        <div className="mt-3 grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              store.declinePrivateInvite(m.id);
+                              setStatusMsg("Invite declined.");
+                            }}
+                            className="rounded-full border border-border py-2 text-[12px] font-semibold text-fg"
+                          >
+                            Decline
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const r = store.tryAcceptRace(m.id);
+                              if (r === "ok") {
+                                setJustLandedMatchId(m.id);
+                                setStatusMsg("Game locked. It’s on your schedule.");
+                              } else if (r === "filled") {
+                                setStatusMsg("That game just filled.");
+                              } else {
+                                setStatusMsg("This invite is no longer valid.");
+                              }
+                            }}
+                            className="rounded-full bg-court py-2 text-[12px] font-semibold text-white"
+                          >
+                            Accept
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : null}
+
               <h3 className="px-0.5 text-[15px] font-semibold tracking-tight text-fg">
                 Your Scheduled Games
               </h3>
@@ -3169,7 +3269,12 @@ export function QuickMatchFlow({
                             <span className="text-[11px] font-bold">{time}</span>
                           </div>
                           <p className="mt-1 text-[11px] text-fg-subtle">
-                            {formatMiles(miles)} · nobody joined yet
+                            {formatMiles(miles)} ·{" "}
+                            {m.inviteOnly
+                              ? `${(m.guestInviteIds ?? []).length} invite${
+                                  (m.guestInviteIds ?? []).length === 1 ? "" : "s"
+                                } pending`
+                              : "nobody joined yet"}
                           </p>
                         </div>
                         <ChevronRight className="size-4 text-fg-subtle" />

@@ -245,6 +245,25 @@ export function HoopNowFlow({
     () => new Set(openMatches.map((m) => m.playerId)),
     [openMatches],
   );
+  const bookedIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const m of store.matches) {
+      if (
+        m.status !== "scheduled" &&
+        m.status !== "matched" &&
+        m.status !== "played_pending"
+      )
+        continue;
+      const party =
+        m.hostId === me.id ||
+        m.opponentId === me.id ||
+        (m.rosterIds ?? []).includes(me.id);
+      if (!party) continue;
+      if (m.hostId !== me.id) ids.add(m.hostId);
+      if (m.opponentId && m.opponentId !== me.id) ids.add(m.opponentId);
+    }
+    return ids;
+  }, [store.matches, me.id]);
 
   const deck = useMemo(() => {
     return players
@@ -253,6 +272,7 @@ export function HoopNowFlow({
         if (!hoop.isIn(p.id)) return false;
         if (hoop.passedIds.includes(p.id)) return false;
         if (matchedIds.has(p.id)) return false;
+        if (bookedIds.has(p.id)) return false;
         const geo = playerGeo(p, courts);
         const miles = haversineMi(youGeo, geo);
         return playerMatchesBrowseFilters(p, browseFilters, miles);
@@ -265,6 +285,7 @@ export function HoopNowFlow({
     hoop.passedIds,
     hoop.playerIds,
     matchedIds,
+    bookedIds,
     courts,
     youGeo,
     browseFilters,
