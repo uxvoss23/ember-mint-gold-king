@@ -121,7 +121,7 @@ export function SceneShell({
           "min-h-0 flex-1",
           home === "courts" || (home === "games" && playImmersive)
             ? "relative flex flex-col overflow-hidden"
-            : "overflow-y-auto overscroll-y-contain px-4 pt-2 pb-3 touch-pan-y [-webkit-overflow-scrolling:touch]",
+            : "uc-screen-scroll px-4 pt-2 touch-pan-y",
           home === "games" && playImmersive ? "px-0 pt-0 pb-0" : "",
         )}
       >

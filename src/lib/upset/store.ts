@@ -1975,6 +1975,8 @@ export function useUpsetStore() {
       notes?: string;
       hostBringingBall?: boolean;
       opponentBringingBall?: boolean;
+      /** Match Mode hoop-match id — Unmatch only cancels this game */
+      hoopMatchId?: string;
       /** Migrated Match Mode chat (incl. prior proposals) */
       seedChat?: import("@/lib/upset/types").ChatMessage[];
     }): { ok: true; match: Match } | { ok: false; reason: string } => {
@@ -2043,6 +2045,7 @@ export function useUpsetStore() {
           },
         ],
         createdAt: new Date().toISOString(),
+        fromHoopMatchId: input.hoopMatchId,
       };
       setState((s) => ({ ...s, matches: [match, ...s.matches] }));
       return { ok: true, match };

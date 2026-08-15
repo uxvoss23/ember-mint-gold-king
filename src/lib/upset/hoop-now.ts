@@ -614,13 +614,6 @@ export const useHoopNow = create<HoopNowState>()(
               (x.status === "new" || x.status === "pending_confirm"),
           );
         if (!m) return { ok: false as const, reason: "Match not found." };
-        if (m.status === "locked") {
-          return {
-            ok: false as const,
-            reason:
-              "This run is already scheduled — cancel the game in Play if needed.",
-          };
-        }
         const pid = m.playerId;
         const mid = m.id;
         set((s) => ({

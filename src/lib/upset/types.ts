@@ -237,6 +237,8 @@ export interface Match {
   comments: MatchComment[];
   chat: ChatMessage[];
   createdAt: string;
+  /** Set when this scheduled game was created from Match Mode */
+  fromHoopMatchId?: string;
   /** Cancellation metadata so host/opponent can see why */
   cancelledBy?: string;
   cancelReason?: string;

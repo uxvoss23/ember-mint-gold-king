@@ -56,11 +56,9 @@ export function ViewportLock() {
 
       const booting =
         document.documentElement.getAttribute("data-uc-booting") === "1";
-      if (booting) {
-        el.style.paddingBottom = "0px";
-      } else {
-        el.style.paddingBottom = "var(--uc-tab-h, 0px)";
-      }
+      // Tab bar is an in-flow reserved row — do not pad the shell for it
+      el.style.paddingBottom = "0px";
+      void booting;
 
       if (document.documentElement.getAttribute("data-uc-chat-open") !== "1") {
         el.style.removeProperty("pointer-events");

@@ -354,8 +354,8 @@
   }
 
   /*
-   * Shell: CSS-only full viewport. Tab padding via --uc-tab-h (0 until tabs mount).
-   * ViewportLock re-asserts position/inset; never set height via JS.
+   * Shell: CSS-only full viewport. Tab bar is an in-flow reserved row
+   * (not overlay), so the content viewport ends above it.
    */
   .app-shell {
     position: fixed;
@@ -365,19 +365,27 @@
     margin-left: auto;
     margin-right: auto;
     height: 100dvh;
-    height: 100lvh;
     max-height: 100dvh;
-    max-height: 100lvh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
     overflow-x: hidden;
     box-sizing: border-box;
     background: var(--color-bg);
-    padding-bottom: var(--uc-tab-h, 0px);
   }
 
-  /* While boot splash is up: no tab padding, hide any stray tab bar */
+  /* Shared primary screen scroller — padding is breathing room only */
+  .uc-screen-scroll {
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 16px;
+    scroll-padding-bottom: 16px;
+  }
+
+  /* While boot splash is up: hide any stray tab bar */
   html[data-uc-booting] .app-shell {
     padding-bottom: 0 !important;
   }
@@ -403,15 +411,17 @@
     padding-bottom: 0 !important;
   }
 
-  /* Tab bar: glued to the *large* viewport bottom. Never ride the keyboard. */
+  /* In-flow reserved row — never overlay / never ride the keyboard */
   #uc-bottom-tab-bar {
-    position: fixed !important;
-    left: 0 !important;
-    right: 0 !important;
-    bottom: 0 !important;
+    position: relative !important;
+    left: auto !important;
+    right: auto !important;
+    bottom: auto !important;
     top: auto !important;
     transform: none !important;
     margin: 0 !important;
+    flex-shrink: 0;
+    width: 100%;
   }
 
   html[data-uc-kb-open] #uc-bottom-tab-bar {

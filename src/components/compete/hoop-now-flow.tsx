@@ -148,6 +148,7 @@ export function HoopNowFlow({
   const [celebrationName, setCelebrationName] = useState("");
   const [unmatchConfirm, setUnmatchConfirm] = useState<{
     id: string;
+    playerId: string;
     name: string;
   } | null>(null);
   const [localFilters, setLocalFilters] = useState<BrowseFilters>(
@@ -447,6 +448,7 @@ export function HoopNowFlow({
       lon: court.lon,
       preferredAt: when.toISOString(),
       hostBringingBall: r.proposal.proposerBall === true,
+      hoopMatchId: lockHoopMatchId,
     });
     if (!res.ok) {
       setLockMsg(res.reason);
@@ -464,8 +466,8 @@ export function HoopNowFlow({
           Unmatch {unmatchConfirm.name}?
         </p>
         <p className="mt-1.5 text-[12px] text-fg-muted">
-          This match disappears for both of you. You won’t see each other here
-          anymore.
+          This match disappears for both of you. A game booked from this match
+          is cancelled. Other games with {unmatchConfirm.name} stay up.
         </p>
         <div className="mt-4 flex gap-2">
           <button
@@ -478,7 +480,18 @@ export function HoopNowFlow({
           <button
             type="button"
             onClick={() => {
-              hoop.unmatch(unmatchConfirm.id);
+              const hoopId = unmatchConfirm.id;
+              const games = store.matches.filter(
+                (g) =>
+                  g.fromHoopMatchId === hoopId &&
+                  (g.status === "scheduled" ||
+                    g.status === "matched" ||
+                    g.status === "open"),
+              );
+              for (const g of games) {
+                store.cancelMatch(g.id, "Unmatched — game cancelled.");
+              }
+              hoop.unmatch(hoopId);
               if (lockHoopMatchId === unmatchConfirm.id) {
                 setLockOpponent(null);
                 setLockHoopMatchId(null);
@@ -1088,6 +1101,7 @@ export function HoopNowFlow({
                       onClick={() =>
                         setUnmatchConfirm({
                           id: m.id,
+                          playerId: p.id,
                           name: p.name.split(" ")[0] || p.name,
                         })
                       }

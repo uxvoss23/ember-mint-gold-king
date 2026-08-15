@@ -1,5 +1,4 @@
-import { useLayoutEffect, useState, type ReactNode } from "react";
-import { createPortal } from "react-dom";
+import { useLayoutEffect, type ReactNode } from "react";
 
 function keyboardInset(): number {
   const vv = window.visualViewport;
@@ -7,29 +6,12 @@ function keyboardInset(): number {
   return Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
 }
 
-function pinBar(bar: HTMLElement) {
-  bar.style.setProperty("position", "fixed", "important");
-  bar.style.setProperty("left", "0px", "important");
-  bar.style.setProperty("right", "0px", "important");
-  bar.style.setProperty("bottom", "0px", "important");
-  bar.style.setProperty("top", "auto", "important");
-  bar.style.setProperty("transform", "none", "important");
-  bar.style.setProperty("margin", "0px", "important");
-}
-
 /**
- * Bottom tabs portaled to document.body.
- * Always layout-bottom (100lvh). Hidden while keyboard or chat is open.
+ * Bottom tabs — in-flow reserved row in the app shell.
+ * Hidden (unmounted by parent, or CSS) while keyboard or chat is open.
  */
 export function BottomTabBar({ children }: { children: ReactNode }) {
-  const [mount] = useState<HTMLElement | null>(() =>
-    typeof document !== "undefined" ? document.body : null,
-  );
-
   useLayoutEffect(() => {
-    if (!mount) return;
-    let closeTimers: number[] = [];
-
     const measure = () => {
       const root = document.documentElement;
       const bar = document.getElementById("uc-bottom-tab-bar");
@@ -46,12 +28,6 @@ export function BottomTabBar({ children }: { children: ReactNode }) {
       }
 
       if (!bar) return;
-
-      bar.style.removeProperty("display");
-      bar.style.removeProperty("visibility");
-      bar.style.removeProperty("pointer-events");
-      bar.style.removeProperty("opacity");
-      pinBar(bar);
 
       let safe = 0;
       try {
@@ -70,17 +46,6 @@ export function BottomTabBar({ children }: { children: ReactNode }) {
       root.style.setProperty("--uc-tab-h", `${h}px`);
     };
 
-    const onViewport = () => {
-      measure();
-      // Keyboard close animates ~300–450ms — re-pin across it
-      if (keyboardInset() < 80) {
-        closeTimers.forEach((t) => window.clearTimeout(t));
-        closeTimers = [0, 80, 180, 320, 500, 720].map((ms) =>
-          window.setTimeout(measure, ms),
-        );
-      }
-    };
-
     measure();
     const bootTimers = [0, 50, 200].map((ms) => window.setTimeout(measure, ms));
 
@@ -89,7 +54,7 @@ export function BottomTabBar({ children }: { children: ReactNode }) {
       if (raf) return;
       raf = requestAnimationFrame(() => {
         raf = 0;
-        onViewport();
+        measure();
       });
     };
 
@@ -98,7 +63,6 @@ export function BottomTabBar({ children }: { children: ReactNode }) {
     window.addEventListener("focusin", schedule);
     window.addEventListener("focusout", schedule);
     window.visualViewport?.addEventListener("resize", schedule);
-    window.visualViewport?.addEventListener("scroll", schedule);
     const mo = new MutationObserver(schedule);
     mo.observe(document.documentElement, {
       attributes: true,
@@ -112,31 +76,25 @@ export function BottomTabBar({ children }: { children: ReactNode }) {
     return () => {
       if (raf) cancelAnimationFrame(raf);
       bootTimers.forEach((t) => window.clearTimeout(t));
-      closeTimers.forEach((t) => window.clearTimeout(t));
       window.removeEventListener("resize", schedule);
       window.removeEventListener("orientationchange", schedule);
       window.removeEventListener("focusin", schedule);
       window.removeEventListener("focusout", schedule);
       window.visualViewport?.removeEventListener("resize", schedule);
-      window.visualViewport?.removeEventListener("scroll", schedule);
       mo.disconnect();
       ro?.disconnect();
       document.documentElement.removeAttribute("data-uc-kb-open");
     };
-  }, [mount]);
+  }, []);
 
-  if (!mount) return null;
-
-  return createPortal(
+  return (
     <nav
       id="uc-bottom-tab-bar"
       data-uc-tab-bar="true"
       aria-label="Main"
-      className="pointer-events-none fixed right-0 bottom-0 left-0 z-[100] flex justify-center box-border px-2.5 pb-2"
-      style={{ top: "auto", bottom: 0, transform: "none" }}
+      className="pointer-events-none relative z-20 flex w-full shrink-0 justify-center box-border px-2.5 pt-1 pb-2"
     >
       {children}
-    </nav>,
-    mount,
+    </nav>
   );
 }
