@@ -47,6 +47,7 @@ import { formatLocalWhen, useUpsetStore } from "@/lib/upset/store";
 import { matchActionsForPlayer } from "@/lib/upset/match-actions";
 import type { Match, Player, PlayerReview } from "@/lib/upset/types";
 import { cn, formatHeightInches } from "@/lib/utils";
+import { useVisualKeyboard } from "@/hooks/use-visual-keyboard";
 import { DEFAULT_BROWSE_FILTERS, loadBrowseFilters, persistBrowseFilters, clearPersistedBrowseFilters, playerMatchesBrowseFilters, type BrowseFilters } from "@/lib/upset/browse-filters";
 
 type View = "explore" | "find" | "game" | "create" | "hoop_now" | "alerts_setup";
@@ -3543,7 +3544,11 @@ function InviteSheet({
 }) {
   const [flash, setFlash] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [searchFocused, setSearchFocused] = useState(false);
   const prevInvited = useRef<string[]>(invitedIds);
+  const kb = useVisualKeyboard();
+  const pinToVv = searchFocused || kb.open;
+  const compactSearch = pinToVv && query.trim().length > 0;
 
   useEffect(() => {
     const prev = new Set(prevInvited.current);
@@ -3581,21 +3586,48 @@ function InviteSheet({
       }
     } else if (r === false) {
       setErr("Couldn’t send invite.");
+      return;
     } else if (!invitedIds.includes(p.id)) {
       // parent may update async; optimistic flash
       setFlash(`Invite sent to ${p.name}`);
     }
+    onQuery("");
   };
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/50 p-3 sm:items-center">
-      <div className="flex max-h-[85dvh] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-border bg-bg shadow-xl">
+    <div
+      data-uc-invite-sheet="1"
+      className={cn(
+        "fixed z-[80] flex justify-center overflow-hidden bg-black/50 p-3",
+        pinToVv ? "items-stretch" : "inset-0 items-end sm:items-center",
+      )}
+      style={
+        pinToVv
+          ? {
+              top: kb.offsetTop,
+              left: 0,
+              right: 0,
+              height: kb.height,
+              bottom: "auto",
+            }
+          : undefined
+      }
+    >
+      <div
+        className="flex min-h-0 w-full max-w-md flex-col overflow-hidden rounded-2xl border border-border bg-bg shadow-xl"
+        style={{
+          maxHeight: pinToVv ? "100%" : "85dvh",
+          height: pinToVv ? "100%" : undefined,
+        }}
+      >
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <div>
             <p className="text-sm font-semibold">Invite players</p>
-            <p className="text-[11px] text-fg-muted">
-              Stay here and invite as many as you want
-            </p>
+            {!compactSearch ? (
+              <p className="text-[11px] text-fg-muted">
+                Stay here and invite as many as you want
+              </p>
+            ) : null}
           </div>
           <button type="button" onClick={onClose} className="p-2" aria-label="Close">
             <X className="size-4" />
@@ -3623,7 +3655,7 @@ function InviteSheet({
           </div>
         ) : null}
 
-        {invitedPlayers.length > 0 ? (
+        {invitedPlayers.length > 0 && !compactSearch ? (
           <div className="border-b border-border px-3 py-2">
             <p className="mb-1.5 text-[10px] font-bold tracking-wide text-fg-subtle uppercase">
               Invited · {invitedPlayers.length}
@@ -3651,11 +3683,21 @@ function InviteSheet({
             <input
               value={query}
               onChange={(e) => onQuery(e.target.value)}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setSearchFocused(false)}
               placeholder="Search by name…"
-              className="min-w-0 flex-1 bg-transparent text-sm outline-none"
+              enterKeyHint="search"
+              autoCorrect="off"
+              autoCapitalize="none"
+              className="min-w-0 flex-1 bg-transparent text-base outline-none"
+              style={{ fontSize: 16 }}
             />
           </div>
 
+          {compactSearch ? (
+            <p className="text-[11px] font-semibold text-fg-muted">Filters</p>
+          ) : (
+            <>
           <div className="space-y-1.5">
             <p className="text-[10px] font-bold tracking-wide text-fg-subtle uppercase">
               Filter · pick any combo
@@ -3717,6 +3759,8 @@ function InviteSheet({
               })}
             </div>
           </div>
+            </>
+          )}
         </div>
         <div className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
           {candidates.length === 0 ? (
@@ -3779,6 +3823,7 @@ function InviteSheet({
             );
           })}
         </div>
+        {!compactSearch ? (
         <div className="space-y-1.5 border-t border-border p-3">
           {invitedIds.length > 0 ? (
             <p className="text-center text-[11px] text-fg-muted">
@@ -3798,6 +3843,7 @@ function InviteSheet({
             {invitedIds.length > 0 ? "Done" : "Close"}
           </button>
         </div>
+        ) : null}
       </div>
     </div>
   );

@@ -50,6 +50,7 @@ function keepInView(el: HTMLElement) {
   // Match chat pins its shell to visualViewport — don't fight it
   if (
     el.closest("[data-uc-match-chat]") ||
+    el.closest("[data-uc-invite-sheet]") ||
     document.documentElement.getAttribute("data-uc-chat-open") === "1"
   ) {
     return;
