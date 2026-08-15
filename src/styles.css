@@ -259,6 +259,14 @@
     display: block;
   }
 
+  .uc-pin-selected .uc-pin-hover {
+    display: none !important;
+  }
+
+  .uc-pin:not(.uc-pin-selected) .uc-pin-label {
+    display: none;
+  }
+
   .uc-pin-finder-wrap .uc-pin-face,
   .uc-pin-face.uc-pin-finder {
     width: 36px;

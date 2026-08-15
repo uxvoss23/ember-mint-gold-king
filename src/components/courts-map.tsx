@@ -373,8 +373,12 @@ export function CourtsMap({
   // Instant select highlight without full pin rebuild
   useEffect(() => {
     for (const [id, el] of pinElsRef.current) {
-      if (id === selectedId) el.classList.add("uc-pin-selected");
-      else el.classList.remove("uc-pin-selected");
+      if (id === selectedId) {
+        el.classList.add("uc-pin-selected");
+        el.classList.remove("uc-pin-hovering");
+      } else {
+        el.classList.remove("uc-pin-selected");
+      }
     }
   }, [selectedId]);
 
