@@ -35,3 +35,6 @@ export function isMatchModeEnabled(): boolean {
 
 /** Starting rating for a new real account. */
 export const STARTING_RATING = 1500;
+
+/** Fixed practice player for solo 1v1 testing (no second account). */
+export const TEST_OPPONENT_ID = "p-test-opponent";
