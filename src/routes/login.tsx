@@ -89,10 +89,23 @@ function Login() {
   const onOAuth = async (providerId: string) => {
     setError(null);
     setOauthBusy(providerId);
+    const giveUp = window.setTimeout(() => {
+      setError(
+        "Google is taking too long. Close that window and try again, or sign in with email below.",
+      );
+      setOauthBusy(null);
+    }, 90_000);
     try {
       await signIn(providerId, { callbackURL: safeNext(next ?? "/") });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Sign-in failed");
+      const msg = err instanceof Error ? err.message : "Sign-in failed";
+      setError(
+        /popup|blocked/i.test(msg)
+          ? "Pop-up was blocked. Allow pop-ups, or sign in with email below."
+          : msg,
+      );
+    } finally {
+      window.clearTimeout(giveUp);
       setOauthBusy(null);
     }
   };
@@ -131,7 +144,7 @@ function Login() {
                 className="flex h-12 w-full items-center justify-center rounded-xl border border-border-strong bg-bg-elevated text-sm font-semibold text-fg transition-colors hover:bg-bg-subtle active:scale-[0.98] disabled:opacity-60"
               >
                 {oauthBusy === p.providerId
-                  ? "Opening…"
+                  ? `Waiting for ${p.label}…`
                   : `Continue with ${p.label}`}
               </button>
             ))

@@ -66,10 +66,15 @@ function setBearerToken(token: string | null): void {
  * popup there and a normal redirect everywhere else.
  */
 function inLivePreview(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    window.location.hostname.endsWith(".grok-sandbox.com")
-  );
+  if (typeof window === "undefined") return false;
+  if (window.location.hostname.endsWith(".grok-sandbox.com")) return true;
+  // Any iframe (live preview proxy that isn't grok-sandbox.com) still needs a
+  // popup — a top-level Google redirect inside the iframe stalls.
+  try {
+    return window.self !== window.top;
+  } catch {
+    return true;
+  }
 }
 
 /** Message the popup posts back to the opener once sign-in completes. */
@@ -95,11 +100,19 @@ export async function signIn(
 ): Promise<void> {
   const callbackURL = opts.callbackURL ?? "/";
   const errorCallbackURL = opts.errorCallbackURL ?? "/";
+  const handoffId =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+          const r = (Math.random() * 16) | 0;
+          const v = c === "x" ? r : (r & 0x3) | 0x8;
+          return v.toString(16);
+        });
 
   // Open the popup SYNCHRONOUSLY on the user gesture — before any await
   // (including signOut). Awaiting first drops user-gesture privilege in some
   // browsers when the opener is a cross-origin live-preview iframe.
-  const popup = inLivePreview() ? openSignInPopup(providerId) : null;
+  const popup = inLivePreview() ? openSignInPopup(providerId, handoffId) : null;
 
   // Clear any prior session so switching providers actually switches identity.
   // In the live preview the iframe has no session cookie — only a bearer token —
@@ -116,7 +129,7 @@ export async function signIn(
 
   if (inLivePreview()) {
     if (!popup) throw new Error("Pop-up blocked — allow pop-ups for sign-in");
-    const token = await waitForPopupToken(popup);
+    const token = await waitForPopupToken(popup, handoffId);
     if (!token) throw new Error("Sign-in was cancelled or failed");
     setBearerToken(token);
     // Refresh the client session store with the bearer attached (onRequest).
@@ -155,23 +168,25 @@ export async function signIn(
  * iframe the about:blank dance often fails on the first click and the window
  * ends up showing the app shell.
  */
-function openSignInPopup(providerId: string): Window | null {
+function openSignInPopup(providerId: string, handoffId: string): Window | null {
   const origin = window.location.origin;
-  const url = `${origin}/auth/popup?providerId=${encodeURIComponent(providerId)}`;
+  const url = `${origin}/auth/popup?providerId=${encodeURIComponent(providerId)}&handoff=${encodeURIComponent(handoffId)}`;
   // Unique name per attempt so a prior attempt stuck on the SPA is not reused.
   const name = `grok-signin-${Date.now()}`;
-  return window.open(url, name, "popup,width=500,height=650");
+  return window.open(url, name, "popup,width=500,height=700,scrollbars=yes");
 }
 
 /**
  * Wait for the popup's completion page to postMessage the session bearer (or
- * for the user to dismiss the popup).
+ * for the user to dismiss the popup). Also polls a same-origin handoff so iOS
+ * still finishes when `window.opener` is null and the window won't close.
  */
-function waitForPopupToken(popup: Window): Promise<string | null> {
+function waitForPopupToken(popup: Window, handoffId: string): Promise<string | null> {
   return new Promise((resolve) => {
     const origin = window.location.origin;
     let settled = false;
     let closeTimer: number | undefined;
+    let bc: BroadcastChannel | null = null;
     const settle = (token: string | null) => {
       if (settled) return;
       settled = true;
@@ -184,17 +199,51 @@ function waitForPopupToken(popup: Window): Promise<string | null> {
       if (!data || data.source !== "grok-auth-popup") return;
       settle(data.token ?? null);
     };
+    const pollHandoff = async () => {
+      try {
+        const res = await fetch(
+          `${origin}/auth/popup?poll=${encodeURIComponent(handoffId)}`,
+          { cache: "no-store" },
+        );
+        if (res.status === 204 || !res.ok) return;
+        const data = (await res.json()) as { token?: string | null };
+        settle(data.token ?? null);
+      } catch {
+        /* keep waiting */
+      }
+    };
     // Fallback when the user dismisses the popup. Grace period lets the
-    // completion page's postMessage win over a racing `popup.closed`.
-    const pollTimer = window.setInterval(() => {
+    // completion page's postMessage / handoff poll win over a racing `popup.closed`.
+    const closedTimer = window.setInterval(() => {
       if (!popup.closed) return;
-      window.clearInterval(pollTimer);
-      closeTimer = window.setTimeout(() => settle(null), 400);
+      window.clearInterval(closedTimer);
+      closeTimer = window.setTimeout(() => settle(null), 800);
     }, 300);
+    const pollTimer = window.setInterval(() => {
+      void pollHandoff();
+    }, 700);
+    const timeoutTimer = window.setTimeout(() => settle(null), 120_000);
+    try {
+      bc = new BroadcastChannel("grok-auth-popup");
+      bc.onmessage = (event) => {
+        const data = event.data as PopupMessage | undefined;
+        if (!data || data.source !== "grok-auth-popup") return;
+        settle(data.token ?? null);
+      };
+    } catch {
+      bc = null;
+    }
     function cleanup() {
+      window.clearInterval(closedTimer);
       window.clearInterval(pollTimer);
+      window.clearTimeout(timeoutTimer);
       if (closeTimer !== undefined) window.clearTimeout(closeTimer);
       window.removeEventListener("message", onMessage);
+      try {
+        bc?.close();
+      } catch {
+        /* ignore */
+      }
     }
     window.addEventListener("message", onMessage);
   });
