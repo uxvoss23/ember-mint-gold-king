@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { isDemoMode } from "@/lib/config";
 
 function todayKey() {
   const d = new Date();
@@ -555,8 +556,10 @@ export const useHoopNow = create<HoopNowState>()(
           ? s.passedIds
           : [...s.passedIds, toPlayerId];
 
-        // Mutual if demo likes you back (or already liked — future real reciprocal)
-        const theyLikeYou = DEMO_LIKES_YOU.has(toPlayerId);
+        // Mutual only when they already liked you, or labeled demo reciprocal.
+        const theyLikeYou =
+          (isDemoMode() && DEMO_LIKES_YOU.has(toPlayerId)) ||
+          false;
         if (theyLikeYou && !alreadyMatched) {
           const match: HoopMatch = {
             id: `hm-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,

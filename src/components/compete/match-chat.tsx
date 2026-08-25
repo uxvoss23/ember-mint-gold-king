@@ -13,6 +13,7 @@ import { displayRating } from "@/lib/rating/engine";
 import { PlayerAvatar } from "@/components/compete/player-avatar";
 import { useTabBarGate } from "@/lib/ui/tab-bar-gate";
 import { cn } from "@/lib/utils";
+import { isDemoMode } from "@/lib/config";
 
 function courtShort(name: string) {
   return name.replace(/\s*Courts?\s*$/i, "") || name;
@@ -295,7 +296,9 @@ export function MatchChat({
               pending={prop.status === "pending" && !confirmed}
               onEdit={onEditPlan}
               onApprove={() => onApprove(false)}
-              onDemoApprove={iProposed ? () => onApprove(true) : undefined}
+              onDemoApprove={
+                iProposed && isDemoMode() ? () => onApprove(true) : undefined
+              }
             />
           ) : null}
 

@@ -14,7 +14,8 @@
     "preview": "vite preview --host 0.0.0.0 --port 8080",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "test": "node --experimental-strip-types --no-warnings src/lib/game/game.test.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.3",

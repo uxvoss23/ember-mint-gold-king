@@ -1,10 +1,12 @@
 import { useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { QuickMatchFlow } from "@/components/compete/quick-match-flow";
 import { PlayerAvatar } from "@/components/compete/player-avatar";
 import type { Player } from "@/lib/upset/types";
 import type { Court } from "@/lib/courts/types";
 import type { Match } from "@/lib/upset/types";
 import { displayRating } from "@/lib/rating/engine";
+import { GUEST_PLAYER_ID, saveAuthIntent } from "@/lib/game/guest";
 
 interface PlayHubProps {
   me: Player;
@@ -24,11 +26,11 @@ interface PlayHubProps {
     hostBringingBall?: boolean;
     guestInviteIds?: string[];
     inviteOnly?: boolean;
-  }) => void;
+  }) => void | Match | Promise<void | Match>;
   onAcceptMatch?: (
     matchId: string,
     opts?: { bringingBall?: boolean },
-  ) => "ok" | "filled" | "invite_only" | void;
+  ) => "ok" | "filled" | "invite_only" | void | Promise<"ok" | "filled" | "invite_only" | void>;
   onOpenPlayer?: (p: Player) => void;
   focusMatchId?: string | null;
   onFocusMatchConsumed?: () => void;
@@ -74,17 +76,27 @@ export function PlayHub({
     >
       {!immersive ? (
         <div className="flex items-center justify-end gap-2">
-          <button
-            type="button"
-            onClick={onOpenProfile}
-            className="flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-bg-elevated py-0.5 pr-2.5 pl-0.5"
-            aria-label="Your profile"
-          >
-            <PlayerAvatar player={me} size="sm" />
-            <span className="text-xs font-semibold tabular-nums text-fg">
-              {displayRating(me.rating)}
-            </span>
-          </button>
+          {me.id === GUEST_PLAYER_ID ? (
+            <Link
+              to="/login"
+              onClick={() => saveAuthIntent({ next: "/", action: "profile" })}
+              className="flex shrink-0 items-center rounded-full border border-border bg-bg-elevated px-3 py-1 text-xs font-semibold text-fg"
+            >
+              Sign in
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={onOpenProfile}
+              className="flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-bg-elevated py-0.5 pr-2.5 pl-0.5"
+              aria-label="Your profile"
+            >
+              <PlayerAvatar player={me} size="sm" />
+              <span className="text-xs font-semibold tabular-nums text-fg">
+                {displayRating(me.rating)}
+              </span>
+            </button>
+          )}
         </div>
       ) : null}
 

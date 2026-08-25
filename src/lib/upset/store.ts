@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import { namedAustinCourts } from "@/lib/courts/catalog";
 import { displayRating, rateSeries } from "@/lib/rating/engine";
+import { isDemoMode } from "@/lib/config";
+import { GUEST_PLAYER } from "@/lib/game/guest";
 import { ensureCityRanks } from "@/lib/upset/city-rank";
 import { SEED_PLAYERS } from "@/lib/upset/seed-players";
 import type {
@@ -557,7 +559,25 @@ function stripCourtMeta(
   return out;
 }
 
+function emptyState(): UpsetState {
+  return {
+    players: [],
+    matches: [],
+    courtMeta: {},
+    meId: "",
+    leagueChat: [],
+    dmThreads: [],
+    blockedIds: [],
+    friendIds: [],
+    reports: [],
+    playerReviews: [],
+    cancelLog: [],
+    seedVersion: SEED_VERSION,
+  };
+}
+
 function defaultState(): UpsetState {
+  if (!isDemoMode()) return emptyState();
   const players = SEED_PLAYERS.map((p) => ({ ...p }));
   return {
     players,
@@ -576,6 +596,7 @@ function defaultState(): UpsetState {
 }
 
 function load(): UpsetState {
+  if (!isDemoMode()) return emptyState();
   if (typeof window === "undefined") return defaultState();
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -662,6 +683,7 @@ function slimForPersist(s: UpsetState): UpsetState {
 
 function persistNow() {
   if (typeof window === "undefined") return;
+  if (!isDemoMode()) return;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(slimForPersist(state)));
   } catch {
@@ -708,6 +730,20 @@ function setState(updater: (s: UpsetState) => UpsetState) {
   ensureCityRanks(state.players);
   emit();
   persist();
+}
+
+/** Production path: replace local cache with server records. Demo never calls this. */
+export function applyServerSnapshot(snap: {
+  players: Player[];
+  matches: Match[];
+  meId: string;
+}) {
+  setState((s) => ({
+    ...s,
+    players: snap.players,
+    matches: snap.matches,
+    meId: snap.meId || s.meId,
+  }));
 }
 
 function getSnap() {
@@ -764,7 +800,7 @@ export function useUpsetStore() {
   }, []);
 
   const me = useMemo(
-    () => snap.players.find((p) => p.id === snap.meId) ?? snap.players[0]!,
+    () => snap.players.find((p) => p.id === snap.meId) ?? GUEST_PLAYER,
     [snap.players, snap.meId],
   );
 
@@ -1293,6 +1329,7 @@ export function useUpsetStore() {
       profileImageUrl?: string | null;
     } | null) => {
       if (!user?.id) return;
+      if (!isDemoMode()) return;
       setState((s) => {
         const byAuth = s.players.find((p) => p.authUserId === user.id);
         const byEmail = user.primaryEmail

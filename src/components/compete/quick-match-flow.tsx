@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { CourtAboutSheet, courtAboutText } from "@/components/compete/court-about-sheet";
+import { CreateGameStepBar } from "@/components/compete/create-game-step-bar";
 import { HoopNowFlow } from "@/components/compete/hoop-now-flow";
 import { PlayerBrowseFilters } from "@/components/compete/player-browse-filters";
 import { MatchRemindersCard } from "@/components/compete/match-reminders-card";
@@ -39,6 +40,18 @@ import type { Match, Player, PlayerReview } from "@/lib/upset/types";
 import { cn, formatHeightInches } from "@/lib/utils";
 import { useVisualKeyboard } from "@/hooks/use-visual-keyboard";
 import { DEFAULT_BROWSE_FILTERS, loadBrowseFilters, persistBrowseFilters, clearPersistedBrowseFilters, playerMatchesBrowseFilters, type BrowseFilters } from "@/lib/upset/browse-filters";
+import { isDemoMode, isMatchModeEnabled } from "@/lib/config";
+import { GUEST_PLAYER_ID } from "@/lib/game/guest";
+import { useRequireAuth } from "@/lib/game/use-require-auth";
+import { mutationError, refreshCompetitiveSnapshot } from "@/lib/game/client-actions";
+import {
+  cancelGameFn,
+  confirmScoreFn,
+  disputeScoreFn,
+  sendGameMessageFn,
+  submitScoreFn,
+} from "@/lib/game/fns";
+import { useTabBarGate } from "@/lib/ui/tab-bar-gate";
 
 type View = "explore" | "find" | "game" | "create" | "hoop_now" | "alerts_setup";
 type ExploreLane = "open" | "tonight" | "rated";
@@ -76,11 +89,11 @@ interface QuickMatchFlowProps {
     hostBringingBall?: boolean;
     guestInviteIds?: string[];
     inviteOnly?: boolean;
-  }) => void;
+  }) => void | Match | Promise<void | Match>;
   onAcceptMatch?: (
     matchId: string,
     opts?: { bringingBall?: boolean },
-  ) => "ok" | "filled" | "invite_only" | void;
+  ) => "ok" | "filled" | "invite_only" | void | Promise<"ok" | "filled" | "invite_only" | void>;
   onOpenPlayer?: (p: Player) => void;
   compactHeader?: boolean;
   onImmersiveChange?: (immersive: boolean) => void;
@@ -138,7 +151,11 @@ export function QuickMatchFlow({
   presetCourt = null, onPresetCourtConsumed,
 }: QuickMatchFlowProps) {
   const store = useUpsetStore();
+  const requireAuth = useRequireAuth();
+  const setTabsHidden = useTabBarGate((s) => s.setHidden);
   const [view, setView] = useState<View>("explore");
+  const [createStep, setCreateStep] = useState<1 | 2 | 3>(1);
+  const [postingCreate, setPostingCreate] = useState(false);
   const [exploreLane, setExploreLane] = useState<ExploreLane | null>(null);
   const [openDeskTab, setOpenDeskTab] = useState<"open" | "scheduled" | "waiting">("open");
   /** Highlight newly approved game on Scheduled without opening detail */
@@ -315,8 +332,12 @@ export function QuickMatchFlow({
         view === "hoop_now" ||
         view === "alerts_setup",
     );
-    return () => onImmersiveChange?.(false);
-  }, [view, onImmersiveChange]);
+    setTabsHidden(view === "create");
+    return () => {
+      onImmersiveChange?.(false);
+      setTabsHidden(false);
+    };
+  }, [view, onImmersiveChange, setTabsHidden]);
 
   useLayoutEffect(() => {
     if (view !== "create") return;
@@ -673,6 +694,7 @@ export function QuickMatchFlow({
     setCreateVisibility("public");
     setCourtInfoId(null);
     setView("create");
+    setCreateStep(1);
     onPresetCourtConsumed?.();
   }, [presetCourt?.id]);
 
@@ -724,10 +746,23 @@ export function QuickMatchFlow({
     setCreateVisibility("public");
     setCreateSorts(new Set(["highest_rated", "nearest"]));
     setCourtInfoId(null);
+    setCreateStep(1);
     setView("create");
   };
 
-  const submitCreate = () => {
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem("uc-open-create") !== "1") return;
+      if (me.id === GUEST_PLAYER_ID) return;
+      sessionStorage.removeItem("uc-open-create");
+      startCreate();
+    } catch {
+      /* ignore */
+    }
+  }, [me.id]);
+
+  const submitCreate = async () => {
+    if (!requireAuth("create")) return;
     if (!createCourtId) { setStatusMsg("Pick a court before posting."); return; }
     if (!createWhen) { setStatusMsg("Pick a date and time before posting."); return; }
     if (createBringingBall === null) { setStatusMsg("Say if you’re bringing a basketball."); return; }
@@ -741,28 +776,45 @@ export function QuickMatchFlow({
     if (whenDate.getTime() < Date.now() - 60_000) { setStatusMsg("Pick a time in the future."); return; }
     const formatLabel = createFormat === "horse" ? "HORSE" : "1v1";
     const inviteOnly = createVisibility === "invite_only";
-    onCreateMatch?.({
-      court: { id: court.id, name: court.name, lat: court.lat, lon: court.lon },
-      preferredAt: whenDate.toISOString(),
-      mode: "ranked_1v1",
-      format: createFormat,
-      notes: createNotes.trim() || undefined,
-      hostBringingBall: createBringingBall,
-      guestInviteIds: createInviteIds,
-      inviteOnly,
-    });
-    setStatusMsg(
-      inviteOnly
-        ? `${formatLabel} · Private match · ${createInviteIds.length} invite${createInviteIds.length === 1 ? "" : "s"}.`
-        : createInviteIds.length
-          ? `${formatLabel} · Public match · ${createInviteIds.length} invite${createInviteIds.length === 1 ? "" : "s"} sent.`
-          : `${formatLabel} · Public match — anyone can join.`,
-    );
-    setCreateInviteIds([]);
-    setCreateVisibility("public");
-    setExploreLane("open");
-    setOpenDeskTab(inviteOnly ? "scheduled" : "open");
-    setView("find");
+    setPostingCreate(true);
+    try {
+      const created = await onCreateMatch?.({
+        court: { id: court.id, name: court.name, lat: court.lat, lon: court.lon },
+        preferredAt: whenDate.toISOString(),
+        mode: "ranked_1v1",
+        format: createFormat,
+        notes: createNotes.trim() || undefined,
+        hostBringingBall: createBringingBall,
+        guestInviteIds: createInviteIds,
+        inviteOnly,
+      });
+      if (!created && !isDemoMode()) {
+        // parent already set an error toast
+        return;
+      }
+      setStatusMsg(
+        inviteOnly
+          ? `${formatLabel} · Private match · ${createInviteIds.length} invite${createInviteIds.length === 1 ? "" : "s"}.`
+          : createInviteIds.length
+            ? `${formatLabel} · Public match · ${createInviteIds.length} invite${createInviteIds.length === 1 ? "" : "s"} sent.`
+            : `${formatLabel} · Public match — anyone can join.`,
+      );
+      setCreateInviteIds([]);
+      setCreateVisibility("public");
+      if (created && typeof created === "object" && "id" in created) {
+        setSelectedId(created.id);
+        setView("game");
+        setGameTab("details");
+      } else {
+        setExploreLane("open");
+        setOpenDeskTab(inviteOnly ? "scheduled" : "open");
+        setView("find");
+      }
+    } catch (err) {
+      setStatusMsg(mutationError(err));
+    } finally {
+      setPostingCreate(false);
+    }
   };
 
   const openGame = (id: string) => {
@@ -772,18 +824,33 @@ export function QuickMatchFlow({
     setJoinBringingBall(null);
   };
 
-  const joinGame = (id: string, bringingBall?: boolean) => {
+  const joinGame = async (id: string, bringingBall?: boolean) => {
+    if (!requireAuth("join")) return;
     if (bringingBall === undefined) { setStatusMsg("Say if you’re bringing a basketball before joining."); return; }
-    const r = onAcceptMatch?.(id, { bringingBall });
+    const r = await onAcceptMatch?.(id, { bringingBall });
     if (r === "filled") setStatusMsg("That game just filled.");
     else if (r === "invite_only") setStatusMsg("This is a private match — invite only.");
-    else {
+    else if (r === "ok" || r === undefined) {
       const m = matches.find((x) => x.id === id);
       const neither = m?.hostBringingBall === false && bringingBall === false;
       setStatusMsg(neither ? "You’re in — neither of you is bringing a ball. Work it out in chat." : "You’re in — after the run, confirm scores under Needs you on Play.");
       setSelectedId(id);
       setView("game");
       setJoinBringingBall(null);
+    }
+  };
+
+  const sendMatchChat = async (gameId: string, text: string) => {
+    if (!requireAuth("message")) return;
+    if (isDemoMode()) {
+      store.postMatchChat(gameId, text);
+      return;
+    }
+    try {
+      await sendGameMessageFn({ data: { gameId, text } });
+      await refreshCompetitiveSnapshot();
+    } catch (err) {
+      setStatusMsg(mutationError(err));
     }
   };
 
@@ -858,11 +925,27 @@ export function QuickMatchFlow({
         data-uc-create-scroll="1"
         className="min-h-0 space-y-2.5 overflow-y-auto overscroll-contain px-4 pt-2 pb-6 touch-pan-y [-webkit-overflow-scrolling:touch]"
       >
-        <button type="button" onClick={() => setView("explore")} className="text-xs font-medium text-fg-muted">
-          ← Explore
+        <button
+          type="button"
+          onClick={() => {
+            if (createStep > 1) {
+              setCreateStep((s) => (s === 3 ? 2 : 1));
+              return;
+            }
+            setView("explore");
+          }}
+          className="text-xs font-medium text-fg-muted"
+        >
+          {createStep > 1 ? "← Back" : "← Explore"}
         </button>
         <h3 className="font-display text-lg font-semibold text-fg">Create 1v1</h3>
+        <CreateGameStepBar step={createStep} onStep={setCreateStep} />
+        <p className="text-[11px] text-fg-muted">
+          Ranked 1v1 · best of 3 to 11 · win by 2. Public by default.
+        </p>
 
+        {createStep === 1 ? (
+        <>
         {createCourtLocked && selectedCreateCourt ? (
           <div className="overflow-hidden rounded-2xl border border-court/40 bg-court/10">
             {createImages.length > 0 ? (
@@ -1235,7 +1318,11 @@ export function QuickMatchFlow({
 
                   </>
         )}
+        </>
+        ) : null}
 
+        {createStep === 2 ? (
+        <>
         <div className="space-y-2 rounded-xl border border-border bg-bg-elevated p-3">
           <p className="text-[11px] font-bold text-fg">Game type</p>
           <div className="grid grid-cols-2 gap-1.5">
@@ -1375,34 +1462,105 @@ export function QuickMatchFlow({
             </p>
           )}
         </div>
+        </>
+        ) : null}
+
+        {createStep === 3 ? (
+          <div className="space-y-2.5">
+            <div className="rounded-2xl border border-border bg-bg-elevated p-3">
+              <p className="text-[10px] font-bold tracking-wide text-fg-subtle uppercase">Review</p>
+              <p className="mt-1 font-display text-[16px] font-semibold text-fg">
+                {selectedCreateCourt?.name ?? "Court"}
+              </p>
+              <p className="text-[12px] text-fg-muted">
+                {createWhen ? formatLocalWhen(parseLocalDateTime(createWhen).toISOString()) : "No time set"}
+              </p>
+              <ul className="mt-2 space-y-1 text-[12px] text-fg">
+                <li>{createFormat === "horse" ? "HORSE" : "Ranked 1v1 · best of 3 to 11 · win by 2"}</li>
+                <li>{createVisibility === "invite_only" ? "Private · invite only" : "Public match"}</li>
+                <li>{createBringingBall ? "You’re bringing a ball" : "You’re not bringing a ball"}</li>
+                {createNotes.trim() ? <li>Notes: {createNotes.trim()}</li> : null}
+                {invitedPlayers.length > 0 ? (
+                  <li>Invites: {invitedPlayers.map((p) => p.name).join(", ")}</li>
+                ) : null}
+              </ul>
+              <div className="mt-3 flex gap-2">
+                <button type="button" onClick={() => setCreateStep(1)} className="text-[11px] font-semibold text-court">
+                  Edit court
+                </button>
+                <button type="button" onClick={() => setCreateStep(2)} className="text-[11px] font-semibold text-court">
+                  Edit details
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {aboutSheet}
       </div>
 
       <div className="border-t border-border bg-bg px-4 pt-2 pb-3">
-        <button type="button" onClick={submitCreate}
+        <button
+          type="button"
+          onClick={() => {
+            if (createStep === 1) {
+              if (!createCourtId) {
+                setStatusMsg("Pick a court to continue.");
+                return;
+              }
+              setCreateStep(2);
+              return;
+            }
+            if (createStep === 2) {
+              if (!createWhen) { setStatusMsg("Pick a date and time."); return; }
+              if (createBringingBall === null) { setStatusMsg("Say if you’re bringing a basketball."); return; }
+              if (createVisibility === "invite_only" && createInviteIds.length === 0) {
+                setStatusMsg("Private matches need at least one invite.");
+                return;
+              }
+              setCreateStep(3);
+              return;
+            }
+            void submitCreate();
+          }}
           disabled={
-            !createCourtId ||
-            !createWhen ||
-            createBringingBall === null ||
-            (createVisibility === "invite_only" && createInviteIds.length === 0)
+            postingCreate ||
+            (createStep === 1 && !createCourtId) ||
+            (createStep === 3 && (
+              !createCourtId ||
+              !createWhen ||
+              createBringingBall === null ||
+              (createVisibility === "invite_only" && createInviteIds.length === 0)
+            ))
           }
-          className={cn("w-full rounded-full py-3 text-sm font-semibold",
-            createCourtId &&
-              createWhen &&
-              createBringingBall !== null &&
-              !(createVisibility === "invite_only" && createInviteIds.length === 0)
-              ? "bg-court text-white" : "cursor-not-allowed bg-bg-elevated text-fg-subtle")}>
-          {!createCourtId ? "Select a court to continue"
-            : !createWhen ? "Select date & time"
-            : createBringingBall === null ? "Answer ball question"
-            : createVisibility === "invite_only" && createInviteIds.length === 0
-              ? "Invite someone for private match"
-            : createVisibility === "invite_only"
-              ? `Post private match · ${createInviteIds.length} invite${createInviteIds.length === 1 ? "" : "s"}`
-            : createInviteIds.length
-              ? `Post public match · ${createInviteIds.length} invite${createInviteIds.length === 1 ? "" : "s"}`
-              : "Post public match"}
+          className={cn(
+            "w-full rounded-full py-3 text-sm font-semibold",
+            postingCreate
+              ? "cursor-wait bg-court/70 text-white"
+              : (createStep === 1 && createCourtId) ||
+                  createStep === 2 ||
+                  (createStep === 3 &&
+                    createCourtId &&
+                    createWhen &&
+                    createBringingBall !== null &&
+                    !(createVisibility === "invite_only" && createInviteIds.length === 0))
+                ? "bg-court text-white"
+                : "cursor-not-allowed bg-bg-elevated text-fg-subtle",
+          )}
+        >
+          {postingCreate
+            ? "Posting…"
+            : createStep === 1
+              ? createCourtId
+                ? "Continue"
+                : "Select a court to continue"
+              : createStep === 2
+                ? "Review & post"
+                : createVisibility === "invite_only"
+                  ? `Post private match · ${createInviteIds.length} invite${createInviteIds.length === 1 ? "" : "s"}`
+                  : createInviteIds.length
+                    ? `Post public match · ${createInviteIds.length} invite${createInviteIds.length === 1 ? "" : "s"}`
+                    : "Post public match"}
         </button>
       </div>
       <div className="h-4 shrink-0" aria-hidden />
@@ -1663,7 +1821,7 @@ export function QuickMatchFlow({
                               >
                                 {iProposed ? "Edit proposal" : "Suggest different plan"}
                               </button>
-                              {!iProposed ? null : (
+                                  {!iProposed ? null : isDemoMode() ? (
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -1681,7 +1839,7 @@ export function QuickMatchFlow({
                                 >
                                   Approve as opponent (demo)
                                 </button>
-                              )}
+                              ) : null}
                             </div>
                           ) : null}
                         </div>
@@ -1744,7 +1902,7 @@ export function QuickMatchFlow({
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();
                       if (!chatDraft.trim()) return;
-                      store.postMatchChat(selected.id, chatDraft);
+                      void sendMatchChat(selected.id, chatDraft);
                       setChatDraft("");
                       chatInputRef.current?.focus();
                       revealChatComposer();
@@ -1759,7 +1917,7 @@ export function QuickMatchFlow({
                   type="button"
                   onClick={() => {
                     if (!chatDraft.trim()) return;
-                    store.postMatchChat(selected.id, chatDraft);
+                    void sendMatchChat(selected.id, chatDraft);
                     setChatDraft("");
                     chatInputRef.current?.focus();
                     revealChatComposer();
@@ -2007,6 +2165,52 @@ export function QuickMatchFlow({
           </div>
         ) : null}
 
+        <ScoreConfirmCard
+          match={selected}
+          me={me}
+          host={host}
+          opp={opp}
+          onEnterScore={async (scores) => {
+            if (!requireAuth("score")) return;
+            if (isDemoMode()) {
+              store.enterScore(selected.id, scores);
+              return;
+            }
+            try {
+              await submitScoreFn({ data: { gameId: selected.id, scores } });
+              await refreshCompetitiveSnapshot();
+            } catch (err) {
+              setStatusMsg(mutationError(err));
+            }
+          }}
+          onConfirm={async () => {
+            if (!requireAuth("score")) return;
+            if (isDemoMode()) {
+              store.confirmScore(selected.id, false);
+              return;
+            }
+            try {
+              await confirmScoreFn({ data: { gameId: selected.id } });
+              await refreshCompetitiveSnapshot();
+            } catch (err) {
+              setStatusMsg(mutationError(err));
+            }
+          }}
+          onDispute={async () => {
+            if (!requireAuth("dispute")) return;
+            if (isDemoMode()) {
+              store.confirmScore(selected.id, true);
+              return;
+            }
+            try {
+              await disputeScoreFn({ data: { gameId: selected.id } });
+              await refreshCompetitiveSnapshot();
+            } catch (err) {
+              setStatusMsg(mutationError(err));
+            }
+          }}
+        />
+
         <button
           type="button"
           onClick={() => setGameTab("chat")}
@@ -2106,18 +2310,36 @@ export function QuickMatchFlow({
                 <button
                   type="button"
                   onClick={() => {
-                    const r = store.cancelMatch(
-                      selected.id,
-                      hostEmptyCancel ? "" : cancelReason,
-                    );
-                    if (!r.ok) {
-                      setCancelError(r.reason);
-                      return;
-                    }
-                    setCancelOpen(false);
-                    setStatusMsg("Game cancelled.");
-                    setView("find");
-                    setSelectedId(null);
+                    void (async () => {
+                      if (!requireAuth("leave")) return;
+                      if (isDemoMode()) {
+                        const r = store.cancelMatch(
+                          selected.id,
+                          hostEmptyCancel ? "" : cancelReason,
+                        );
+                        if (!r.ok) {
+                          setCancelError(r.reason);
+                          return;
+                        }
+                      } else {
+                        try {
+                          await cancelGameFn({
+                            data: {
+                              gameId: selected.id,
+                              reason: hostEmptyCancel ? "" : cancelReason,
+                            },
+                          });
+                          await refreshCompetitiveSnapshot();
+                        } catch (err) {
+                          setCancelError(mutationError(err));
+                          return;
+                        }
+                      }
+                      setCancelOpen(false);
+                      setStatusMsg("Game cancelled.");
+                      setView("find");
+                      setSelectedId(null);
+                    })();
                   }}
                   className="flex-1 rounded-full bg-danger py-3 text-sm font-semibold text-white"
                 >
@@ -2197,14 +2419,18 @@ export function QuickMatchFlow({
         countLabel: "waiting",
         tone: "from-orange-500 to-court",
       },
-      {
-        id: "hoop_now",
-        kicker: "Free today",
-        title: "Match Mode",
-        sub: "Swipe free players. Court locks after you both accept.",
-        countLabel: "today",
-        tone: "from-rose-500 to-orange-500",
-      },
+      ...(isMatchModeEnabled()
+        ? [
+            {
+              id: "hoop_now" as const,
+              kicker: "Free today",
+              title: "Match Mode",
+              sub: "Swipe free players. Court locks after you both accept.",
+              countLabel: "today",
+              tone: "from-rose-500 to-orange-500",
+            },
+          ]
+        : []),
     ];
 
 

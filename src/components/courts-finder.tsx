@@ -598,7 +598,7 @@ export function CourtsFinder({
   error,
   locError,
   radiusMi,
-  dataSource: _dataSource,
+  dataSource,
   onRadiusChange,
   onRefresh,
   onNearMe,
@@ -1171,6 +1171,17 @@ export function CourtsFinder({
               <ChevronUp className="size-3.5" strokeWidth={2.5} />
             </button>
           </div>
+        ) : null}
+
+        {dataSource === "catalog" ? (
+          <p className="px-2.5 pb-1 text-[10px] font-medium text-fg-subtle">
+            Showing the saved Austin court catalog
+            {loading ? " · checking live map…" : " — not live external map data."}
+          </p>
+        ) : dataSource === "mixed" || dataSource === "osm" ? (
+          <p className="px-2.5 pb-1 text-[10px] font-medium text-fg-subtle">
+            Live map plus Austin catalog
+          </p>
         ) : null}
 
         {error ? (

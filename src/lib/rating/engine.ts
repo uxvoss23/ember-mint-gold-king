@@ -15,6 +15,9 @@ export const RATING_CONSTANTS = {
   halfLife: 20,
 } as const;
 
+/** Hard floor — losing everything cannot drop a player below this. */
+export const RATING_FLOOR = 100;
+
 export interface RatingPlayer {
   rating: number;
   gamesPlayed: number;
@@ -100,8 +103,8 @@ export function rateSeries(
   return {
     aDelta,
     bDelta,
-    aNew: a.rating + aDelta,
-    bNew: b.rating + bDelta,
+    aNew: Math.max(RATING_FLOOR, a.rating + aDelta),
+    bNew: Math.max(RATING_FLOOR, b.rating + bDelta),
     actualA,
     expectedA,
   };
