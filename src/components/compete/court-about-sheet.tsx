@@ -74,8 +74,7 @@ export function courtAboutText(court: {
 }
 
 /**
- * Popup for list ⓘ — photos + notes.
- * Map mode uses the inline profile under the real map (no second map).
+ * Popup for court ⓘ — photos + notes.
  */
 export function CourtAboutSheet({
   court,

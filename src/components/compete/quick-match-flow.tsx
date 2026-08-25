@@ -14,7 +14,7 @@ import {
   UserPlus,
   X,
 } from "lucide-react";
-import { CourtAboutSheet, courtAboutText } from "@/components/compete/court-about-sheet";
+import { CourtAboutSheet } from "@/components/compete/court-about-sheet";
 import { CreateGameStepBar } from "@/components/compete/create-game-step-bar";
 import { HoopNowFlow } from "@/components/compete/hoop-now-flow";
 import { PlayerBrowseFilters } from "@/components/compete/player-browse-filters";
@@ -847,7 +847,7 @@ export function QuickMatchFlow({
 
 
   const aboutSheet =
-    courtInfoId && createPickMode !== "map" ? (
+    courtInfoId ? (
       <CourtAboutSheet
         court={
           courtOptions.find((c) => c.id === courtInfoId) ??
@@ -905,6 +905,11 @@ export function QuickMatchFlow({
     const invitedPlayers = createInviteIds
       .map((id) => playerById.get(id))
       .filter((p): p is Player => !!p);
+    const mapImmersive =
+      createStep === 1 && createPickMode === "map" && !createCourtLocked;
+    const mapThumb = selectedCreateCourt
+      ? courtImagesFor(selectedCreateCourt.id, 1)[0]
+      : undefined;
 
     return (
       <div
@@ -913,8 +918,27 @@ export function QuickMatchFlow({
       >
       <div
         data-uc-create-scroll="1"
-        className="min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain px-4 pt-2 pb-6 touch-pan-y [-webkit-overflow-scrolling:touch]"
+        className={cn(
+          "min-h-0 flex-1",
+          mapImmersive
+            ? "flex flex-col gap-2 overflow-hidden pt-2"
+            : "space-y-2.5 overflow-y-auto overscroll-contain px-4 pt-2 pb-6 touch-pan-y [-webkit-overflow-scrolling:touch]",
+        )}
       >
+        <div className={mapImmersive ? "shrink-0 space-y-1.5 px-4" : "contents"}>
+        {mapImmersive ? (
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setView("explore")}
+              className="text-xs font-medium text-fg-muted"
+            >
+              ← Explore
+            </button>
+            <h3 className="font-display text-[15px] font-semibold text-fg">Create 1v1</h3>
+          </div>
+        ) : (
+          <>
         <button
           type="button"
           onClick={() => {
@@ -929,10 +953,15 @@ export function QuickMatchFlow({
           {createStep > 1 ? "← Back" : "← Explore"}
         </button>
         <h3 className="font-display text-lg font-semibold text-fg">Create 1v1</h3>
+          </>
+        )}
         <CreateGameStepBar step={createStep} onStep={setCreateStep} />
+        {mapImmersive ? null : (
         <p className="text-[11px] text-fg-muted">
           Ranked 1v1 · best of 3 to 11 · win by 2. Public by default.
         </p>
+        )}
+        </div>
 
         {createStep === 1 ? (
         <>
@@ -975,7 +1004,7 @@ export function QuickMatchFlow({
           </div>
         ) : (
           <>
-        {selectedCreateCourt ? (
+        {selectedCreateCourt && !mapImmersive ? (
           <div className="overflow-hidden rounded-2xl border border-court/40 bg-court/10">
             {createImages.length > 0 ? (
               <ImageCarousel
@@ -1006,6 +1035,7 @@ export function QuickMatchFlow({
           </div>
           </div>
         ) : null}
+        <div className={mapImmersive ? "shrink-0 space-y-1.5 px-4" : "contents"}>
 <div className="space-y-1">
           <p className="text-[10px] font-medium text-fg-subtle">Filters · deselect all to see every court</p>
           <div className="flex gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -1106,6 +1136,7 @@ export function QuickMatchFlow({
             ))}
           </ul>
         ) : null}
+        </div>
 
         {createPickMode === "photos" ? (
           <>
@@ -1190,119 +1221,57 @@ export function QuickMatchFlow({
             ) : null}
           </>
         ) : (
-          <div className="overflow-hidden rounded-2xl border border-border">
-            <p className="border-b border-border bg-bg-elevated px-2.5 py-1.5 text-[11px] text-fg-muted">
-              Tap a pin — map stays up so you see where it is vs you. Profile
-              opens underneath.
-            </p>
+          <div className="relative min-h-0 flex-1 overflow-hidden">
             <CourtsMap
               courts={filteredCourts}
               location={{ lat: origin.lat, lon: origin.lon, label: "You" }}
-              selectedId={courtInfoId || createCourtId || null}
-              onSelect={(c) => setCourtInfoId(c.id)}
+              selectedId={createCourtId || null}
+              onSelect={(c) => setCreateCourtId(c.id)}
               variant="finder"
-              mapClassName="h-[min(38dvh,260px)]"
+              bare
+              mapClassName="h-full w-full"
             />
-            {(() => {
-              const peekId = courtInfoId || createCourtId || null;
-              const peek =
-                (peekId &&
-                  (filteredCourts.find((c) => c.id === peekId) ??
-                    courtOptions.find((c) => c.id === peekId) ??
-                    courts.find((c) => c.id === peekId))) ||
-                null;
-              if (!peek) {
-                return (
-                  <p className="bg-bg-elevated px-3 py-2.5 text-center text-[11px] text-fg-muted">
-                    Select a pin to see photos & details here
-                  </p>
-                );
-              }
-              const thumbs = courtImagesFor(peek.id, 5);
-              const miles =
-                "miles" in peek && typeof peek.miles === "number"
-                  ? peek.miles
-                  : haversineMi(origin.lat, origin.lon, peek.lat, peek.lon);
-              const selected = createCourtId === peek.id;
-              return (
-                <div className="max-h-[min(42dvh,320px)] space-y-0 overflow-y-auto border-t border-border bg-bg">
-                  <div className="relative">
-                    <ImageCarousel
-                      images={thumbs}
-                      alt={peek.name}
-                      className="aspect-[16/9] w-full"
-                      showControls
-                      priority
+            {selectedCreateCourt ? (
+              <div className="absolute bottom-2 left-2 right-12 z-20 flex items-center gap-2.5 rounded-2xl border border-court/40 bg-bg/95 p-2 shadow-soft backdrop-blur-md">
+                <div className="size-14 shrink-0 overflow-hidden rounded-xl bg-bg-subtle">
+                  {mapThumb ? (
+                    <img
+                      src={mapThumb}
+                      alt=""
+                      className="h-full w-full object-cover"
                     />
-                    <button
-                      type="button"
-                      onClick={() => setCourtInfoId(null)}
-                      className="absolute top-2 right-2 z-10 flex size-8 items-center justify-center rounded-full bg-black/55 text-white"
-                      aria-label="Close court profile"
-                    >
-                      <X className="size-3.5" />
-                    </button>
-                  </div>
-                  <div className="space-y-2 px-3 py-2.5">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="truncate text-[14px] font-semibold text-fg">
-                          {peek.name}
-                        </p>
-                        <p className="text-[11px] text-fg-muted">
-                          {peek.neighborhood ?? "Austin"} ·{" "}
-                          {formatMiles(miles)} from you
-                        </p>
-                      </div>
-                      {selected ? (
-                        <span className="shrink-0 rounded-full bg-court px-2 py-0.5 text-[10px] font-bold text-white">
-                          Selected
-                        </span>
-                      ) : null}
-                    </div>
-                    <p className="text-[12px] leading-snug text-fg-muted line-clamp-3">
-                      {courtAboutText(peek)}
-                    </p>
-                    <div className="flex flex-wrap gap-1">
-                      {(peek.amenities ?? [])
-                        .slice(0, 5)
-                        .map((a) => (
-                          <span
-                            key={a}
-                            className="rounded-full border border-border bg-bg-elevated px-2 py-0.5 text-[10px] font-medium capitalize text-fg-muted"
-                          >
-                            {a.replace(/_/g, " ")}
-                          </span>
-                        ))}
-                      {peek.hoops ? (
-                        <span className="rounded-full border border-border bg-bg-elevated px-2 py-0.5 text-[10px] font-medium text-fg-muted">
-                          {peek.hoops} hoops
-                        </span>
-                      ) : null}
-                    </div>
-                    {peek.address ? (
-                      <p className="flex items-start gap-1 text-[11px] text-fg-subtle">
-                        <MapPin className="mt-0.5 size-3 shrink-0 text-court" />
-                        {peek.address}
-                      </p>
-                    ) : null}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCreateCourtId(peek.id);
-                        setCourtInfoId(peek.id);
-                      }}
-                      className={cn(
-                        "w-full rounded-full py-2.5 text-sm font-semibold text-white",
-                        selected ? "bg-fg" : "bg-court",
-                      )}
-                    >
-                      {selected ? "Selected ✓" : "Select this court"}
-                    </button>
-                  </div>
+                  ) : null}
                 </div>
-              );
-            })()}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13px] font-semibold text-fg">
+                    {selectedCreateCourt.name.replace(/\s*Courts?\s*$/i, "") ||
+                      selectedCreateCourt.name}
+                  </p>
+                  <p className="truncate text-[11px] text-fg-muted">
+                    {selectedCreateCourt.neighborhood ?? "Austin"} ·{" "}
+                    {formatMiles(
+                      "miles" in selectedCreateCourt &&
+                        typeof selectedCreateCourt.miles === "number"
+                        ? selectedCreateCourt.miles
+                        : haversineMi(
+                            origin.lat,
+                            origin.lon,
+                            selectedCreateCourt.lat,
+                            selectedCreateCourt.lon,
+                          ),
+                    )}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setCourtInfoId(selectedCreateCourt.id)}
+                  className="flex size-9 shrink-0 items-center justify-center rounded-full bg-court/15 text-court"
+                  aria-label={`About ${selectedCreateCourt.name}`}
+                >
+                  <Info className="size-4" strokeWidth={2.25} />
+                </button>
+              </div>
+            ) : null}
           </div>
         )}
 
