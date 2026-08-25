@@ -11,8 +11,8 @@ export type MatchStatus =
 
 export type DmPrivacy = "everyone" | "played" | "nobody";
 
-/** 1v1 live; team formats reserved for coming-soon UI */
-export type MatchFormat = "1v1" | "horse" | "3v3" | "5v5";
+/** 1v1 and HORSE are live */
+export type MatchFormat = "1v1" | "horse";
 export type MatchKind = "broadcast" | "challenge" | "invite";
 
 export interface Player {
@@ -64,25 +64,14 @@ export interface Player {
   weeklyWins: number;
   weeklyLosses: number;
   ratingLastWeek: number;
-  /** Peer settle handles (never shown on court map) */
-  payCashApp?: string;
-  payVenmo?: string;
-  payZelle?: string;
   /** Linked Better Auth user id when signed in */
   authUserId?: string;
   email?: string;
-  /** Permanent ban from league (e.g. unpaid stakes) */
-  exiled?: boolean;
-  exiledAt?: string;
-  exiledReason?: string;
 }
 
 export interface CourtMeta {
   courtId: string;
-  kingId?: string;
-  kingLastPlayedAt?: string;
   chat: ChatMessage[];
-  crownTtlDays: number;
 }
 
 export type MatchChangeProposalStatus = "pending" | "approved" | "superseded";
@@ -114,57 +103,6 @@ export interface ChatMessage {
 export interface MatchGame {
   a: number;
   b: number;
-}
-
-/** How the match is “playing for something” */
-export type StakeMode = "fun" | "stakes" | "charity";
-
-/**
- * Playing-for model:
- * - fun: rating only
- * - charity: fixed gift ($5–$20) to Alzheimer's after dual-confirm
- * - stakes: removed from product (legacy type only)
- */
-export interface MatchStakes {
-  mode: StakeMode;
-  /**
-   * Charity (margin model): $ per point of total series margin.
-   * Stakes (fixed price): unused for payout — see fixedPriceDollars.
-   */
-  dollarsPerPoint: number;
-  /**
-   * Stakes only — the named price. Loser pays winner this amount.
-   * Also shown on open listings so people know what’s on the line.
-   */
-  fixedPriceDollars?: number;
-  /** Optional ceiling (charity margin model) */
-  capDollars?: number;
-  charityName?: string;
-  charityUrl?: string;
-  /** Filled after series is scored + confirmed */
-  totalMarginPoints?: number;
-  amountDollars?: number;
-  loserId?: string;
-  winnerId?: string;
-  /** Loser marked donation/paid complete */
-  settled?: boolean;
-  settledAt?: string;
-  settleMethod?: "cashapp" | "venmo" | "zelle" | "cash" | "charity" | "other";
-  /**
-   * Settlement health after scores lock.
-   * unpaid report → exile. extension = working with them.
-   */
-  paymentStatus?:
-    | "pending"
-    | "extension_requested"
-    | "reported_unpaid"
-    | "exiled"
-    | "settled";
-  payDeadlineAt?: string;
-  extensionNote?: string;
-  extensionRequestedAt?: string;
-  reportedUnpaidAt?: string;
-  reportedById?: string;
 }
 
 export interface MatchFilters {
@@ -218,8 +156,6 @@ export interface Match {
   opponentBringingBall?: boolean;
   /** Set once when both said no — avoid duplicate alerts */
   ballNeitherAlerted?: boolean;
-  /** Playing for fun / stakes / charity */
-  stakes?: MatchStakes;
   allowGuestInvites?: boolean;
   /** If true, only players in guestInviteIds can join — not listed as open public */
   inviteOnly?: boolean;
@@ -291,6 +227,5 @@ export interface UpsetState {
   reports: Report[];
   playerReviews: PlayerReview[];
   cancelLog: CancelLogEntry[];
-  crownTtlDays: number;
   seedVersion: number;
 }

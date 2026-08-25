@@ -22,9 +22,6 @@ export function PlayerProfile({
   const [status, setStatus] = useState<string | null>(null);
   const courts = useMemo(() => namedAustinCourts(), []);
   const home = courts.find((c) => c.id === player.homeCourtId);
-  const held = Object.values(store.courtMeta).filter(
-    (m) => m.kingId === player.id,
-  ).length;
 
   /** Already locked in with this player — no challenge option */
   const scheduledWith = useMemo(() => {
@@ -116,17 +113,10 @@ export function PlayerProfile({
             <p className="text-sm text-fg-muted">
               @{player.handle} · {player.neighborhood ?? player.city}
             </p>
-            {player.exiled ? (
-              <p className="mt-1.5 rounded-lg bg-danger/15 px-2 py-1 text-[11px] font-bold text-danger">
-                EXILED from the league
-                {player.exiledReason ? ` · ${player.exiledReason}` : ""}
-              </p>
-            ) : (
-              <p className="mt-1 text-xs capitalize text-fg-subtle">
+            <p className="mt-1 text-xs capitalize text-fg-subtle">
                 {player.availability}
                 {home ? ` · home ${home.name}` : ""}
               </p>
-            )}
           </div>
         </div>
 
@@ -141,7 +131,7 @@ export function PlayerProfile({
               ["Exp", `${player.experienceYears}y`],
               ["Sports", `${player.sportsmanship.toFixed(1)}★`],
               ["Show", `${player.reliability.toFixed(1)}★`],
-              ["Crowns", String(held)],
+              ["Games", String(player.gamesPlayed)],
             ] as const
           ).map(([l, v]) => (
             <div
@@ -161,43 +151,6 @@ export function PlayerProfile({
         {player.bio && (
           <p className="mt-4 text-sm leading-relaxed text-fg-muted">{player.bio}</p>
         )}
-
-        {/* Private settle handles — only for stakes, never on map */}
-        {isMe ? (
-          <PayHandlesEditor
-            player={player}
-            onSave={(h) => {
-              store.updateMyPayHandles(h);
-              setStatus("Payment handles saved — only used for private settle.");
-            }}
-          />
-        ) : player.payCashApp || player.payVenmo || player.payZelle ? (
-          <div className="mt-4 rounded-2xl border border-border bg-bg-subtle px-3.5 py-3">
-            <p className="text-[10px] font-bold tracking-wide text-fg-subtle uppercase">
-              Private settle
-            </p>
-            <p className="mt-1 text-[11px] text-fg-muted">
-              For stakes games only — peer apps, not public on the map.
-            </p>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {player.payCashApp ? (
-                <span className="rounded-full bg-bg-elevated px-2.5 py-1 text-[11px] font-semibold text-fg">
-                  Cash App ${player.payCashApp.replace(/^\$/, "")}
-                </span>
-              ) : null}
-              {player.payVenmo ? (
-                <span className="rounded-full bg-bg-elevated px-2.5 py-1 text-[11px] font-semibold text-fg">
-                  Venmo @{player.payVenmo.replace(/^@/, "")}
-                </span>
-              ) : null}
-              {player.payZelle ? (
-                <span className="rounded-full bg-bg-elevated px-2.5 py-1 text-[11px] font-semibold text-fg">
-                  Zelle {player.payZelle}
-                </span>
-              ) : null}
-            </div>
-          </div>
-        ) : null}
 
         {!isMe && (
           <div className="mt-5 space-y-3">
@@ -321,79 +274,6 @@ export function PlayerProfile({
             {status}
           </p>
         )}
-      </div>
-    </div>
-  );
-}
-
-function PayHandlesEditor({
-  player,
-  onSave,
-}: {
-  player: Player;
-  onSave: (h: {
-    payCashApp?: string;
-    payVenmo?: string;
-    payZelle?: string;
-  }) => void;
-}) {
-  const [cash, setCash] = useState(player.payCashApp?.replace(/^\$/, "") ?? "");
-  const [venmo, setVenmo] = useState(player.payVenmo?.replace(/^@/, "") ?? "");
-  const [zelle, setZelle] = useState(player.payZelle ?? "");
-  const [saved, setSaved] = useState(false);
-
-  return (
-    <div className="mt-4 rounded-2xl border border-border bg-bg-subtle px-3.5 py-3">
-      <p className="text-[10px] font-bold tracking-wide text-fg-subtle uppercase">
-        Private settle handles
-      </p>
-      <p className="mt-1 text-[11px] leading-snug text-fg-muted">
-        Cash App, Venmo, Zelle — only used when someone owes you on a stakes
-        game. Never shown on the court map.
-      </p>
-      <div className="mt-2.5 space-y-2">
-        <label className="block text-[10px] font-medium text-fg-muted">
-          Cash App $cashtag
-          <input
-            value={cash}
-            onChange={(e) => setCash(e.target.value.replace(/^\$/, ""))}
-            placeholder="yourcashtag"
-            className="mt-1 h-10 w-full rounded-xl border border-border bg-bg px-3 text-sm text-fg outline-none focus:border-court"
-          />
-        </label>
-        <label className="block text-[10px] font-medium text-fg-muted">
-          Venmo username
-          <input
-            value={venmo}
-            onChange={(e) => setVenmo(e.target.value.replace(/^@/, ""))}
-            placeholder="username"
-            className="mt-1 h-10 w-full rounded-xl border border-border bg-bg px-3 text-sm text-fg outline-none focus:border-court"
-          />
-        </label>
-        <label className="block text-[10px] font-medium text-fg-muted">
-          Zelle (email or phone)
-          <input
-            value={zelle}
-            onChange={(e) => setZelle(e.target.value)}
-            placeholder="you@email.com"
-            className="mt-1 h-10 w-full rounded-xl border border-border bg-bg px-3 text-sm text-fg outline-none focus:border-court"
-          />
-        </label>
-        <button
-          type="button"
-          onClick={() => {
-            onSave({
-              payCashApp: cash || undefined,
-              payVenmo: venmo || undefined,
-              payZelle: zelle || undefined,
-            });
-            setSaved(true);
-            window.setTimeout(() => setSaved(false), 1600);
-          }}
-          className="flex h-10 w-full items-center justify-center rounded-xl bg-fg text-xs font-semibold text-bg"
-        >
-          {saved ? "Saved" : "Save handles"}
-        </button>
       </div>
     </div>
   );

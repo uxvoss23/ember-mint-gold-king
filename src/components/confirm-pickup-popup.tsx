@@ -5,7 +5,7 @@ import { compressWorkOrderPhoto } from "@/components/work-order-popup";
 
 /**
  * Modal to start a Hooping Now session:
- * photo (required) → auto Social post + court LIVE pin.
+ * photo (required) → court LIVE pin.
  * No invite step.
  */
 export function ConfirmPickupPopup({
@@ -94,7 +94,7 @@ export function ConfirmPickupPopup({
 
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 py-3">
           <p className="text-[12px] text-fg-muted">
-            Add a photo of the run. We'll post it on Social automatically.
+            Add a photo of the run. We'll mark this court live.
           </p>
 
           <input
@@ -111,7 +111,6 @@ export function ConfirmPickupPopup({
 
           {photo ? (
             <div className="relative">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={photo}
                 alt=""

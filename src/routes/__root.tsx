@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
 import { AuthProvider } from "@/lib/auth/provider";
 import { CreatedWithGrokBanner } from "@/components/created-with-grok-banner";
@@ -48,6 +49,13 @@ export const Route = createRootRoute({
 });
 
 function RootDocument() {
+  // Static first-paint cover lives in the React tree so every route (including
+  // /login) can unmount it after hydrate. Home then keeps its own BootSplash.
+  const [showStaticBoot, setShowStaticBoot] = useState(true);
+  useEffect(() => {
+    setShowStaticBoot(false);
+  }, []);
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -67,18 +75,20 @@ html,body{overflow:hidden}
         />
       </head>
       <body className="bg-bg text-fg antialiased">
-        <div id="uc-static-boot" aria-hidden="true">
-          <div className="uc-orb">
-            <svg width="40" height="40" viewBox="0 0 64 64" fill="none" aria-hidden="true">
-              <circle cx="32" cy="32" r="22" stroke="white" strokeWidth="2.2" />
-              <path d="M32 10v44M10 32h44" stroke="white" strokeWidth="2" />
-              <path d="M18 16c8 6 20 6 28 0M18 48c8-6 20-6 28 0" stroke="white" strokeWidth="2" />
-            </svg>
+        {showStaticBoot ? (
+          <div id="uc-static-boot" aria-hidden="true">
+            <div className="uc-orb">
+              <svg width="40" height="40" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+                <circle cx="32" cy="32" r="22" stroke="white" strokeWidth="2.2" />
+                <path d="M32 10v44M10 32h44" stroke="white" strokeWidth="2" />
+                <path d="M18 16c8 6 20 6 28 0M18 48c8-6 20-6 28 0" stroke="white" strokeWidth="2" />
+              </svg>
+            </div>
+            <p>Upset City</p>
+            <h1>Where the best hoopers emerge</h1>
+            <div className="uc-sub">Loading Austin…</div>
           </div>
-          <p>Upset City</p>
-          <h1>Where the best hoopers emerge</h1>
-          <div className="uc-sub">Loading Austin…</div>
-        </div>
+        ) : null}
         <CreatedWithGrokBanner />
         <AuthProvider>
           <Outlet />

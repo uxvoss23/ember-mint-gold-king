@@ -265,7 +265,6 @@ export function HoopingNowChat({
                   ) : null}
                   <p className="whitespace-pre-wrap break-words">{m.text}</p>
                   {m.photoUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={m.photoUrl}
                       alt=""

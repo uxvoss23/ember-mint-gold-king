@@ -69,7 +69,7 @@ function Login() {
   };
 
   return (
-    <main className="app-shell mx-auto flex min-h-0 w-full max-w-md flex-col px-5 pb-10 pt-4">
+    <main className="app-shell mx-auto flex min-h-0 w-full max-w-md flex-col overflow-y-auto px-5 pb-10 pt-4">
       <Link
         to="/"
         className="mb-8 inline-flex h-11 w-11 items-center justify-center rounded-full border border-border bg-bg-elevated text-fg transition-colors hover:bg-bg-subtle"

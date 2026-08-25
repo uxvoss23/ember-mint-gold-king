@@ -16,17 +16,12 @@ import {
 } from "lucide-react";
 import { CourtAboutSheet, courtAboutText } from "@/components/compete/court-about-sheet";
 import { HoopNowFlow } from "@/components/compete/hoop-now-flow";
-import { ChallengesPanel } from "@/components/compete/challenges-panel";
 import { PlayerBrowseFilters } from "@/components/compete/player-browse-filters";
 import { MatchRemindersCard } from "@/components/compete/match-reminders-card";
 import {
   reminderState,
   remindersCompleted,
 } from "@/lib/match-reminders";
-import {
-  StakeChip,
-  StakeSettleCard,
-} from "@/components/compete/stake-settle-card";
 import { PlayerAvatar } from "@/components/compete/player-avatar";
 import { CourtMapCutout } from "@/components/court-map-cutout";
 import { CourtsMap } from "@/components/courts-map";
@@ -36,14 +31,8 @@ import { courtImagesFor } from "@/lib/courts/images";
 import { directionsUrl } from "@/lib/maps/directions";
 import { suggestAustinAddresses, type GeoHit } from "@/lib/maps/geocode";
 import { displayRating } from "@/lib/rating/engine";
-import { CampaignBanner } from "@/components/compete/campaign-banner";
 import { ScoreConfirmCard } from "@/components/compete/score-confirm-card";
-import {
-  ALZHEIMERS_CHARITY,
-  CHARITY_DONATION_OPTIONS,
-  DEFAULT_CHARITY_DONATION,
-} from "@/lib/upset/stakes";
-import type { MatchFormat, MatchStakes } from "@/lib/upset/types";
+import type { MatchFormat } from "@/lib/upset/types";
 import { formatLocalWhen, useUpsetStore } from "@/lib/upset/store";
 import { matchActionsForPlayer } from "@/lib/upset/match-actions";
 import type { Match, Player, PlayerReview } from "@/lib/upset/types";
@@ -51,8 +40,8 @@ import { cn, formatHeightInches } from "@/lib/utils";
 import { useVisualKeyboard } from "@/hooks/use-visual-keyboard";
 import { DEFAULT_BROWSE_FILTERS, loadBrowseFilters, persistBrowseFilters, clearPersistedBrowseFilters, playerMatchesBrowseFilters, type BrowseFilters } from "@/lib/upset/browse-filters";
 
-type View = "explore" | "find" | "game" | "create" | "hoop_now" | "alerts_setup" | "challenges";
-type ExploreLane = "open" | "tonight" | "rated" | "charity" | "fun";
+type View = "explore" | "find" | "game" | "create" | "hoop_now" | "alerts_setup";
+type ExploreLane = "open" | "tonight" | "rated";
 type InviteFilter = "friends" | "available" | "active";
 type InviteSortKey = "rating" | "height" | "streak";
 const AUSTIN_CENTER = { lat: 30.2672, lon: -97.7431 };
@@ -84,7 +73,6 @@ interface QuickMatchFlowProps {
     mode: "ranked_1v1";
     format?: MatchFormat;
     notes?: string;
-    stakes?: MatchStakes;
     hostBringingBall?: boolean;
     guestInviteIds?: string[];
     inviteOnly?: boolean;
@@ -110,7 +98,24 @@ function haversineMi(lat1: number, lon1: number, lat2: number, lon2: number) {
 }
 function inAustinMetro(lat: number, lon: number) { return lat >= 30.05 && lat <= 30.55 && lon >= -98.05 && lon <= -97.45; }
 function formatMiles(mi: number) { if (mi < 0.1) return "<0.1 mi"; if (mi < 10) return `${mi.toFixed(1)} mi`; return `${Math.round(mi)} mi`; }
-function whenParts(iso: string) { try { const d = new Date(iso); return { day: d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }), time: d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) }; } catch { return { day: iso, time: "" }; } }
+function whenParts(iso: string) {
+  try {
+    const d = new Date(iso);
+    return {
+      day: d.toLocaleDateString("en-US", {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+      }),
+      time: d.toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+      }),
+    };
+  } catch {
+    return { day: iso, time: "" };
+  }
+}
 function seriesWins(scores: { a: number; b: number }[] | undefined, side: "a" | "b") { if (!scores?.length) return 0; let w = 0; for (const g of scores) if (side === "a" ? g.a > g.b : g.b > g.a) w += 1; return w; }
 function scoreLine(scores: { a: number; b: number }[] | undefined) { if (!scores?.length) return ""; return scores.map((g) => `${g.a}–${g.b}`).join(", "); }
 function inviteScore(p: Player, friendIds: string[], now = Date.now()) { let score = 0; if (p.availability === "available") score += 1_000_000; else if (p.availability === "busy") score += 200_000; if (friendIds.includes(p.id)) score += 500_000; if (p.lastPlayedAt) { const age = now - new Date(p.lastPlayedAt).getTime(); score += Math.max(0, TWO_WEEKS_MS - age); } return score; }
@@ -219,9 +224,7 @@ export function QuickMatchFlow({
   const [createCourtLocked, setCreateCourtLocked] = useState(false);
   const [createWhen, setCreateWhen] = useState("");
   const [createNotes, setCreateNotes] = useState("");
-  const [createStakeMode, setCreateStakeMode] = useState<"fun" | "charity">("fun");
   const [createFormat, setCreateFormat] = useState<"1v1" | "horse">("1v1");
-  const [createCharityAmount, setCreateCharityAmount] = useState(DEFAULT_CHARITY_DONATION);
   const [createBringingBall, setCreateBringingBall] = useState<boolean | null>(null);
   const [joinBringingBall, setJoinBringingBall] = useState<boolean | null>(null);
   const [createHood, setCreateHood] = useState("all");
@@ -310,8 +313,7 @@ export function QuickMatchFlow({
         view === "create" ||
         view === "find" ||
         view === "hoop_now" ||
-        view === "alerts_setup" ||
-        view === "challenges",
+        view === "alerts_setup",
     );
     return () => onImmersiveChange?.(false);
   }, [view, onImmersiveChange]);
@@ -412,11 +414,7 @@ export function QuickMatchFlow({
     const endOfDay = new Date();
     endOfDay.setHours(23, 59, 59, 999);
     return openGames.filter(({ match: m, miles }) => {
-      if (exploreLane === "charity") {
-        if (m.stakes?.mode !== "charity") return false;
-      } else if (exploreLane === "fun") {
-        if (m.stakes && m.stakes.mode !== "fun") return false;
-      } else if (exploreLane === "tonight") {
+      if (exploreLane === "tonight") {
         const t = new Date(m.preferredAt).getTime();
         if (!(t >= now && t <= endOfDay.getTime())) return false;
       }
@@ -485,27 +483,6 @@ export function QuickMatchFlow({
     });
     return list;
   }, [laneOpenGames, lobbySort, players, me.rating, me.wins, me.losses]);
-
-  const openTonightCount = useMemo(() => {
-    const now = Date.now();
-    const endOfDay = new Date();
-    endOfDay.setHours(23, 59, 59, 999);
-    return openGames.filter(({ match: m }) => {
-      const t = new Date(m.preferredAt).getTime();
-      return t >= now && t <= endOfDay.getTime();
-    }).length;
-  }, [openGames]);
-  const openCharityCount = useMemo(
-    () => openGames.filter(({ match: m }) => m.stakes?.mode === "charity").length,
-    [openGames],
-  );
-  const openFunCount = useMemo(
-    () =>
-      openGames.filter(
-        ({ match: m }) => !m.stakes || m.stakes.mode === "fun",
-      ).length,
-    [openGames],
-  );
 
   const selected = useMemo(() => {
     if (!selectedId) return null;
@@ -751,7 +728,6 @@ export function QuickMatchFlow({
   };
 
   const submitCreate = () => {
-    if (me.exiled) { setStatusMsg("You’re exiled from the league — cannot post games."); return; }
     if (!createCourtId) { setStatusMsg("Pick a court before posting."); return; }
     if (!createWhen) { setStatusMsg("Pick a date and time before posting."); return; }
     if (createBringingBall === null) { setStatusMsg("Say if you’re bringing a basketball."); return; }
@@ -763,10 +739,6 @@ export function QuickMatchFlow({
     if (!court) { setStatusMsg("Pick a court before posting."); return; }
     const whenDate = parseLocalDateTime(createWhen);
     if (whenDate.getTime() < Date.now() - 60_000) { setStatusMsg("Pick a time in the future."); return; }
-    const stakes: MatchStakes =
-      createStakeMode === "charity"
-        ? { mode: "charity", dollarsPerPoint: 1, fixedPriceDollars: createCharityAmount, amountDollars: createCharityAmount, charityName: ALZHEIMERS_CHARITY.name, charityUrl: ALZHEIMERS_CHARITY.url }
-        : { mode: "fun", dollarsPerPoint: 1 };
     const formatLabel = createFormat === "horse" ? "HORSE" : "1v1";
     const inviteOnly = createVisibility === "invite_only";
     onCreateMatch?.({
@@ -775,7 +747,6 @@ export function QuickMatchFlow({
       mode: "ranked_1v1",
       format: createFormat,
       notes: createNotes.trim() || undefined,
-      stakes,
       hostBringingBall: createBringingBall,
       guestInviteIds: createInviteIds,
       inviteOnly,
@@ -785,9 +756,7 @@ export function QuickMatchFlow({
         ? `${formatLabel} · Private match · ${createInviteIds.length} invite${createInviteIds.length === 1 ? "" : "s"}.`
         : createInviteIds.length
           ? `${formatLabel} · Public match · ${createInviteIds.length} invite${createInviteIds.length === 1 ? "" : "s"} sent.`
-          : createStakeMode === "fun"
-            ? `${formatLabel} · Public match — anyone can join.`
-            : `${formatLabel} · Public match · $${createCharityAmount} Alzheimer's gift.`,
+          : `${formatLabel} · Public match — anyone can join.`,
     );
     setCreateInviteIds([]);
     setCreateVisibility("public");
@@ -804,7 +773,6 @@ export function QuickMatchFlow({
   };
 
   const joinGame = (id: string, bringingBall?: boolean) => {
-    if (me.exiled) { setStatusMsg("You’re exiled from the league — cannot join games."); return; }
     if (bringingBall === undefined) { setStatusMsg("Say if you’re bringing a basketball before joining."); return; }
     const r = onAcceptMatch?.(id, { bringingBall });
     if (r === "filled") setStatusMsg("That game just filled.");
@@ -890,8 +858,6 @@ export function QuickMatchFlow({
         data-uc-create-scroll="1"
         className="min-h-0 space-y-2.5 overflow-y-auto overscroll-contain px-4 pt-2 pb-6 touch-pan-y [-webkit-overflow-scrolling:touch]"
       >
-        <CampaignBanner compact />
-
         <button type="button" onClick={() => setView("explore")} className="text-xs font-medium text-fg-muted">
           ← Explore
         </button>
@@ -1075,33 +1041,70 @@ export function QuickMatchFlow({
                 const thumb = courtImagesFor(c.id, 1)[0];
                 const selected = c.id === createCourtId;
                 return (
-                  <button key={c.id} type="button" onClick={() => setCreateCourtId(c.id)}
-                    className={cn("w-[44%] max-w-[10.5rem] shrink-0 snap-start overflow-hidden rounded-2xl border text-left",
-                      selected ? "border-court ring-2 ring-court/50 shadow-md" : "border-border bg-bg-elevated")}>
-                    <div className="relative aspect-[5/4] bg-bg-subtle">
-                      {thumb ? <img src={thumb} alt="" className="h-full w-full object-cover" loading="lazy" /> : null}
-                      <button type="button"
-                        onClick={(e) => { e.stopPropagation(); e.preventDefault(); setCourtInfoId(c.id); }}
-                        className="absolute top-1.5 left-1.5 z-10 flex size-7 items-center justify-center rounded-full bg-black/55 text-white"
-                        aria-label={`About ${c.name}`}>
-                        <Info className="size-3.5" strokeWidth={2.25} />
-                      </button>
-                      <div className="absolute top-1.5 right-1.5 z-10 flex flex-col items-end gap-0.5">
-                        {selected ? <span className="rounded-full bg-court px-1.5 py-0.5 text-[9px] font-bold text-white">✓</span> : null}
-                        {isRecommendedCourt(c) ? <span className="rounded-full bg-court px-1.5 py-0.5 text-[8px] font-bold text-white uppercase">Top</span> : null}
-                        {isShadedCourt(c) ? <span className="rounded-full bg-black/55 px-1.5 py-0.5 text-[8px] font-bold text-white uppercase">Shade</span> : null}
+                  <div
+                    key={c.id}
+                    className={cn(
+                      "relative w-[44%] max-w-[10.5rem] shrink-0 snap-start overflow-hidden rounded-2xl border",
+                      selected
+                        ? "border-court ring-2 ring-court/50 shadow-md"
+                        : "border-border bg-bg-elevated",
+                    )}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setCreateCourtId(c.id)}
+                      className="w-full text-left"
+                    >
+                      <div className="relative aspect-[5/4] bg-bg-subtle">
+                        {thumb ? (
+                          <img
+                            src={thumb}
+                            alt=""
+                            className="h-full w-full object-cover"
+                            loading="lazy"
+                          />
+                        ) : null}
+                        <div className="absolute top-1.5 right-1.5 z-10 flex flex-col items-end gap-0.5">
+                          {selected ? (
+                            <span className="rounded-full bg-court px-1.5 py-0.5 text-[9px] font-bold text-white">
+                              ✓
+                            </span>
+                          ) : null}
+                          {isRecommendedCourt(c) ? (
+                            <span className="rounded-full bg-court px-1.5 py-0.5 text-[8px] font-bold text-white uppercase">
+                              Top
+                            </span>
+                          ) : null}
+                          {isShadedCourt(c) ? (
+                            <span className="rounded-full bg-black/55 px-1.5 py-0.5 text-[8px] font-bold text-white uppercase">
+                              Shade
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-2 pb-1.5 pt-6">
+                          <p className="text-[10px] font-bold tracking-wide text-white uppercase">
+                            {c.neighborhood ?? "Austin"}
+                          </p>
+                          <p className="text-[10px] font-medium text-white/90">
+                            {formatMiles(c.miles)} away
+                          </p>
+                        </div>
                       </div>
-                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-2 pb-1.5 pt-6">
-                        <p className="text-[10px] font-bold tracking-wide text-white uppercase">{c.neighborhood ?? "Austin"}</p>
-                        <p className="text-[10px] font-medium text-white/90">{formatMiles(c.miles)} away</p>
+                      <div className="px-2 py-1.5">
+                        <p className="line-clamp-1 text-[12px] font-semibold text-fg">
+                          {c.name.replace(/\s*Courts?\s*$/i, "") || c.name}
+                        </p>
                       </div>
-                    </div>
-                    <div className="px-2 py-1.5">
-                      <p className="line-clamp-1 text-[12px] font-semibold text-fg">
-                        {c.name.replace(/\s*Courts?\s*$/i, "") || c.name}
-                      </p>
-                    </div>
-                  </button>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCourtInfoId(c.id)}
+                      className="absolute top-1.5 left-1.5 z-10 flex size-7 items-center justify-center rounded-full bg-black/55 text-white"
+                      aria-label={`About ${c.name}`}
+                    >
+                      <Info className="size-3.5" strokeWidth={2.25} />
+                    </button>
+                  </div>
                 );
               })}
             </div>
@@ -1251,40 +1254,6 @@ export function QuickMatchFlow({
         <div className="space-y-2 rounded-xl border border-border bg-bg-elevated p-3">
           <p className="text-[11px] font-bold text-fg">Date & time</p>
           <CreateWhenPicker value={createWhen} onChange={setCreateWhen} />
-        </div>
-
-        <div className="space-y-2 rounded-xl border border-border bg-bg-elevated p-3">
-          <p className="text-[11px] font-bold text-fg">This game counts toward</p>
-          <div className="grid grid-cols-2 gap-1.5">
-            <button type="button" onClick={() => setCreateStakeMode("fun")}
-              className={cn("rounded-xl border px-2 py-2.5 text-left",
-                createStakeMode === "fun" ? "border-court bg-court-soft text-fg" : "border-border bg-bg text-fg-muted")}>
-              <p className="text-[12px] font-bold">Just for fun</p>
-              <p className="text-[10px] opacity-80">Rating only</p>
-            </button>
-            <button type="button" onClick={() => setCreateStakeMode("charity")}
-              className={cn("rounded-xl border px-2 py-2.5 text-left",
-                createStakeMode === "charity" ? "border-violet-500 bg-violet-500/15 text-fg" : "border-border bg-bg text-fg-muted")}>
-              <p className="text-[12px] font-bold">Alzheimer's $50k</p>
-              <p className="text-[10px] opacity-80">City goal · give clean</p>
-            </button>
-          </div>
-          {createStakeMode === "charity" ? (
-            <div className="space-y-2 pt-1">
-              <p className="text-[11px] leading-snug text-fg-muted">Loser donates a fixed amount after the game. Pick one:</p>
-              <div className="grid grid-cols-4 gap-1.5">
-                {CHARITY_DONATION_OPTIONS.map((amt) => (
-                  <button key={amt} type="button" onClick={() => setCreateCharityAmount(amt)}
-                    className={cn("h-11 rounded-xl border text-sm font-bold tabular-nums",
-                      createCharityAmount === amt ? "border-fg bg-fg text-bg" : "border-border bg-bg text-fg")}>
-                    ${amt}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <p className="text-[11px] text-fg-muted">Compete for rating and pride only.</p>
-          )}
         </div>
 
         <div className="space-y-2 rounded-xl border border-border bg-bg-elevated p-3">
@@ -1821,7 +1790,6 @@ export function QuickMatchFlow({
             </div>
             <div className="absolute top-2 right-2 z-20 rounded-full bg-black/55 px-2 py-0.5 text-[9px] font-semibold tracking-wide text-white uppercase">
               {selected.format === "horse" ? "HORSE" : "Rated 1v1"}
-                {selected.stakes?.mode === "charity" ? " · charity" : ""}
                 {selected.status === "open"
                   ? selected.inviteOnly
                     ? " · private"
@@ -1864,23 +1832,7 @@ export function QuickMatchFlow({
               ? "HORSE · outdoor · clean calls"
               : "Best of 3 · games to 11 · make it take it"}
           </p>
-          {selected.stakes ? (
-            <StakeSettleCard
-              match={selected}
-              me={me}
-              host={host}
-              opp={opp}
-              onMarkSettled={(method) =>
-                store.markStakeSettled(selected.id, method)
-              }
-              onRequestExtension={(note) =>
-                store.requestStakeExtension(selected.id, note)
-              }
-              onReportUnpaid={() => store.reportStakeUnpaid(selected.id)}
-            />
-          ) : (
-            <p className="text-[11px] text-fg-muted">Just for fun · rating only</p>
-          )}
+          <p className="text-[11px] text-fg-muted">Just for fun · rating only</p>
           {"address" in court && court.address ? (
             <a href={mapsHref} target="_blank" rel="noopener noreferrer" className="flex items-start gap-1 text-sm text-fg-muted">
               <MapPin className="mt-0.5 size-3.5 shrink-0 opacity-70" />
@@ -2255,37 +2207,7 @@ export function QuickMatchFlow({
       },
     ];
 
-    const secondary: {
-      id: ExploreLane | "squads" | "challenges";
-      title: string;
-      sub: string;
-      count?: number;
-      countLabel?: string;
-      tone: string;
-      soon?: boolean;
-    }[] = [
-      {
-        id: "challenges",
-        title: "Challenges",
-        sub: "Earn badges for ranked runs.",
-        tone: "from-amber-500 to-orange-700",
-      },
-      {
-        id: "fun",
-        title: "Just for fun",
-        sub: "Rated 1v1 · no donation.",
-        count: openFunCount,
-        countLabel: "open",
-        tone: "from-emerald-600 to-teal-700",
-      },
-      {
-        id: "squads",
-        title: "Squads",
-        sub: "Teams of 3 or 5. Coming soon.",
-        tone: "from-zinc-600 to-zinc-800",
-        soon: true,
-      },
-    ];
+
 
     return (
       <div className="space-y-3">
@@ -2355,52 +2277,7 @@ export function QuickMatchFlow({
           ))}
         </div>
 
-        <div>
-          <p className="mb-1.5 text-[10px] font-bold tracking-wide text-fg-subtle uppercase">
-            More
-          </p>
-          <div className="grid grid-cols-2 gap-2">
-            {secondary.map((tile) => (
-              <button
-                key={tile.id}
-                type="button"
-                disabled={tile.soon}
-                onClick={() => {
-                  if (tile.soon) return;
-                  if (tile.id === "challenges") {
-                    setView("challenges");
-                    return;
-                  }
-                  enterLane(tile.id as ExploreLane);
-                }}
-                className={cn(
-                  "relative min-h-[104px] overflow-hidden rounded-2xl p-3 text-left text-white shadow-sm transition active:scale-[0.98]",
-                  tile.soon && "opacity-55",
-                  `bg-gradient-to-br ${tile.tone}`,
-                  tile.id === "squads" && "col-span-2 min-h-[80px]",
-                )}
-              >
-                {tile.count != null ? (
-                  <span className="absolute top-2 right-2 rounded-full bg-black/25 px-1.5 py-0.5 text-[10px] font-bold tabular-nums">
-                    {tile.count}
-                    {tile.countLabel ? ` ${tile.countLabel}` : ""}
-                  </span>
-                ) : null}
-                {tile.soon ? (
-                  <span className="absolute top-2 right-2 rounded-full bg-black/30 px-1.5 py-0.5 text-[9px] font-bold uppercase">
-                    Coming soon
-                  </span>
-                ) : null}
-                <p className="font-display text-base font-semibold leading-tight">
-                  {tile.title}
-                </p>
-                <p className="mt-1 text-[11px] leading-snug text-white/90 line-clamp-2">
-                  {tile.sub}
-                </p>
-              </button>
-            ))}
-          </div>
-        </div>
+
 
         {upcomingGames.length > 0 ? (
           <div className="space-y-1.5">
@@ -2564,36 +2441,14 @@ export function QuickMatchFlow({
     );
   }
 
-  // CHALLENGES — badge goals
-  if (view === "challenges") {
-    return (
-      <ChallengesPanel
-        me={me}
-        players={players}
-        matches={store.matches.length > 0 ? store.matches : matches}
-        courtCount={courts.length}
-        onBack={() => setView("explore")}
-      />
-    );
-  }
-
   // FIND — Open / Scheduled / Waiting desk
   const laneTitle =
     exploreLane === "tonight"
       ? "Run tonight"
-      : exploreLane === "charity"
-        ? "Play for a cause"
-        : exploreLane === "fun"
-          ? "Just for fun"
-          : exploreLane === "rated"
-            ? "Rated 1v1"
-            : "1v1 Lobby";
-  const laneSub =
-    exploreLane === "charity"
-      ? "Donation games waiting for a player"
-      : exploreLane === "fun"
-        ? "Just for fun · rating still counts"
-        : "Join · show up · or manage your posts";
+      : exploreLane === "rated"
+        ? "Rated 1v1"
+        : "1v1 Lobby";
+  const laneSub = "Join · show up · or manage your posts";
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -2796,12 +2651,6 @@ export function QuickMatchFlow({
                 } catch {
                   dateLine = m.preferredAt;
                 }
-                const charity =
-                  m.stakes?.mode === "charity"
-                    ? m.stakes.fixedPriceDollars ??
-                      m.stakes.amountDollars ??
-                      null
-                    : null;
                 const accent = isHorse ? "text-violet-400" : "text-court";
                 const badgeCls = isHorse
                   ? "bg-violet-500 text-white"
@@ -2845,11 +2694,7 @@ export function QuickMatchFlow({
                       <p className="mt-0.5 pl-4 text-[10px] text-fg-subtle">
                         {formatMiles(miles)} away
                       </p>
-                      {charity != null ? (
-                        <p className="mt-1.5 text-[10px] font-semibold text-violet-400">
-                          Charity Match · ${charity}
-                        </p>
-                      ) : m.inviteOnly ? (
+                      {m.inviteOnly ? (
                         <p className="mt-1.5 text-[10px] font-semibold text-fg-subtle">
                           Private match
                         </p>
@@ -3120,7 +2965,7 @@ export function QuickMatchFlow({
                         aria-hidden
                       />
 
-                      {/* Court · when · stakes */}
+                      {/* Court · when */}
                       <div className="min-w-0 flex-1">
                         {(needsConfirm || waitingThem || disputed) && (
                           <p
@@ -3154,7 +2999,6 @@ export function QuickMatchFlow({
                           </span>
                         </div>
                         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                          <StakeChip stakes={m.stakes} />
                           {canEnterScore && !alertsOn ? (
                             <span
                               role="button"
@@ -3256,8 +3100,7 @@ export function QuickMatchFlow({
                             </span>
                           </div>
                           <div className="mt-0.5 flex flex-wrap items-center gap-1">
-                            <StakeChip stakes={m.stakes} />
-                            {m.inviteOnly ? (
+                              {m.inviteOnly ? (
                               <span className="rounded-full border border-border bg-bg-elevated px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-fg-muted uppercase">
                                 Private
                               </span>

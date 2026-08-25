@@ -1,16 +1,14 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
   MapPinned,
   Trophy,
   User,
-  Users,
   X,
   Zap,
 } from "lucide-react";
 import { BottomTabBar } from "@/components/bottom-tab-bar";
 import { CourtsFinder } from "@/components/courts-finder";
 import { CourtDetail } from "@/components/court-detail";
-import { CommunityMediaFeed } from "@/components/compete/community-media-feed";
 import { LeaderboardPanel } from "@/components/compete/leaderboard-panel";
 import { PlayHub } from "@/components/compete/play-hub";
 import { PlayerAvatar } from "@/components/compete/player-avatar";
@@ -27,7 +25,7 @@ import type { Match, Player } from "@/lib/upset/types";
 import { cn } from "@/lib/utils";
 import { useTabBarGate } from "@/lib/ui/tab-bar-gate";
 
-type SceneHome = "leaderboard" | "games" | "community" | "you" | "courts";
+type SceneHome = "leaderboard" | "games" | "you" | "courts";
 
 interface SceneShellProps {
   courts: Court[];
@@ -61,7 +59,7 @@ export function SceneShell({
 }: SceneShellProps) {
   const store = useUpsetStore();
   const tabsHidden = useTabBarGate((s) => s.hidden);
-  const [home, setHome] = useState<SceneHome>("leaderboard");
+  const [home, setHome] = useState<SceneHome>("games");
   const [selectedCourt, setSelectedCourt] = useState<Court | null>(null);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [matchDetail, setMatchDetail] = useState<Match | null>(null);
@@ -83,11 +81,9 @@ export function SceneShell({
       ? "Leaderboard"
       : home === "games"
         ? "Play"
-        : home === "community"
-          ? "Social"
-          : home === "courts"
-            ? "Courts"
-            : "You";
+        : home === "courts"
+          ? "Courts"
+          : "You";
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -149,7 +145,6 @@ export function SceneShell({
               preferredAt,
               format,
               notes,
-              stakes,
               hostBringingBall,
               guestInviteIds,
               inviteOnly,
@@ -162,7 +157,6 @@ export function SceneShell({
                 preferredAt,
                 format: format ?? "1v1",
                 notes,
-                stakes,
                 hostBringingBall,
                 guestInviteIds,
                 inviteOnly,
@@ -197,21 +191,6 @@ export function SceneShell({
             onFocusMatchConsumed={() => setFocusMatchId(null)}
             presetCourt={presetCourt}
             onPresetCourtConsumed={() => setPresetCourt(null)}
-          />
-        )}
-
-        {home === "community" && (
-          <CommunitySection
-            store={store}
-            onOpenPlayer={setSelectedPlayer}
-            onViewMatch={(id) => {
-              setFocusMatchId(id);
-              setHome("games");
-            }}
-            onViewCourt={(courtId) => {
-              setFocusCourtId(courtId);
-              setHome("courts");
-            }}
           />
         )}
 
@@ -258,8 +237,8 @@ export function SceneShell({
         <div className="pointer-events-auto relative flex w-full max-w-lg items-end rounded-2xl border border-border-strong bg-bg-elevated/95 px-0.5 py-0.5 shadow-soft backdrop-blur-md">
           {(
             [
-              { id: "leaderboard" as const, label: "Board", icon: Trophy },
               { id: "games" as const, label: "Play", icon: Zap },
+              { id: "leaderboard" as const, label: "Board", icon: Trophy },
             ] as const
           ).map((t) => (
             <button
@@ -270,6 +249,7 @@ export function SceneShell({
                 "flex flex-1 flex-col items-center gap-0 rounded-xl py-1.5 text-[9px] font-semibold leading-tight",
                 home === t.id ? "bg-bg-soft text-fg" : "text-fg-muted",
               )}
+              aria-current={home === t.id ? "page" : undefined}
             >
               <t.icon className="size-3.5" strokeWidth={1.75} />
               {t.label}
@@ -283,13 +263,14 @@ export function SceneShell({
               className="flex -translate-y-1.5 flex-col items-center gap-0 transition-transform active:scale-95"
               aria-label="Nearby courts"
               aria-pressed={home === "courts"}
+              aria-current={home === "courts" ? "page" : undefined}
             >
               <span
                 className={cn(
                   "flex size-11 items-center justify-center rounded-full border-[3px] border-bg shadow-soft",
                   home === "courts"
                     ? "bg-court text-white"
-                    : "bg-court/90 text-white hover:bg-court",
+                    : "bg-bg-elevated text-fg-muted",
                 )}
               >
                 <MapPinned className="size-4" strokeWidth={2} />
@@ -307,7 +288,6 @@ export function SceneShell({
 
           {(
             [
-              { id: "community" as const, label: "Social", icon: Users },
               { id: "you" as const, label: "You", icon: User },
             ] as const
           ).map((t) => (
@@ -319,6 +299,7 @@ export function SceneShell({
                 "flex flex-1 flex-col items-center gap-0 rounded-xl py-1.5 text-[9px] font-semibold leading-tight",
                 home === t.id ? "bg-bg-soft text-fg" : "text-fg-muted",
               )}
+              aria-current={home === t.id ? "page" : undefined}
             >
               <t.icon className="size-3.5" strokeWidth={1.75} />
               {t.label}
@@ -359,75 +340,6 @@ export function SceneShell({
             if (p) setSelectedPlayer(p);
           }}
         />
-      )}
-    </div>
-  );
-}
-
-function CommunitySection({
-  store,
-  onOpenPlayer,
-  onViewMatch,
-  onViewCourt,
-}: {
-  store: ReturnType<typeof useUpsetStore>;
-  onOpenPlayer: (p: Player) => void;
-  onViewMatch?: (matchId: string) => void;
-  onViewCourt?: (courtId: string) => void;
-}) {
-  const [sub, setSub] = useState<"media" | "more">("media");
-
-  return (
-    <div className="space-y-3">
-      <div className="flex gap-1 rounded-full border border-border bg-bg-elevated p-1">
-        <button
-          type="button"
-          onClick={() => setSub("media")}
-          className={cn(
-            "flex-1 rounded-full py-2 text-xs font-semibold",
-            sub === "media" ? "bg-accent text-accent-fg" : "text-fg-muted",
-          )}
-        >
-          Media
-        </button>
-        <button
-          type="button"
-          onClick={() => setSub("more")}
-          className={cn(
-            "flex-1 rounded-full py-2 text-xs font-semibold",
-            sub === "more" ? "bg-accent text-accent-fg" : "text-fg-muted",
-          )}
-        >
-          More
-        </button>
-      </div>
-
-      {sub === "media" ? (
-        <CommunityMediaFeed
-          me={store.me}
-          players={store.players}
-          matches={store.matches}
-          onOpenPlayer={onOpenPlayer}
-          onViewMatch={onViewMatch}
-          onViewCourt={onViewCourt}
-        />
-      ) : (
-        <div className="rounded-2xl border border-border bg-bg-elevated px-4 py-12 text-center">
-          <p className="font-display text-base font-semibold text-fg">
-            More coming soon
-          </p>
-          <p className="mt-1.5 text-sm text-fg-muted">
-            This second tab is reserved — decide what belongs here and we’ll
-            build it next.
-          </p>
-          <button
-            type="button"
-            onClick={() => setSub("media")}
-            className="mt-4 text-sm font-semibold text-court"
-          >
-            Back to Media
-          </button>
-        </div>
       )}
     </div>
   );

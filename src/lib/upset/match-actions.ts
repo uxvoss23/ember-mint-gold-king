@@ -3,7 +3,6 @@ import type { Match, Player } from "./types";
 export type MatchActionKind =
   | "confirm_score"
   | "enter_score"
-  | "settle"
   | "waiting_confirm";
 
 export type MatchAction = {
@@ -70,23 +69,6 @@ export function matchActionsForPlayer(
         label: "Enter final score",
         sub: "After you play — submit for opponent to confirm",
       });
-      continue;
-    }
-
-    if (
-      m.status === "confirmed" &&
-      m.stakes &&
-      m.stakes.mode === "charity" &&
-      !m.stakes.settled &&
-      m.stakes.loserId === meId
-    ) {
-      out.push({
-        match: m,
-        kind: "settle",
-        priority: 80,
-        label: "Complete donation",
-        sub: "Mark your Alzheimer's gift complete",
-      });
     }
   }
 
@@ -94,7 +76,7 @@ export function matchActionsForPlayer(
     (a, b) =>
       b.priority - a.priority ||
       (a.match.scheduledAt ?? a.match.preferredAt).localeCompare(
-        b.match.scheduledAt ?? b.match.preferredAt,
+        b.match.scheduledAt ?? a.match.preferredAt,
       ),
   );
 }

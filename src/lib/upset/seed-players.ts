@@ -3,9 +3,6 @@ import type { Player } from "./types";
 export const SEED_PLAYERS: Player[] = [
   {
     id: "p-you",
-    payCashApp: "upsetyou",
-    payVenmo: "upset-you",
-    payZelle: "you@example.com",
 
     photoUrl: "/players/p-you.jpg?v=fb3",
     name: "You",
@@ -52,8 +49,6 @@ export const SEED_PLAYERS: Player[] = [
   },
   {
     id: "p-sean",
-    payCashApp: "seanruns",
-    payVenmo: "sean-runs",
 
     photoUrl: "/players/p-sean.jpg?v=fb3",
     name: "Sean Rivera",
@@ -100,8 +95,6 @@ export const SEED_PLAYERS: Player[] = [
   },
   {
     id: "p-marcus",
-    payCashApp: "marcusatx",
-    payVenmo: "marcus-atx",
 
     photoUrl: "/players/p-marcus.jpg?v=fb3",
     name: "Marcus Hale",
@@ -462,7 +455,6 @@ export const SEED_PLAYERS: Player[] = [
   },
   {
     id: "p-noah",
-    payCashApp: "noahhoops",
 
     photoUrl: "/players/p-noah.jpg?v=fb3",
     name: "Noah Bennett",

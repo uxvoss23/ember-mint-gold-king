@@ -1,5 +1,4 @@
 import { chromium } from "playwright";
-import fs from "fs";
 
 const browser = await chromium.launch({ args: ["--no-sandbox"] });
 const page = await browser.newPage({
@@ -17,7 +16,7 @@ await page.evaluate(() => {
   const key = "court-social-v9";
   let raw = localStorage.getItem(key);
   let parsed = {};
-  try { parsed = raw ? JSON.parse(raw) : {}; } catch {}
+  try { parsed = raw ? JSON.parse(raw) : {}; } catch { parsed = {}; }
   const state = parsed.state ?? parsed ?? {};
   const checkIns = [
     {

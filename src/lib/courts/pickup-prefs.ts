@@ -6,8 +6,6 @@ import type { Player } from "@/lib/upset/types";
 import {
   type HoopCheckIn,
 } from "@/lib/courts/social";
-import { useMediaFeed } from "@/lib/upset/media-feed";
-import { courtImagesFor } from "@/lib/courts/images";
 
 export interface PickupNotifyPrefs {
   /** User finished the signup questionnaire */
@@ -55,7 +53,7 @@ interface PickupPrefsState {
   rsvpsForCheckIn: (checkInId: string) => PickupRsvp[];
   goingCount: (checkInId: string) => number;
   /**
-   * After a new pickup post: auto Social post + notify opted-in players in radius.
+   * After a new pickup check-in: notify opted-in players in radius.
    * One notification per player per court while that court is live.
    */
   broadcastPickup: (input: {
@@ -67,7 +65,7 @@ interface PickupPrefsState {
     /** Author's GPS if known — used only for author context */
     authorLat?: number;
     authorLon?: number;
-  }) => { postId: string | null; notified: number };
+  }) => { notified: number };
 }
 
 const DEFAULT_PREFS: PickupNotifyPrefs = {
@@ -175,23 +173,6 @@ export const usePickupPrefs = create<PickupPrefsState>()(
         players,
         courts,
       }) => {
-        const courtPhoto =
-          courtImagesFor(court.id, 1)[0] ?? checkIn.photoUrl;
-        const noteBit = checkIn.note ? ` · ${checkIn.note}` : "";
-        const postId = useMediaFeed.getState().createPost({
-          authorId: author.id,
-          authorName: author.name,
-          text: `Pickup is live at ${court.name} right now${noteBit}`,
-          mediaUrl: checkIn.photoUrl,
-          mediaType: "image",
-          kind: "hooping",
-          courtId: court.id,
-          courtName: court.name,
-          checkInId: checkIn.id,
-          courtImageUrl: courtPhoto,
-          headline: `Pickup live · ${court.name}`,
-        });
-
         const state = get();
         // All currently live check-ins (including this one) for dedupe
         // Caller passes only this checkIn in checkIns list conceptually —
@@ -200,7 +181,7 @@ export const usePickupPrefs = create<PickupPrefsState>()(
 
         const targets: Player[] = [];
         for (const p of players) {
-          if (p.id === author.id || p.exiled) continue;
+          if (p.id === author.id) continue;
           const prefs = state.prefsByPlayer[p.id] ?? DEFAULT_PREFS;
           if (!prefs.completed || !prefs.notify) continue;
           if (
@@ -240,14 +221,6 @@ export const usePickupPrefs = create<PickupPrefsState>()(
         }
 
         if (targets.length > 0) {
-          useMediaFeed.getState().inviteToPickup({
-            fromPlayerId: author.id,
-            fromPlayerName: author.name,
-            courtId: court.id,
-            courtName: court.name,
-            checkInId: checkIn.id,
-            toPlayerIds: targets.map((t) => t.id),
-          });
           set((s) => ({
             notifyLog: [
               ...targets.map((t) => ({
@@ -261,7 +234,7 @@ export const usePickupPrefs = create<PickupPrefsState>()(
           }));
         }
 
-        return { postId, notified: targets.length };
+        return { notified: targets.length };
       },
     }),
     { name: "pickup-prefs-v1" },

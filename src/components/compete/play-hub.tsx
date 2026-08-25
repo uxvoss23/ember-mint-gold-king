@@ -21,7 +21,6 @@ interface PlayHubProps {
     mode: "ranked_1v1";
     format?: import("@/lib/upset/types").MatchFormat;
     notes?: string;
-    stakes?: import("@/lib/upset/types").MatchStakes;
     hostBringingBall?: boolean;
     guestInviteIds?: string[];
     inviteOnly?: boolean;

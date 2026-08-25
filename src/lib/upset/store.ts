@@ -3,17 +3,6 @@ import { namedAustinCourts } from "@/lib/courts/catalog";
 import { displayRating, rateSeries } from "@/lib/rating/engine";
 import { ensureCityRanks } from "@/lib/upset/city-rank";
 import { SEED_PLAYERS } from "@/lib/upset/seed-players";
-import {
-  ALZHEIMERS_CHARITY,
-  computeStakePayout,
-  formatMoney,
-} from "@/lib/upset/stakes";
-import { useMediaFeed } from "@/lib/upset/media-feed";
-import { useCampaign } from "@/lib/upset/campaign";
-import {
-  createPaymentIntent,
-  markPaymentSettled,
-} from "@/lib/payments/ledger";
 import type {
   CancelLogEntry,
   ChatMessage,
@@ -26,23 +15,17 @@ import type {
   UpsetState,
 } from "@/lib/upset/types";
 
-const STORAGE_KEY = "upset-city-v22";
-const SEED_VERSION = 26;
+const STORAGE_KEY = "upset-city-v24";
+const SEED_VERSION = 28;
 
 function uid(prefix = "id") {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36).slice(-4)}`;
 }
 
-function isKingActive(meta: CourtMeta, now = Date.now()) {
-  if (!meta.kingId || !meta.kingLastPlayedAt) return false;
-  const ttl = (meta.crownTtlDays ?? 14) * 86400e3;
-  return now - new Date(meta.kingLastPlayedAt).getTime() < ttl;
-}
-
-export { isKingActive };
 
 function seedMatches(players: Player[]): Match[] {
-  const now = Date.now();
+  // Hour-bucket so SSR and the first client paint share the same seed times.
+  const now = Math.floor(Date.now() / 3_600_000) * 3_600_000;
   const fri = new Date(now);
   fri.setDate(fri.getDate() + ((5 - fri.getDay() + 7) % 7 || 7));
   fri.setHours(19, 0, 0, 0);
@@ -62,15 +45,7 @@ function seedMatches(players: Player[]): Match[] {
       lon: -97.71,
       preferredAt: new Date(now + 2 * 3600e3).toISOString(),
       status: "open",
-      notes: "Charity 1v1 for Alzheimer's · best of 3 to 11. Looking for someone around 6'0–6'3 — clean ball.",
-      stakes: {
-        mode: "charity",
-        dollarsPerPoint: 1,
-        fixedPriceDollars: 10,
-        amountDollars: 10,
-        charityName: ALZHEIMERS_CHARITY.name,
-        charityUrl: ALZHEIMERS_CHARITY.url,
-      },
+      notes: "1v1 · best of 3 to 11. Looking for someone around 6'0–6'3 — clean ball.",
       filters: {
         heightMinIn: 60,
         heightMaxIn: 84,
@@ -96,15 +71,7 @@ function seedMatches(players: Player[]): Match[] {
       lon: -97.77,
       preferredAt: fri.toISOString(),
       status: "open",
-      notes: "HORSE for Alzheimer's research · outdoor · clean calls. All skill levels.",
-      stakes: {
-        mode: "charity",
-        dollarsPerPoint: 1,
-        fixedPriceDollars: 15,
-        amountDollars: 15,
-        charityName: ALZHEIMERS_CHARITY.name,
-        charityUrl: ALZHEIMERS_CHARITY.url,
-      },
+      notes: "HORSE · outdoor · clean calls. All skill levels.",
       filters: {
         heightMinIn: 60,
         heightMaxIn: 84,
@@ -131,7 +98,6 @@ function seedMatches(players: Player[]): Match[] {
       preferredAt: new Date(fri.getTime() + 86400e3).toISOString(),
       status: "open",
       notes: "Best of 3 games · to 11 · win by 2 · call your own fouls.",
-      stakes: { mode: "fun", dollarsPerPoint: 1 },
       filters: {
         heightMinIn: 60,
         heightMaxIn: 90,
@@ -160,7 +126,6 @@ function seedMatches(players: Player[]): Match[] {
       preferredAt: new Date(fri.getTime() + 2 * 86400e3).toISOString(),
       status: "open",
       notes: "Private 1v1 — invite only.",
-      stakes: { mode: "fun", dollarsPerPoint: 1 },
       filters: {
         heightMinIn: 60,
         heightMaxIn: 90,
@@ -198,14 +163,6 @@ function seedMatches(players: Player[]): Match[] {
       acceptedAt: new Date(now - 900e3).toISOString(),
       status: "scheduled",
       notes: "Best of 3 games · to 11 · win by 2 · call your own fouls.",
-      stakes: {
-        mode: "charity",
-        dollarsPerPoint: 1,
-        fixedPriceDollars: 10,
-        amountDollars: 10,
-        charityName: ALZHEIMERS_CHARITY.name,
-        charityUrl: ALZHEIMERS_CHARITY.url,
-      },
       filters: {
         heightMinIn: 60,
         heightMaxIn: 84,
@@ -539,8 +496,6 @@ function seedCourtMeta(players: Player[]): Record<string, CourtMeta> {
     if (!meta[p.homeCourtId]) {
       meta[p.homeCourtId] = {
         courtId: p.homeCourtId,
-        kingId: p.id,
-        kingLastPlayedAt: now,
         chat: [
           {
             id: uid("chat"),
@@ -550,25 +505,56 @@ function seedCourtMeta(players: Player[]): Record<string, CourtMeta> {
             system: true,
           },
         ],
-        crownTtlDays: 14,
       };
     }
   }
-  // strong kings
-  for (const [courtId, kingId] of [
-    ["cat-givens", "p-sean"],
-    ["cat-zilker", "p-kai"],
-    ["cat-battle-bend", "p-andre"],
-  ] as const) {
-    meta[courtId] = {
-      courtId,
-      kingId,
-      kingLastPlayedAt: now,
-      chat: meta[courtId]?.chat ?? [],
-      crownTtlDays: 14,
+  return meta;
+}
+
+
+function stripPlayer(p: Player): Player {
+  const extra = p as Player & {
+    payCashApp?: unknown;
+    payVenmo?: unknown;
+    payZelle?: unknown;
+    exiled?: unknown;
+    exiledAt?: unknown;
+    exiledReason?: unknown;
+  };
+  const {
+    payCashApp: _a,
+    payVenmo: _b,
+    payZelle: _c,
+    exiled: _d,
+    exiledAt: _e,
+    exiledReason: _f,
+    ...rest
+  } = extra;
+  return rest;
+}
+
+function stripMatch(m: Match): Match {
+  const extra = m as Match & { stakes?: unknown; kingId?: unknown };
+  const { stakes: _s, kingId: _k, ...rest } = extra;
+  return rest;
+}
+
+function stripCourtMeta(
+  meta: Record<string, CourtMeta> | undefined,
+): Record<string, CourtMeta> {
+  const out: Record<string, CourtMeta> = {};
+  for (const [id, c] of Object.entries(meta ?? {})) {
+    const extra = (c ?? {}) as CourtMeta & {
+      kingId?: unknown;
+      kingLastPlayedAt?: unknown;
+      crownTtlDays?: unknown;
+    };
+    out[id] = {
+      courtId: extra.courtId || id,
+      chat: Array.isArray(extra.chat) ? extra.chat : [],
     };
   }
-  return meta;
+  return out;
 }
 
 function defaultState(): UpsetState {
@@ -585,7 +571,6 @@ function defaultState(): UpsetState {
     reports: [],
     playerReviews: seedReviews(),
     cancelLog: [],
-    crownTtlDays: 14,
     seedVersion: SEED_VERSION,
   };
 }
@@ -622,10 +607,11 @@ function load(): UpsetState {
     }
     return {
       ...base,
-      ...parsed,
-      players: Array.from(byId.values()),
-      matches: Array.isArray(parsed.matches) ? parsed.matches : base.matches,
-      courtMeta: parsed.courtMeta ?? base.courtMeta,
+      players: Array.from(byId.values()).map(stripPlayer),
+      matches: (Array.isArray(parsed.matches) ? parsed.matches : base.matches).map(
+        stripMatch,
+      ),
+      courtMeta: stripCourtMeta(parsed.courtMeta ?? base.courtMeta),
       dmThreads: Array.isArray(parsed.dmThreads) ? parsed.dmThreads : [],
       blockedIds: Array.isArray(parsed.blockedIds) ? parsed.blockedIds : [],
       friendIds: Array.isArray(parsed.friendIds)
@@ -636,6 +622,7 @@ function load(): UpsetState {
         ? parsed.playerReviews
         : base.playerReviews,
       cancelLog: Array.isArray(parsed.cancelLog) ? parsed.cancelLog : [],
+      leagueChat: Array.isArray(parsed.leagueChat) ? parsed.leagueChat : [],
       meId: parsed.meId || "p-you",
       seedVersion: SEED_VERSION,
     };
@@ -732,7 +719,7 @@ ensureCityRanks(state.players);
 
 export function formatLocalWhen(iso: string) {
   try {
-    return new Date(iso).toLocaleString(undefined, {
+    return new Date(iso).toLocaleString("en-US", {
       weekday: "short",
       month: "short",
       day: "numeric",
@@ -825,23 +812,11 @@ export function useUpsetStore() {
     [snap.players],
   );
 
-  const courtKing = useCallback(
-    (courtId: string) => {
-      const m = snap.courtMeta[courtId];
-      if (!m?.kingId || !isKingActive(m)) return null;
-      return snap.players.find((p) => p.id === m.kingId) ?? null;
-    },
-    [snap.courtMeta, snap.players],
-  );
-
   const ratedAtCourt = useCallback(
     (courtId: string) => {
-      return snap.players.filter(
-        (p) =>
-          p.homeCourtId === courtId || snap.courtMeta[courtId]?.kingId === p.id,
-      ).length;
+      return snap.players.filter((p) => p.homeCourtId === courtId).length;
     },
-    [snap.players, snap.courtMeta],
+    [snap.players],
   );
 
   const openAtCourt = useCallback(
@@ -885,16 +860,8 @@ export function useUpsetStore() {
       guestInviteIds?: string[];
       /** Invite-only: not public; only invited players can join */
       inviteOnly?: boolean;
-      stakes?: Match["stakes"];
       hostBringingBall?: boolean;
     }) => {
-      const stakes = input.stakes ?? { mode: "fun" as const, dollarsPerPoint: 1 };
-      const stakeLine =
-        stakes.mode === "charity"
-          ? `Feeds Alzheimer's research · $${stakes.fixedPriceDollars ?? stakes.amountDollars ?? 10} donation`
-          : stakes.mode === "stakes"
-            ? `Peer stakes · $${stakes.fixedPriceDollars ?? "?"} (not the default path)`
-            : "Just for fun · rating only";
       const ballLine =
         input.hostBringingBall === true
           ? "Host is bringing a ball."
@@ -922,7 +889,6 @@ export function useUpsetStore() {
         guestInviteIds: invites,
         notes: input.notes ?? "",
         hostBringingBall: input.hostBringingBall,
-        stakes,
         filters: input.filters,
         predictions: {},
         comments: [],
@@ -932,7 +898,7 @@ export function useUpsetStore() {
             authorName: "Upset City",
             text: `Quick Match posted. ${
               inviteOnly ? "Private match — invite only." : "Public match — anyone can join."
-            } ${stakeLine}${ballLine ? ` ${ballLine}` : ""}${
+            } Just for fun · rating only.${ballLine ? ` ${ballLine}` : ""}${
               invites.length
                 ? ` · ${invites.length} invite${invites.length === 1 ? "" : "s"} sent.`
                 : ""
@@ -1487,73 +1453,19 @@ export function useUpsetStore() {
         return p;
       });
 
-      const winnerId = hostWon ? host.id : opp.id;
-      const settledStakes =
-        m.stakes && m.stakes.mode !== "fun"
-          ? {
-              ...computeStakePayout(
-                m.stakes,
-                m.scores,
-                m.hostId,
-                m.opponentId!,
-              ),
-              paymentStatus: "pending" as const,
-              payDeadlineAt: new Date(Date.now() + 48 * 3600e3).toISOString(),
-            }
-          : m.stakes;
-
-      // Production ledger: open payment intent when money/charity is on the line
-      if (
-        settledStakes &&
-        settledStakes.mode !== "fun" &&
-        settledStakes.amountDollars != null &&
-        settledStakes.loserId
-      ) {
-        try {
-          createPaymentIntent({
-            matchId: m.id,
-            kind: settledStakes.mode === "charity" ? "charity" : "peer",
-            amountDollars: settledStakes.amountDollars,
-            payerId: settledStakes.loserId,
-            payeeId:
-              settledStakes.mode === "stakes"
-                ? settledStakes.winnerId
-                : undefined,
-            note:
-              settledStakes.mode === "charity"
-                ? "Alzheimer's research pledge"
-                : "Peer stake settlement",
-          });
-        } catch {
-          /* ignore */
-        }
-      }
-
-      const stakeNote =
-        settledStakes &&
-        settledStakes.mode !== "fun" &&
-        settledStakes.amountDollars != null
-          ? settledStakes.mode === "charity"
-            ? ` · Loser donates ${formatMoney(settledStakes.amountDollars)} to charity`
-            : ` · Loser owes ${formatMoney(settledStakes.amountDollars)}`
-          : "";
-
       const courtMeta = { ...s.courtMeta };
       const prev = courtMeta[m.courtId] ?? {
         courtId: m.courtId,
         chat: [],
-        crownTtlDays: s.crownTtlDays,
       };
       courtMeta[m.courtId] = {
         ...prev,
-        kingId: winnerId,
-        kingLastPlayedAt: new Date().toISOString(),
         chat: [
           ...prev.chat,
           {
             id: uid("sys"),
             authorName: "Upset City",
-            text: `Result dual-confirmed. ${hostWon ? host.name : opp.name} wins.${stakeNote}`,
+            text: `Result dual-confirmed. ${hostWon ? host.name : opp.name} wins.`,
             at: new Date().toISOString(),
             system: true,
           },
@@ -1573,7 +1485,6 @@ export function useUpsetStore() {
                 confirmedBy: s.meId,
                 ratingDeltaHost: result.aDelta,
                 ratingDeltaOpp: result.bDelta,
-                stakes: settledStakes,
                 chat: [
                   ...(x.chat ?? []),
                   {
@@ -1589,285 +1500,6 @@ export function useUpsetStore() {
         ),
       };
     });
-  }, []);
-
-  const markStakeSettled = useCallback(
-    (matchId: string, method?: NonNullable<Match["stakes"]>["settleMethod"]) => {
-      setState((s) => {
-        const m = s.matches.find((x) => x.id === matchId);
-        if (m?.stakes && !m.stakes.settled && m.stakes.mode !== "fun") {
-          const amount =
-            m.stakes.amountDollars ?? m.stakes.fixedPriceDollars ?? 0;
-          const loser = s.players.find((p) => p.id === m.stakes?.loserId);
-          try {
-            if (m.stakes.mode === "charity" && amount > 0 && loser) {
-              useCampaign.getState().addDonation({
-                amount,
-                playerId: loser.id,
-                playerName: loser.name,
-                matchId: m.id,
-                note: `${m.format === "horse" ? "HORSE" : "1v1"} · ${m.courtName}`,
-              });
-              markPaymentSettled(m.id, method ?? "charity", {
-                amountDollars: amount,
-                payerId: loser.id,
-                kind: "charity",
-              });
-              useMediaFeed.getState().createPost({
-                authorId: "system",
-                authorName: "Upset City",
-                text: `+$${amount} for Alzheimer's — ${loser.name} completed a gift from ${m.courtName}.`,
-                mentionedIds: [loser.id],
-              });
-            } else if (m.stakes.mode === "stakes") {
-              markPaymentSettled(m.id, method ?? "peer", {
-                amountDollars: amount,
-                payerId: m.stakes.loserId ?? s.meId,
-                kind: "peer",
-              });
-            }
-          } catch {
-            /* ignore */
-          }
-        }
-        return {
-          ...s,
-          matches: s.matches.map((x) =>
-            x.id === matchId && x.stakes
-              ? {
-                  ...x,
-                  stakes: {
-                    ...x.stakes,
-                    settled: true,
-                    settledAt: new Date().toISOString(),
-                    settleMethod: method ?? x.stakes.settleMethod,
-                    paymentStatus: "settled",
-                  },
-                  chat: [
-                    ...(x.chat ?? []),
-                    {
-                      id: uid("sys"),
-                      authorName: "Upset City",
-                      text:
-                        x.stakes.mode === "charity"
-                          ? "Charity donation marked complete — added to the Austin $50k goal. Thank you."
-                          : `Stake marked settled${method ? ` via ${method}` : ""}.`,
-                      at: new Date().toISOString(),
-                      system: true,
-                    },
-                  ],
-                }
-              : x,
-          ),
-        };
-      });
-    },
-    [],
-  );
-
-  const updateMyPayHandles = useCallback(
-    (handles: {
-      payCashApp?: string;
-      payVenmo?: string;
-      payZelle?: string;
-    }) => {
-      setState((s) => ({
-        ...s,
-        players: s.players.map((p) =>
-          p.id === s.meId
-            ? {
-                ...p,
-                payCashApp: handles.payCashApp?.trim() || undefined,
-                payVenmo: handles.payVenmo?.trim() || undefined,
-                payZelle: handles.payZelle?.trim() || undefined,
-              }
-            : p,
-        ),
-      }));
-    },
-    [],
-  );
-
-  /** Loser asks for more time — community + winner see the note */
-  const requestStakeExtension = useCallback(
-    (matchId: string, note: string) => {
-      const text = note.trim();
-      if (text.length < 8) {
-        return { ok: false as const, reason: "Tell us what’s going on (a short note)." };
-      }
-      let posted = false;
-      setState((s) => {
-        const m = s.matches.find((x) => x.id === matchId);
-        if (!m?.stakes || m.stakes.mode === "fun" || m.stakes.settled) {
-          return s;
-        }
-        if (m.stakes.loserId !== s.meId) {
-          return s;
-        }
-        const loser = s.players.find((p) => p.id === s.meId);
-        const amount = m.stakes.amountDollars ?? m.stakes.fixedPriceDollars;
-        const newDeadline = new Date(
-          Math.max(
-            Date.now() + 48 * 3600e3,
-            m.stakes.payDeadlineAt
-              ? new Date(m.stakes.payDeadlineAt).getTime() + 48 * 3600e3
-              : Date.now() + 48 * 3600e3,
-          ),
-        ).toISOString();
-        posted = true;
-        // community notice
-        try {
-          useMediaFeed.getState().createPost({
-            authorId: "system",
-            authorName: "Upset City",
-            text: `⏳ More time requested — ${loser?.name ?? "A player"} needs extra time to settle ${amount != null ? `$${amount}` : "stakes"} from ${m.courtName}. Note: “${text.slice(0, 160)}” · We work with people who communicate.`,
-          });
-        } catch {
-          /* ignore */
-        }
-        return {
-          ...s,
-          matches: s.matches.map((x) =>
-            x.id === matchId && x.stakes
-              ? {
-                  ...x,
-                  stakes: {
-                    ...x.stakes,
-                    paymentStatus: "extension_requested",
-                    extensionNote: text,
-                    extensionRequestedAt: new Date().toISOString(),
-                    payDeadlineAt: newDeadline,
-                  },
-                  chat: [
-                    ...(x.chat ?? []),
-                    {
-                      id: uid("sys"),
-                      authorName: "Upset City",
-                      text: `Extension requested: ${text}`,
-                      at: new Date().toISOString(),
-                      system: true,
-                    },
-                  ],
-                }
-              : x,
-          ),
-        };
-      });
-      if (!posted) {
-        return { ok: false as const, reason: "Couldn’t request extension on this game." };
-      }
-      return { ok: true as const };
-    },
-    [],
-  );
-
-  /**
-   * Winner reports non-payment → permanent exile + public league notice.
-   */
-  const reportStakeUnpaid = useCallback((matchId: string) => {
-    let result: { ok: true } | { ok: false; reason: string } = {
-      ok: false,
-      reason: "Couldn’t file report.",
-    };
-    setState((s) => {
-      const m = s.matches.find((x) => x.id === matchId);
-      if (!m?.stakes || m.stakes.mode === "fun") {
-        result = { ok: false, reason: "Not a stakes/charity game." };
-        return s;
-      }
-      if (m.stakes.settled || m.stakes.paymentStatus === "exiled") {
-        result = { ok: false, reason: "Already settled or already exiled." };
-        return s;
-      }
-      if (m.stakes.winnerId !== s.meId && m.stakes.mode === "stakes") {
-        result = { ok: false, reason: "Only the winner can report non-payment." };
-        return s;
-      }
-      // charity: either party can report if loser is the other - actually winner of series
-      if (m.stakes.winnerId !== s.meId) {
-        result = { ok: false, reason: "Only the winner can report non-payment." };
-        return s;
-      }
-      const loserId = m.stakes.loserId;
-      if (!loserId) {
-        result = { ok: false, reason: "No loser on file." };
-        return s;
-      }
-      const loser = s.players.find((p) => p.id === loserId);
-      const winner = s.players.find((p) => p.id === m.stakes!.winnerId);
-      const amount = m.stakes.amountDollars ?? m.stakes.fixedPriceDollars;
-      const reason =
-        m.stakes.mode === "charity"
-          ? `Did not complete charity donation (${amount != null ? `$${amount}` : "owed"}) after ${m.courtName}`
-          : `Did not pay stakes (${amount != null ? `$${amount}` : "owed"}) to ${winner?.name ?? "winner"} after ${m.courtName}`;
-
-      try {
-        useMediaFeed.getState().createPost({
-          authorId: "system",
-          authorName: "Upset City",
-          text: `🚫 EXILED FROM THE LEAGUE — ${loser?.name ?? "A player"} (@${loser?.handle ?? "player"}) failed to settle ${amount != null ? `$${amount}` : "an amount"} from a confirmed game at ${m.courtName}. Unpaid stakes/charity = permanent exile. The community has been notified. Pay what you owe. Communicate if you need time — silence is exile.`,
-          mentionedIds: loserId ? [loserId] : [],
-        });
-      } catch {
-        /* ignore */
-      }
-
-      result = { ok: true };
-      return {
-        ...s,
-        players: s.players.map((p) =>
-          p.id === loserId
-            ? {
-                ...p,
-                exiled: true,
-                exiledAt: new Date().toISOString(),
-                exiledReason: reason,
-                openToChallenges: false,
-                hideFromCatalog: true,
-                availability: "offline" as const,
-              }
-            : p,
-        ),
-        matches: s.matches.map((x) => {
-          if (x.id === matchId && x.stakes) {
-            return {
-              ...x,
-              stakes: {
-                ...x.stakes,
-                paymentStatus: "exiled",
-                reportedUnpaidAt: new Date().toISOString(),
-                reportedById: s.meId,
-              },
-              chat: [
-                ...(x.chat ?? []),
-                {
-                  id: uid("sys"),
-                  authorName: "Upset City",
-                  text: "Non-payment reported. Loser is permanently exiled from the league.",
-                  at: new Date().toISOString(),
-                  system: true,
-                },
-              ],
-            };
-          }
-          // cancel open listings by exiled player
-          if (
-            x.hostId === loserId &&
-            (x.status === "open" || x.status === "matched")
-          ) {
-            return {
-              ...x,
-              status: "cancelled" as const,
-              cancelReason: "Host exiled for unpaid stakes",
-              cancelledAt: new Date().toISOString(),
-              cancelledBy: "system",
-            };
-          }
-          return x;
-        }),
-      };
-    });
-    return result;
   }, []);
 
   const predict = useCallback((matchId: string, winnerId: string) => {
@@ -1920,7 +1552,6 @@ export function useUpsetStore() {
       const prev = s.courtMeta[courtId] ?? {
         courtId,
         chat: [],
-        crownTtlDays: s.crownTtlDays,
       };
       const msg: ChatMessage = {
         id: uid("chat"),
@@ -2020,8 +1651,6 @@ export function useUpsetStore() {
       const me = state.players.find((p) => p.id === state.meId);
       const opp = state.players.find((p) => p.id === input.opponentId);
       if (!me || !opp) return { ok: false, reason: "Player not found." };
-      if (me.exiled || opp.exiled)
-        return { ok: false, reason: "Can't book — exile on the books." };
 
       const already = state.matches.some((m) => {
         if (
@@ -2597,7 +2226,6 @@ export function useUpsetStore() {
     // aliases used by older panels
     openGames: openMatches,
     playerById,
-    courtKing,
     ratedAtCourt,
     openAtCourt,
     nextGameAtCourt,
@@ -2613,10 +2241,6 @@ export function useUpsetStore() {
     syncAuthIdentity,
     enterScore,
     confirmScore,
-    markStakeSettled,
-    updateMyPayHandles,
-    requestStakeExtension,
-    reportStakeUnpaid,
     predict,
     commentOnMatch,
     postCourtChat,

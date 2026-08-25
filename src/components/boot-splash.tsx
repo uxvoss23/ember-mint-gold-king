@@ -14,8 +14,6 @@ export function BootSplash({
   className?: string;
 }) {
   useEffect(() => {
-    // Hand off from static HTML shell as soon as React is alive
-    document.getElementById("uc-static-boot")?.remove();
     if (active) {
       document.documentElement.setAttribute("data-uc-booting", "1");
       document.documentElement.style.setProperty("--uc-tab-h", "0px");

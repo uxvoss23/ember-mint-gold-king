@@ -46,7 +46,6 @@ import {
   type WorkOrderKind,
 } from "@/lib/courts/social";
 import type { Court, UserLocation } from "@/lib/courts/types";
-import { useMediaFeed } from "@/lib/upset/media-feed";
 import { useUpsetStore } from "@/lib/upset/store";
 import { cn, formatDistance, haversineMeters, milesToMeters } from "@/lib/utils";
 
@@ -170,7 +169,6 @@ const SelectedCourtPreview = memo(function SelectedCourtPreview({
   const favorites = useFavorites();
   const store = useUpsetStore();
   const me = store.me;
-  const createPost = useMediaFeed((s) => s.createPost);
   const ov = useCourtAdmin((s) => s.overrides[court.id]);
   const display = mergeCourtWithOverride(court, ov);
   const images = courtImagesFor(court.id, 5, ov?.photos);
@@ -214,23 +212,6 @@ const SelectedCourtPreview = memo(function SelectedCourtPreview({
     });
     setPostOpen(false);
     if (!ci) return;
-
-    const courtPrimary =
-      courtImagesFor(court.id, 1, ov?.photos)[0] ?? input.photoUrl;
-    const announce = hoopingNowAnnounceText(display.name);
-    createPost({
-      authorId: me?.id ?? "you",
-      authorName,
-      text: announce,
-      mediaUrl: input.photoUrl,
-      mediaType: "image",
-      kind: "hooping",
-      courtId: court.id,
-      courtName: display.name,
-      checkInId: ci.id,
-      courtImageUrl: courtPrimary,
-      headline: `Hooping now · ${display.name}`,
-    });
   };
 
   const submitWo = () => {
@@ -397,7 +378,6 @@ const SelectedCourtPreview = memo(function SelectedCourtPreview({
                             : "Enlarge photo"
                         }
                       >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={live.photoUrl}
                           alt=""

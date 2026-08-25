@@ -97,7 +97,6 @@ export function LeaderboardPanel({
   const sortedByRating = useMemo(
     () =>
       [...players]
-        .filter((p) => !p.exiled)
         .sort((a, b) => b.rating - a.rating),
     [players],
   );
@@ -112,7 +111,7 @@ export function LeaderboardPanel({
   const myRank = mePlayer ? (currentRankById.get(mePlayer.id) ?? 0) : 0;
 
   const rankedList = useMemo(() => {
-    const active = players.filter((p) => !p.exiled);
+    const active = players;
     if (main === "stats") return sortByStat(active, statsSub);
     if (rankSub === "weekly") {
       return [...active]
