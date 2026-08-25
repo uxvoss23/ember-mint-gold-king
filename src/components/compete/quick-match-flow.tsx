@@ -324,43 +324,30 @@ export function QuickMatchFlow({
     : parentOrigin;
   const hasPreciseLocation = !!nearOrigin || parentLooksLikeGps;
 
-  useEffect(() => {
-    onImmersiveChange?.(
+  useLayoutEffect(() => {
+    const immersive =
       view === "game" ||
-        view === "create" ||
-        view === "find" ||
-        view === "hoop_now" ||
-        view === "alerts_setup",
-    );
+      view === "create" ||
+      view === "find" ||
+      view === "hoop_now" ||
+      view === "alerts_setup";
+    onImmersiveChange?.(immersive);
     setTabsHidden(view === "create");
+    if (view === "create") {
+      document.documentElement.style.setProperty("--uc-tab-h", "0px");
+      const el = createGridRef.current;
+      if (el) el.style.maxHeight = "";
+    }
+  }, [view, onImmersiveChange, setTabsHidden]);
+
+  useLayoutEffect(() => {
     return () => {
       onImmersiveChange?.(false);
       setTabsHidden(false);
     };
-  }, [view, onImmersiveChange, setTabsHidden]);
-
-  useLayoutEffect(() => {
-    if (view !== "create") return;
-    const el = createGridRef.current;
-    const nav = document.getElementById("uc-bottom-tab-bar");
-    if (!el || !nav) return;
-    const apply = () => {
-      el.style.maxHeight = "";
-      const g = el.getBoundingClientRect();
-      const n = nav.getBoundingClientRect();
-      const overlap = g.bottom - n.top;
-      if (overlap > 1) {
-        el.style.maxHeight = `${Math.max(0, Math.round(g.height - overlap))}px`;
-      }
-    };
-    apply();
-    const t1 = window.setTimeout(apply, 80);
-    const t2 = window.setTimeout(apply, 320);
-    return () => {
-      window.clearTimeout(t1);
-      window.clearTimeout(t2);
-    };
-  }, [view]);
+    // Unmount only — don't toggle immersive off between view changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!parentLooksLikeGps || nearOrigin) return;
@@ -693,8 +680,10 @@ export function QuickMatchFlow({
     setCreateInviteOpen(false);
     setCreateVisibility("public");
     setCourtInfoId(null);
-    setView("create");
     setCreateStep(1);
+    onImmersiveChange?.(true);
+    setTabsHidden(true);
+    setView("create");
     onPresetCourtConsumed?.();
   }, [presetCourt?.id]);
 
@@ -747,6 +736,8 @@ export function QuickMatchFlow({
     setCreateSorts(new Set(["highest_rated", "nearest"]));
     setCourtInfoId(null);
     setCreateStep(1);
+    onImmersiveChange?.(true);
+    setTabsHidden(true);
     setView("create");
   };
 
@@ -918,12 +909,11 @@ export function QuickMatchFlow({
     return (
       <div
         ref={createGridRef}
-        className="grid min-h-0 flex-1 overflow-hidden"
-        style={{ gridTemplateRows: "minmax(0, 1fr) auto" }}
+        className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden"
       >
       <div
         data-uc-create-scroll="1"
-        className="min-h-0 space-y-2.5 overflow-y-auto overscroll-contain px-4 pt-2 pb-6 touch-pan-y [-webkit-overflow-scrolling:touch]"
+        className="min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain px-4 pt-2 pb-6 touch-pan-y [-webkit-overflow-scrolling:touch]"
       >
         <button
           type="button"
@@ -1499,7 +1489,7 @@ export function QuickMatchFlow({
         {aboutSheet}
       </div>
 
-      <div className="border-t border-border bg-bg px-4 pt-2 pb-3">
+      <div className="shrink-0 border-t border-border bg-bg px-4 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <button
           type="button"
           onClick={() => {

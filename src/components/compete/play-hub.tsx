@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { QuickMatchFlow } from "@/components/compete/quick-match-flow";
 import { PlayerAvatar } from "@/components/compete/player-avatar";
@@ -63,10 +63,10 @@ export function PlayHub({
   onImmersiveChange,
 }: PlayHubProps) {
   const [immersive, setImmersive] = useState(false);
-  const setImmersiveBoth = (v: boolean) => {
+  const setImmersiveBoth = useCallback((v: boolean) => {
     setImmersive(v);
     onImmersiveChange?.(v);
-  };
+  }, [onImmersiveChange]);
 
   return (
     <div
@@ -100,6 +100,7 @@ export function PlayHub({
         </div>
       ) : null}
 
+      <div className={immersive ? "flex min-h-0 flex-1 flex-col overflow-hidden" : undefined}>
       <QuickMatchFlow
         me={me}
         players={players}
@@ -118,6 +119,7 @@ export function PlayHub({
         presetCourt={presetCourt}
         onPresetCourtConsumed={onPresetCourtConsumed}
       />
+      </div>
     </div>
   );
 }
