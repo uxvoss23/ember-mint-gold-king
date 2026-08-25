@@ -1232,7 +1232,12 @@ export function QuickMatchFlow({
               mapClassName="h-full w-full"
             />
             {selectedCreateCourt ? (
-              <div className="absolute bottom-2 left-2 right-12 z-20 flex items-center gap-2.5 rounded-2xl border border-court/40 bg-bg/95 p-2 shadow-soft backdrop-blur-md">
+              <button
+                type="button"
+                onClick={() => setCourtInfoId(selectedCreateCourt.id)}
+                className="absolute bottom-2 left-2 right-12 z-20 flex items-center gap-2.5 rounded-2xl border border-court/40 bg-bg/95 p-2 text-left shadow-soft backdrop-blur-md"
+                aria-label={`About ${selectedCreateCourt.name}`}
+              >
                 <div className="size-14 shrink-0 overflow-hidden rounded-xl bg-bg-subtle">
                   {mapThumb ? (
                     <img
@@ -1252,25 +1257,23 @@ export function QuickMatchFlow({
                     {formatMiles(
                       "miles" in selectedCreateCourt &&
                         typeof selectedCreateCourt.miles === "number"
-                        ? selectedCreateCourt.miles
-                        : haversineMi(
-                            origin.lat,
-                            origin.lon,
-                            selectedCreateCourt.lat,
-                            selectedCreateCourt.lon,
-                          ),
+                          ? selectedCreateCourt.miles
+                          : haversineMi(
+                              origin.lat,
+                              origin.lon,
+                              selectedCreateCourt.lat,
+                              selectedCreateCourt.lon,
+                            ),
                     )}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setCourtInfoId(selectedCreateCourt.id)}
+                <span
                   className="flex size-9 shrink-0 items-center justify-center rounded-full bg-court/15 text-court"
-                  aria-label={`About ${selectedCreateCourt.name}`}
+                  aria-hidden
                 >
                   <Info className="size-4" strokeWidth={2.25} />
-                </button>
-              </div>
+                </span>
+              </button>
             ) : null}
           </div>
         )}
