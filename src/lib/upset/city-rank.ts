@@ -1,3 +1,5 @@
+import { compareLadder } from "@/lib/game/rules";
+import { GUEST_PLAYER_ID } from "@/lib/game/guest";
 import type { Player } from "@/lib/upset/types";
 
 const TOP_N = 50;
@@ -10,8 +12,9 @@ export function ensureCityRanks(players: Player[]) {
   if (players === lastPlayers) return;
   lastPlayers = players;
   const ordered = [...players]
+    .filter((p) => p.id !== GUEST_PLAYER_ID)
     .filter((p) => p.city === "Austin" || !p.city)
-    .sort((a, b) => b.rating - a.rating);
+    .sort(compareLadder);
   const next = new Map<string, number>();
   ordered.forEach((p, i) => next.set(p.id, i + 1));
   rankById = next;

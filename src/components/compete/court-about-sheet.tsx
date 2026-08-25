@@ -74,8 +74,7 @@ export function courtAboutText(court: {
 }
 
 /**
- * Popup for list ⓘ — photos + notes.
- * Map mode uses the inline profile under the real map (no second map).
+ * Popup for court ⓘ — photos + notes.
  */
 export function CourtAboutSheet({
   court,
@@ -318,8 +317,8 @@ export function CourtAboutSheet({
                 type="button"
                 onClick={() => onSelectCourt(court.id)}
                 className={cn(
-                  "flex-1 rounded-full py-2.5 text-sm font-semibold text-white",
-                  isSelected ? "bg-fg" : "bg-court",
+                  "flex-1 rounded-full py-2.5 text-sm font-semibold",
+                  isSelected ? "bg-fg text-bg" : "bg-court text-white",
                 )}
               >
                 {isSelected ? "Selected ✓" : "Select this court"}

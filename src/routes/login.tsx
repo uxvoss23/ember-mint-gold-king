@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import {
@@ -8,13 +8,29 @@ import {
   signIn,
 } from "@/lib/auth/client";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { consumeAuthIntent, peekAuthIntent } from "@/lib/game/guest";
+import { authReasonCopy } from "@/lib/game/use-require-auth";
 
-export const Route = createFileRoute("/login")({ component: Login });
+function safeNext(raw: unknown): string {
+  if (typeof raw !== "string") return "/";
+  if (!raw.startsWith("/") || raw.startsWith("//")) return "/";
+  return raw;
+}
+
+export const Route = createFileRoute("/login")({
+  validateSearch: (s: Record<string, unknown>): { next?: string; reason?: string } => ({
+    next: typeof s.next === "string" ? safeNext(s.next) : undefined,
+    reason: typeof s.reason === "string" ? s.reason : undefined,
+  }),
+  component: Login,
+});
 
 type Mode = "signin" | "signup";
 
 function Login() {
   const navigate = useNavigate();
+  const { next, reason: searchReason } = Route.useSearch();
+  const reason = searchReason ?? peekAuthIntent()?.action;
   const { user, isPending } = useCurrentUserState();
   const [mode, setMode] = useState<Mode>("signin");
   const [name, setName] = useState("");
@@ -24,10 +40,23 @@ function Login() {
   const [busy, setBusy] = useState(false);
   const [oauthBusy, setOauthBusy] = useState<string | null>(null);
 
-  // Already signed in
-  if (!isPending && user) {
-    void navigate({ to: "/" });
-  }
+  const goAfterAuth = () => {
+    const intent = consumeAuthIntent();
+    const dest = safeNext(intent?.next ?? next ?? "/");
+    if (intent?.action === "create") {
+      try {
+        sessionStorage.setItem("uc-open-create", "1");
+      } catch {
+        /* ignore */
+      }
+    }
+    void navigate({ to: dest });
+  };
+
+  useEffect(() => {
+    if (!isPending && user) goAfterAuth();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPending, user?.id]);
 
   const onEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,7 +78,7 @@ function Login() {
         if (err) throw new Error(err.message ?? "Sign-in failed");
       }
       await authClient.getSession();
-      void navigate({ to: "/" });
+      goAfterAuth();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -61,7 +90,7 @@ function Login() {
     setError(null);
     setOauthBusy(providerId);
     try {
-      await signIn(providerId, { callbackURL: "/" });
+      await signIn(providerId, { callbackURL: safeNext(next ?? "/") });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign-in failed");
       setOauthBusy(null);
@@ -86,8 +115,9 @@ function Login() {
           {mode === "signin" ? "Sign in" : "Create account"}
         </h1>
         <p className="mt-2 max-w-sm text-sm leading-relaxed text-fg-muted">
-          Google, X, or email + password. Your account saves favorites and
-          unlocks the competition scene.
+          {reason
+            ? authReasonCopy(reason)
+            : "Google, X, or email + password. An account is required to post games, chat, and confirm scores."}
         </p>
 
         <div className="mt-8 space-y-3">

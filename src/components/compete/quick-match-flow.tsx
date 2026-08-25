@@ -14,7 +14,8 @@ import {
   UserPlus,
   X,
 } from "lucide-react";
-import { CourtAboutSheet, courtAboutText } from "@/components/compete/court-about-sheet";
+import { CourtAboutSheet } from "@/components/compete/court-about-sheet";
+import { CreateGameStepBar } from "@/components/compete/create-game-step-bar";
 import { HoopNowFlow } from "@/components/compete/hoop-now-flow";
 import { PlayerBrowseFilters } from "@/components/compete/player-browse-filters";
 import { MatchRemindersCard } from "@/components/compete/match-reminders-card";
@@ -39,6 +40,18 @@ import type { Match, Player, PlayerReview } from "@/lib/upset/types";
 import { cn, formatHeightInches } from "@/lib/utils";
 import { useVisualKeyboard } from "@/hooks/use-visual-keyboard";
 import { DEFAULT_BROWSE_FILTERS, loadBrowseFilters, persistBrowseFilters, clearPersistedBrowseFilters, playerMatchesBrowseFilters, type BrowseFilters } from "@/lib/upset/browse-filters";
+import { isDemoMode, isMatchModeEnabled } from "@/lib/config";
+import { GUEST_PLAYER_ID } from "@/lib/game/guest";
+import { useRequireAuth } from "@/lib/game/use-require-auth";
+import { mutationError, refreshCompetitiveSnapshot } from "@/lib/game/client-actions";
+import {
+  cancelGameFn,
+  confirmScoreFn,
+  disputeScoreFn,
+  sendGameMessageFn,
+  submitScoreFn,
+} from "@/lib/game/fns";
+import { useTabBarGate } from "@/lib/ui/tab-bar-gate";
 
 type View = "explore" | "find" | "game" | "create" | "hoop_now" | "alerts_setup";
 type ExploreLane = "open" | "tonight" | "rated";
@@ -76,11 +89,11 @@ interface QuickMatchFlowProps {
     hostBringingBall?: boolean;
     guestInviteIds?: string[];
     inviteOnly?: boolean;
-  }) => void;
+  }) => void | Match | Promise<void | Match>;
   onAcceptMatch?: (
     matchId: string,
     opts?: { bringingBall?: boolean },
-  ) => "ok" | "filled" | "invite_only" | void;
+  ) => "ok" | "filled" | "invite_only" | void | Promise<"ok" | "filled" | "invite_only" | void>;
   onOpenPlayer?: (p: Player) => void;
   compactHeader?: boolean;
   onImmersiveChange?: (immersive: boolean) => void;
@@ -138,7 +151,11 @@ export function QuickMatchFlow({
   presetCourt = null, onPresetCourtConsumed,
 }: QuickMatchFlowProps) {
   const store = useUpsetStore();
+  const requireAuth = useRequireAuth();
+  const setTabsHidden = useTabBarGate((s) => s.setHidden);
   const [view, setView] = useState<View>("explore");
+  const [createStep, setCreateStep] = useState<1 | 2 | 3>(1);
+  const [postingCreate, setPostingCreate] = useState(false);
   const [exploreLane, setExploreLane] = useState<ExploreLane | null>(null);
   const [openDeskTab, setOpenDeskTab] = useState<"open" | "scheduled" | "waiting">("open");
   /** Highlight newly approved game on Scheduled without opening detail */
@@ -307,39 +324,30 @@ export function QuickMatchFlow({
     : parentOrigin;
   const hasPreciseLocation = !!nearOrigin || parentLooksLikeGps;
 
-  useEffect(() => {
-    onImmersiveChange?.(
+  useLayoutEffect(() => {
+    const immersive =
       view === "game" ||
-        view === "create" ||
-        view === "find" ||
-        view === "hoop_now" ||
-        view === "alerts_setup",
-    );
-    return () => onImmersiveChange?.(false);
-  }, [view, onImmersiveChange]);
+      view === "create" ||
+      view === "find" ||
+      view === "hoop_now" ||
+      view === "alerts_setup";
+    onImmersiveChange?.(immersive);
+    setTabsHidden(view === "create");
+    if (view === "create") {
+      document.documentElement.style.setProperty("--uc-tab-h", "0px");
+      const el = createGridRef.current;
+      if (el) el.style.maxHeight = "";
+    }
+  }, [view, onImmersiveChange, setTabsHidden]);
 
   useLayoutEffect(() => {
-    if (view !== "create") return;
-    const el = createGridRef.current;
-    const nav = document.getElementById("uc-bottom-tab-bar");
-    if (!el || !nav) return;
-    const apply = () => {
-      el.style.maxHeight = "";
-      const g = el.getBoundingClientRect();
-      const n = nav.getBoundingClientRect();
-      const overlap = g.bottom - n.top;
-      if (overlap > 1) {
-        el.style.maxHeight = `${Math.max(0, Math.round(g.height - overlap))}px`;
-      }
-    };
-    apply();
-    const t1 = window.setTimeout(apply, 80);
-    const t2 = window.setTimeout(apply, 320);
     return () => {
-      window.clearTimeout(t1);
-      window.clearTimeout(t2);
+      onImmersiveChange?.(false);
+      setTabsHidden(false);
     };
-  }, [view]);
+    // Unmount only — don't toggle immersive off between view changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!parentLooksLikeGps || nearOrigin) return;
@@ -672,6 +680,9 @@ export function QuickMatchFlow({
     setCreateInviteOpen(false);
     setCreateVisibility("public");
     setCourtInfoId(null);
+    setCreateStep(1);
+    onImmersiveChange?.(true);
+    setTabsHidden(true);
     setView("create");
     onPresetCourtConsumed?.();
   }, [presetCourt?.id]);
@@ -724,10 +735,25 @@ export function QuickMatchFlow({
     setCreateVisibility("public");
     setCreateSorts(new Set(["highest_rated", "nearest"]));
     setCourtInfoId(null);
+    setCreateStep(1);
+    onImmersiveChange?.(true);
+    setTabsHidden(true);
     setView("create");
   };
 
-  const submitCreate = () => {
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem("uc-open-create") !== "1") return;
+      if (me.id === GUEST_PLAYER_ID) return;
+      sessionStorage.removeItem("uc-open-create");
+      startCreate();
+    } catch {
+      /* ignore */
+    }
+  }, [me.id]);
+
+  const submitCreate = async () => {
+    if (!requireAuth("create")) return;
     if (!createCourtId) { setStatusMsg("Pick a court before posting."); return; }
     if (!createWhen) { setStatusMsg("Pick a date and time before posting."); return; }
     if (createBringingBall === null) { setStatusMsg("Say if you’re bringing a basketball."); return; }
@@ -741,28 +767,45 @@ export function QuickMatchFlow({
     if (whenDate.getTime() < Date.now() - 60_000) { setStatusMsg("Pick a time in the future."); return; }
     const formatLabel = createFormat === "horse" ? "HORSE" : "1v1";
     const inviteOnly = createVisibility === "invite_only";
-    onCreateMatch?.({
-      court: { id: court.id, name: court.name, lat: court.lat, lon: court.lon },
-      preferredAt: whenDate.toISOString(),
-      mode: "ranked_1v1",
-      format: createFormat,
-      notes: createNotes.trim() || undefined,
-      hostBringingBall: createBringingBall,
-      guestInviteIds: createInviteIds,
-      inviteOnly,
-    });
-    setStatusMsg(
-      inviteOnly
-        ? `${formatLabel} · Private match · ${createInviteIds.length} invite${createInviteIds.length === 1 ? "" : "s"}.`
-        : createInviteIds.length
-          ? `${formatLabel} · Public match · ${createInviteIds.length} invite${createInviteIds.length === 1 ? "" : "s"} sent.`
-          : `${formatLabel} · Public match — anyone can join.`,
-    );
-    setCreateInviteIds([]);
-    setCreateVisibility("public");
-    setExploreLane("open");
-    setOpenDeskTab(inviteOnly ? "scheduled" : "open");
-    setView("find");
+    setPostingCreate(true);
+    try {
+      const created = await onCreateMatch?.({
+        court: { id: court.id, name: court.name, lat: court.lat, lon: court.lon },
+        preferredAt: whenDate.toISOString(),
+        mode: "ranked_1v1",
+        format: createFormat,
+        notes: createNotes.trim() || undefined,
+        hostBringingBall: createBringingBall,
+        guestInviteIds: createInviteIds,
+        inviteOnly,
+      });
+      if (!created && !isDemoMode()) {
+        // parent already set an error toast
+        return;
+      }
+      setStatusMsg(
+        inviteOnly
+          ? `${formatLabel} · Private match · ${createInviteIds.length} invite${createInviteIds.length === 1 ? "" : "s"}.`
+          : createInviteIds.length
+            ? `${formatLabel} · Public match · ${createInviteIds.length} invite${createInviteIds.length === 1 ? "" : "s"} sent.`
+            : `${formatLabel} · Public match — anyone can join.`,
+      );
+      setCreateInviteIds([]);
+      setCreateVisibility("public");
+      if (created && typeof created === "object" && "id" in created) {
+        setSelectedId(created.id);
+        setView("game");
+        setGameTab("details");
+      } else {
+        setExploreLane("open");
+        setOpenDeskTab(inviteOnly ? "scheduled" : "open");
+        setView("find");
+      }
+    } catch (err) {
+      setStatusMsg(mutationError(err));
+    } finally {
+      setPostingCreate(false);
+    }
   };
 
   const openGame = (id: string) => {
@@ -772,12 +815,13 @@ export function QuickMatchFlow({
     setJoinBringingBall(null);
   };
 
-  const joinGame = (id: string, bringingBall?: boolean) => {
+  const joinGame = async (id: string, bringingBall?: boolean) => {
+    if (!requireAuth("join")) return;
     if (bringingBall === undefined) { setStatusMsg("Say if you’re bringing a basketball before joining."); return; }
-    const r = onAcceptMatch?.(id, { bringingBall });
+    const r = await onAcceptMatch?.(id, { bringingBall });
     if (r === "filled") setStatusMsg("That game just filled.");
     else if (r === "invite_only") setStatusMsg("This is a private match — invite only.");
-    else {
+    else if (r === "ok" || r === undefined) {
       const m = matches.find((x) => x.id === id);
       const neither = m?.hostBringingBall === false && bringingBall === false;
       setStatusMsg(neither ? "You’re in — neither of you is bringing a ball. Work it out in chat." : "You’re in — after the run, confirm scores under Needs you on Play.");
@@ -787,9 +831,23 @@ export function QuickMatchFlow({
     }
   };
 
+  const sendMatchChat = async (gameId: string, text: string) => {
+    if (!requireAuth("message")) return;
+    if (isDemoMode()) {
+      store.postMatchChat(gameId, text);
+      return;
+    }
+    try {
+      await sendGameMessageFn({ data: { gameId, text } });
+      await refreshCompetitiveSnapshot();
+    } catch (err) {
+      setStatusMsg(mutationError(err));
+    }
+  };
+
 
   const aboutSheet =
-    courtInfoId && createPickMode !== "map" ? (
+    courtInfoId ? (
       <CourtAboutSheet
         court={
           courtOptions.find((c) => c.id === courtInfoId) ??
@@ -847,22 +905,66 @@ export function QuickMatchFlow({
     const invitedPlayers = createInviteIds
       .map((id) => playerById.get(id))
       .filter((p): p is Player => !!p);
+    const mapImmersive =
+      createStep === 1 && createPickMode === "map" && !createCourtLocked;
+    const mapThumb = selectedCreateCourt
+      ? courtImagesFor(selectedCreateCourt.id, 1)[0]
+      : undefined;
 
     return (
       <div
         ref={createGridRef}
-        className="grid min-h-0 flex-1 overflow-hidden"
-        style={{ gridTemplateRows: "minmax(0, 1fr) auto" }}
+        className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden"
       >
       <div
         data-uc-create-scroll="1"
-        className="min-h-0 space-y-2.5 overflow-y-auto overscroll-contain px-4 pt-2 pb-6 touch-pan-y [-webkit-overflow-scrolling:touch]"
+        className={cn(
+          "min-h-0 flex-1",
+          mapImmersive
+            ? "flex flex-col gap-2 overflow-hidden pt-2"
+            : "space-y-2.5 overflow-y-auto overscroll-contain px-4 pt-2 pb-6 touch-pan-y [-webkit-overflow-scrolling:touch]",
+        )}
       >
-        <button type="button" onClick={() => setView("explore")} className="text-xs font-medium text-fg-muted">
-          ← Explore
+        <div className={mapImmersive ? "shrink-0 space-y-1.5 px-4" : "contents"}>
+        {mapImmersive ? (
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setView("explore")}
+              className="text-xs font-medium text-fg-muted"
+            >
+              ← Explore
+            </button>
+            <h3 className="font-display text-[15px] font-semibold text-fg">Create 1v1</h3>
+          </div>
+        ) : (
+          <>
+        <button
+          type="button"
+          onClick={() => {
+            if (createStep > 1) {
+              setCreateStep((s) => (s === 3 ? 2 : 1));
+              return;
+            }
+            setView("explore");
+          }}
+          className="text-xs font-medium text-fg-muted"
+        >
+          {createStep > 1 ? "← Back" : "← Explore"}
         </button>
         <h3 className="font-display text-lg font-semibold text-fg">Create 1v1</h3>
+          </>
+        )}
+        <CreateGameStepBar step={createStep} onStep={setCreateStep} />
+        {mapImmersive ? null : (
+        <p className="text-[11px] text-fg-muted">
+          Ranked 1v1 · best of 3 to 11 · win by 2. Public by default.
+        </p>
+        )}
+        </div>
 
+        {createStep === 1 ? (
+        <>
         {createCourtLocked && selectedCreateCourt ? (
           <div className="overflow-hidden rounded-2xl border border-court/40 bg-court/10">
             {createImages.length > 0 ? (
@@ -902,7 +1004,7 @@ export function QuickMatchFlow({
           </div>
         ) : (
           <>
-        {selectedCreateCourt ? (
+        {selectedCreateCourt && !mapImmersive ? (
           <div className="overflow-hidden rounded-2xl border border-court/40 bg-court/10">
             {createImages.length > 0 ? (
               <ImageCarousel
@@ -933,6 +1035,7 @@ export function QuickMatchFlow({
           </div>
           </div>
         ) : null}
+        <div className={mapImmersive ? "shrink-0 space-y-1.5 px-4" : "contents"}>
 <div className="space-y-1">
           <p className="text-[10px] font-medium text-fg-subtle">Filters · deselect all to see every court</p>
           <div className="flex gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -1033,6 +1136,7 @@ export function QuickMatchFlow({
             ))}
           </ul>
         ) : null}
+        </div>
 
         {createPickMode === "photos" ? (
           <>
@@ -1117,125 +1221,70 @@ export function QuickMatchFlow({
             ) : null}
           </>
         ) : (
-          <div className="overflow-hidden rounded-2xl border border-border">
-            <p className="border-b border-border bg-bg-elevated px-2.5 py-1.5 text-[11px] text-fg-muted">
-              Tap a pin — map stays up so you see where it is vs you. Profile
-              opens underneath.
-            </p>
+          <div className="relative min-h-0 flex-1 overflow-hidden">
             <CourtsMap
               courts={filteredCourts}
               location={{ lat: origin.lat, lon: origin.lon, label: "You" }}
-              selectedId={courtInfoId || createCourtId || null}
-              onSelect={(c) => setCourtInfoId(c.id)}
+              selectedId={createCourtId || null}
+              onSelect={(c) => setCreateCourtId(c.id)}
               variant="finder"
-              mapClassName="h-[min(38dvh,260px)]"
+              bare
+              mapClassName="h-full w-full"
             />
-            {(() => {
-              const peekId = courtInfoId || createCourtId || null;
-              const peek =
-                (peekId &&
-                  (filteredCourts.find((c) => c.id === peekId) ??
-                    courtOptions.find((c) => c.id === peekId) ??
-                    courts.find((c) => c.id === peekId))) ||
-                null;
-              if (!peek) {
-                return (
-                  <p className="bg-bg-elevated px-3 py-2.5 text-center text-[11px] text-fg-muted">
-                    Select a pin to see photos & details here
-                  </p>
-                );
-              }
-              const thumbs = courtImagesFor(peek.id, 5);
-              const miles =
-                "miles" in peek && typeof peek.miles === "number"
-                  ? peek.miles
-                  : haversineMi(origin.lat, origin.lon, peek.lat, peek.lon);
-              const selected = createCourtId === peek.id;
-              return (
-                <div className="max-h-[min(42dvh,320px)] space-y-0 overflow-y-auto border-t border-border bg-bg">
-                  <div className="relative">
-                    <ImageCarousel
-                      images={thumbs}
-                      alt={peek.name}
-                      className="aspect-[16/9] w-full"
-                      showControls
-                      priority
+            {selectedCreateCourt ? (
+              <button
+                type="button"
+                onClick={() => setCourtInfoId(selectedCreateCourt.id)}
+                className="absolute bottom-2 left-2 right-12 z-20 flex items-center gap-2.5 rounded-2xl border border-court/40 bg-bg/95 p-2 text-left shadow-soft backdrop-blur-md"
+                aria-label={`About ${selectedCreateCourt.name}`}
+              >
+                <div className="size-14 shrink-0 overflow-hidden rounded-xl bg-bg-subtle">
+                  {mapThumb ? (
+                    <img
+                      src={mapThumb}
+                      alt=""
+                      className="h-full w-full object-cover"
                     />
-                    <button
-                      type="button"
-                      onClick={() => setCourtInfoId(null)}
-                      className="absolute top-2 right-2 z-10 flex size-8 items-center justify-center rounded-full bg-black/55 text-white"
-                      aria-label="Close court profile"
-                    >
-                      <X className="size-3.5" />
-                    </button>
-                  </div>
-                  <div className="space-y-2 px-3 py-2.5">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="truncate text-[14px] font-semibold text-fg">
-                          {peek.name}
-                        </p>
-                        <p className="text-[11px] text-fg-muted">
-                          {peek.neighborhood ?? "Austin"} ·{" "}
-                          {formatMiles(miles)} from you
-                        </p>
-                      </div>
-                      {selected ? (
-                        <span className="shrink-0 rounded-full bg-court px-2 py-0.5 text-[10px] font-bold text-white">
-                          Selected
-                        </span>
-                      ) : null}
-                    </div>
-                    <p className="text-[12px] leading-snug text-fg-muted line-clamp-3">
-                      {courtAboutText(peek)}
-                    </p>
-                    <div className="flex flex-wrap gap-1">
-                      {(peek.amenities ?? [])
-                        .slice(0, 5)
-                        .map((a) => (
-                          <span
-                            key={a}
-                            className="rounded-full border border-border bg-bg-elevated px-2 py-0.5 text-[10px] font-medium capitalize text-fg-muted"
-                          >
-                            {a.replace(/_/g, " ")}
-                          </span>
-                        ))}
-                      {peek.hoops ? (
-                        <span className="rounded-full border border-border bg-bg-elevated px-2 py-0.5 text-[10px] font-medium text-fg-muted">
-                          {peek.hoops} hoops
-                        </span>
-                      ) : null}
-                    </div>
-                    {peek.address ? (
-                      <p className="flex items-start gap-1 text-[11px] text-fg-subtle">
-                        <MapPin className="mt-0.5 size-3 shrink-0 text-court" />
-                        {peek.address}
-                      </p>
-                    ) : null}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCreateCourtId(peek.id);
-                        setCourtInfoId(peek.id);
-                      }}
-                      className={cn(
-                        "w-full rounded-full py-2.5 text-sm font-semibold text-white",
-                        selected ? "bg-fg" : "bg-court",
-                      )}
-                    >
-                      {selected ? "Selected ✓" : "Select this court"}
-                    </button>
-                  </div>
+                  ) : null}
                 </div>
-              );
-            })()}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13px] font-semibold text-fg">
+                    {selectedCreateCourt.name.replace(/\s*Courts?\s*$/i, "") ||
+                      selectedCreateCourt.name}
+                  </p>
+                  <p className="truncate text-[11px] text-fg-muted">
+                    {selectedCreateCourt.neighborhood ?? "Austin"} ·{" "}
+                    {formatMiles(
+                      "miles" in selectedCreateCourt &&
+                        typeof selectedCreateCourt.miles === "number"
+                          ? selectedCreateCourt.miles
+                          : haversineMi(
+                              origin.lat,
+                              origin.lon,
+                              selectedCreateCourt.lat,
+                              selectedCreateCourt.lon,
+                            ),
+                    )}
+                  </p>
+                </div>
+                <span
+                  className="flex size-9 shrink-0 items-center justify-center rounded-full bg-court/15 text-court"
+                  aria-hidden
+                >
+                  <Info className="size-4" strokeWidth={2.25} />
+                </span>
+              </button>
+            ) : null}
           </div>
         )}
 
                   </>
         )}
+        </>
+        ) : null}
 
+        {createStep === 2 ? (
+        <>
         <div className="space-y-2 rounded-xl border border-border bg-bg-elevated p-3">
           <p className="text-[11px] font-bold text-fg">Game type</p>
           <div className="grid grid-cols-2 gap-1.5">
@@ -1375,34 +1424,105 @@ export function QuickMatchFlow({
             </p>
           )}
         </div>
+        </>
+        ) : null}
+
+        {createStep === 3 ? (
+          <div className="space-y-2.5">
+            <div className="rounded-2xl border border-border bg-bg-elevated p-3">
+              <p className="text-[10px] font-bold tracking-wide text-fg-subtle uppercase">Review</p>
+              <p className="mt-1 font-display text-[16px] font-semibold text-fg">
+                {selectedCreateCourt?.name ?? "Court"}
+              </p>
+              <p className="text-[12px] text-fg-muted">
+                {createWhen ? formatLocalWhen(parseLocalDateTime(createWhen).toISOString()) : "No time set"}
+              </p>
+              <ul className="mt-2 space-y-1 text-[12px] text-fg">
+                <li>{createFormat === "horse" ? "HORSE" : "Ranked 1v1 · best of 3 to 11 · win by 2"}</li>
+                <li>{createVisibility === "invite_only" ? "Private · invite only" : "Public match"}</li>
+                <li>{createBringingBall ? "You’re bringing a ball" : "You’re not bringing a ball"}</li>
+                {createNotes.trim() ? <li>Notes: {createNotes.trim()}</li> : null}
+                {invitedPlayers.length > 0 ? (
+                  <li>Invites: {invitedPlayers.map((p) => p.name).join(", ")}</li>
+                ) : null}
+              </ul>
+              <div className="mt-3 flex gap-2">
+                <button type="button" onClick={() => setCreateStep(1)} className="text-[11px] font-semibold text-court">
+                  Edit court
+                </button>
+                <button type="button" onClick={() => setCreateStep(2)} className="text-[11px] font-semibold text-court">
+                  Edit details
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {aboutSheet}
       </div>
 
-      <div className="border-t border-border bg-bg px-4 pt-2 pb-3">
-        <button type="button" onClick={submitCreate}
+      <div className="shrink-0 border-t border-border bg-bg px-4 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <button
+          type="button"
+          onClick={() => {
+            if (createStep === 1) {
+              if (!createCourtId) {
+                setStatusMsg("Pick a court to continue.");
+                return;
+              }
+              setCreateStep(2);
+              return;
+            }
+            if (createStep === 2) {
+              if (!createWhen) { setStatusMsg("Pick a date and time."); return; }
+              if (createBringingBall === null) { setStatusMsg("Say if you’re bringing a basketball."); return; }
+              if (createVisibility === "invite_only" && createInviteIds.length === 0) {
+                setStatusMsg("Private matches need at least one invite.");
+                return;
+              }
+              setCreateStep(3);
+              return;
+            }
+            void submitCreate();
+          }}
           disabled={
-            !createCourtId ||
-            !createWhen ||
-            createBringingBall === null ||
-            (createVisibility === "invite_only" && createInviteIds.length === 0)
+            postingCreate ||
+            (createStep === 1 && !createCourtId) ||
+            (createStep === 3 && (
+              !createCourtId ||
+              !createWhen ||
+              createBringingBall === null ||
+              (createVisibility === "invite_only" && createInviteIds.length === 0)
+            ))
           }
-          className={cn("w-full rounded-full py-3 text-sm font-semibold",
-            createCourtId &&
-              createWhen &&
-              createBringingBall !== null &&
-              !(createVisibility === "invite_only" && createInviteIds.length === 0)
-              ? "bg-court text-white" : "cursor-not-allowed bg-bg-elevated text-fg-subtle")}>
-          {!createCourtId ? "Select a court to continue"
-            : !createWhen ? "Select date & time"
-            : createBringingBall === null ? "Answer ball question"
-            : createVisibility === "invite_only" && createInviteIds.length === 0
-              ? "Invite someone for private match"
-            : createVisibility === "invite_only"
-              ? `Post private match · ${createInviteIds.length} invite${createInviteIds.length === 1 ? "" : "s"}`
-            : createInviteIds.length
-              ? `Post public match · ${createInviteIds.length} invite${createInviteIds.length === 1 ? "" : "s"}`
-              : "Post public match"}
+          className={cn(
+            "w-full rounded-full py-3 text-sm font-semibold",
+            postingCreate
+              ? "cursor-wait bg-court/70 text-white"
+              : (createStep === 1 && createCourtId) ||
+                  createStep === 2 ||
+                  (createStep === 3 &&
+                    createCourtId &&
+                    createWhen &&
+                    createBringingBall !== null &&
+                    !(createVisibility === "invite_only" && createInviteIds.length === 0))
+                ? "bg-court text-white"
+                : "cursor-not-allowed bg-bg-elevated text-fg-subtle",
+          )}
+        >
+          {postingCreate
+            ? "Posting…"
+            : createStep === 1
+              ? createCourtId
+                ? "Continue"
+                : "Select a court to continue"
+              : createStep === 2
+                ? "Review & post"
+                : createVisibility === "invite_only"
+                  ? `Post private match · ${createInviteIds.length} invite${createInviteIds.length === 1 ? "" : "s"}`
+                  : createInviteIds.length
+                    ? `Post public match · ${createInviteIds.length} invite${createInviteIds.length === 1 ? "" : "s"}`
+                    : "Post public match"}
         </button>
       </div>
       <div className="h-4 shrink-0" aria-hidden />
@@ -1663,7 +1783,7 @@ export function QuickMatchFlow({
                               >
                                 {iProposed ? "Edit proposal" : "Suggest different plan"}
                               </button>
-                              {!iProposed ? null : (
+                                  {!iProposed ? null : isDemoMode() ? (
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -1681,7 +1801,7 @@ export function QuickMatchFlow({
                                 >
                                   Approve as opponent (demo)
                                 </button>
-                              )}
+                              ) : null}
                             </div>
                           ) : null}
                         </div>
@@ -1744,7 +1864,7 @@ export function QuickMatchFlow({
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();
                       if (!chatDraft.trim()) return;
-                      store.postMatchChat(selected.id, chatDraft);
+                      void sendMatchChat(selected.id, chatDraft);
                       setChatDraft("");
                       chatInputRef.current?.focus();
                       revealChatComposer();
@@ -1759,7 +1879,7 @@ export function QuickMatchFlow({
                   type="button"
                   onClick={() => {
                     if (!chatDraft.trim()) return;
-                    store.postMatchChat(selected.id, chatDraft);
+                    void sendMatchChat(selected.id, chatDraft);
                     setChatDraft("");
                     chatInputRef.current?.focus();
                     revealChatComposer();
@@ -2007,6 +2127,52 @@ export function QuickMatchFlow({
           </div>
         ) : null}
 
+        <ScoreConfirmCard
+          match={selected}
+          me={me}
+          host={host}
+          opp={opp}
+          onEnterScore={async (scores) => {
+            if (!requireAuth("score")) return;
+            if (isDemoMode()) {
+              store.enterScore(selected.id, scores);
+              return;
+            }
+            try {
+              await submitScoreFn({ data: { gameId: selected.id, scores } });
+              await refreshCompetitiveSnapshot();
+            } catch (err) {
+              setStatusMsg(mutationError(err));
+            }
+          }}
+          onConfirm={async () => {
+            if (!requireAuth("score")) return;
+            if (isDemoMode()) {
+              store.confirmScore(selected.id, false);
+              return;
+            }
+            try {
+              await confirmScoreFn({ data: { gameId: selected.id } });
+              await refreshCompetitiveSnapshot();
+            } catch (err) {
+              setStatusMsg(mutationError(err));
+            }
+          }}
+          onDispute={async () => {
+            if (!requireAuth("dispute")) return;
+            if (isDemoMode()) {
+              store.confirmScore(selected.id, true);
+              return;
+            }
+            try {
+              await disputeScoreFn({ data: { gameId: selected.id } });
+              await refreshCompetitiveSnapshot();
+            } catch (err) {
+              setStatusMsg(mutationError(err));
+            }
+          }}
+        />
+
         <button
           type="button"
           onClick={() => setGameTab("chat")}
@@ -2106,18 +2272,36 @@ export function QuickMatchFlow({
                 <button
                   type="button"
                   onClick={() => {
-                    const r = store.cancelMatch(
-                      selected.id,
-                      hostEmptyCancel ? "" : cancelReason,
-                    );
-                    if (!r.ok) {
-                      setCancelError(r.reason);
-                      return;
-                    }
-                    setCancelOpen(false);
-                    setStatusMsg("Game cancelled.");
-                    setView("find");
-                    setSelectedId(null);
+                    void (async () => {
+                      if (!requireAuth("leave")) return;
+                      if (isDemoMode()) {
+                        const r = store.cancelMatch(
+                          selected.id,
+                          hostEmptyCancel ? "" : cancelReason,
+                        );
+                        if (!r.ok) {
+                          setCancelError(r.reason);
+                          return;
+                        }
+                      } else {
+                        try {
+                          await cancelGameFn({
+                            data: {
+                              gameId: selected.id,
+                              reason: hostEmptyCancel ? "" : cancelReason,
+                            },
+                          });
+                          await refreshCompetitiveSnapshot();
+                        } catch (err) {
+                          setCancelError(mutationError(err));
+                          return;
+                        }
+                      }
+                      setCancelOpen(false);
+                      setStatusMsg("Game cancelled.");
+                      setView("find");
+                      setSelectedId(null);
+                    })();
                   }}
                   className="flex-1 rounded-full bg-danger py-3 text-sm font-semibold text-white"
                 >
@@ -2197,14 +2381,18 @@ export function QuickMatchFlow({
         countLabel: "waiting",
         tone: "from-orange-500 to-court",
       },
-      {
-        id: "hoop_now",
-        kicker: "Free today",
-        title: "Match Mode",
-        sub: "Swipe free players. Court locks after you both accept.",
-        countLabel: "today",
-        tone: "from-rose-500 to-orange-500",
-      },
+      ...(isMatchModeEnabled()
+        ? [
+            {
+              id: "hoop_now" as const,
+              kicker: "Free today",
+              title: "Match Mode",
+              sub: "Swipe free players. Court locks after you both accept.",
+              countLabel: "today",
+              tone: "from-rose-500 to-orange-500",
+            },
+          ]
+        : []),
     ];
 
 

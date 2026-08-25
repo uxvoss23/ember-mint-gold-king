@@ -244,7 +244,7 @@ export function LeaderboardPanel({
               ? "No rating climbers this week yet."
               : rankSub === "hottest"
                 ? "No active win streaks."
-                : "No players to show."}
+                : "Rankings appear after confirmed 1v1 results."}
           </p>
         ) : (
           rankedList.map((p, i) => {

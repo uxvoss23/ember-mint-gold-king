@@ -19,6 +19,15 @@ import { isAdminEmail } from "@/lib/auth/admin";
 import { Link } from "@tanstack/react-router";
 import { PlayerProfile } from "@/components/compete/player-profile";
 import type { Court, UserLocation } from "@/lib/courts/types";
+import { isDemoMode } from "@/lib/config";
+import {
+  createGameFn,
+  joinGameFn,
+} from "@/lib/game/fns";
+import { GUEST_PLAYER_ID } from "@/lib/game/guest";
+import { mutationError, refreshCompetitiveSnapshot } from "@/lib/game/client-actions";
+import { useCompetitiveSync } from "@/lib/game/use-competitive-sync";
+import { useRequireAuth } from "@/lib/game/use-require-auth";
 import { displayRating } from "@/lib/rating/engine";
 import { formatLocalWhen, useUpsetStore } from "@/lib/upset/store";
 import type { Match, Player } from "@/lib/upset/types";
@@ -58,6 +67,10 @@ export function SceneShell({
   showTabBar = true,
 }: SceneShellProps) {
   const store = useUpsetStore();
+  const sync = useCompetitiveSync();
+  const requireAuth = useRequireAuth();
+  const { user } = useCurrentUserState();
+  const signedIn = !!user && store.me.id !== GUEST_PLAYER_ID;
   const tabsHidden = useTabBarGate((s) => s.hidden);
   const [home, setHome] = useState<SceneHome>("games");
   const [selectedCourt, setSelectedCourt] = useState<Court | null>(null);
@@ -99,14 +112,23 @@ export function SceneShell({
           </div>
           <button
             type="button"
-            onClick={() => setSelectedPlayer(store.me)}
+            onClick={() => {
+              if (!signedIn) return;
+              setSelectedPlayer(store.me);
+            }}
             className="flex items-center gap-2 rounded-full border border-border bg-bg-elevated py-1 pr-3 pl-1"
             aria-label="Your profile"
           >
-            <PlayerAvatar player={store.me} size="sm" />
-            <span className="text-sm font-semibold tabular-nums text-fg">
-              {displayRating(store.me.rating)}
-            </span>
+            {signedIn ? (
+              <>
+                <PlayerAvatar player={store.me} size="sm" />
+                <span className="text-sm font-semibold tabular-nums text-fg">
+                  {displayRating(store.me.rating)}
+                </span>
+              </>
+            ) : (
+              <span className="px-2 text-xs font-semibold text-fg-muted">Guest</span>
+            )}
           </button>
         </div>
       )}
@@ -122,12 +144,26 @@ export function SceneShell({
         )}
       >
         {home === "leaderboard" && (
-          <LeaderboardPanel
-            players={store.players}
-            meId={store.me.id}
-            onOpenPlayer={setSelectedPlayer}
-            onOpenProfile={() => setSelectedPlayer(store.me)}
-          />
+          <>
+            {sync.status === "error" ? (
+              <div className="mb-2 rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-[12px]">
+                {sync.error ?? "Couldn’t load rankings."}
+                <button
+                  type="button"
+                  className="ml-2 font-semibold text-court"
+                  onClick={() => void sync.refresh()}
+                >
+                  Retry
+                </button>
+              </div>
+            ) : null}
+            <LeaderboardPanel
+              players={store.players}
+              meId={signedIn ? store.me.id : ""}
+              onOpenPlayer={setSelectedPlayer}
+              onOpenProfile={() => signedIn && setSelectedPlayer(store.me)}
+            />
+          </>
         )}
 
         {home === "games" && (
@@ -138,9 +174,11 @@ export function SceneShell({
             matches={store.matches}
             userLat={location.lat}
             userLon={location.lon}
-            onOpenProfile={() => setSelectedPlayer(store.me)}
+            onOpenProfile={() => {
+              if (signedIn) setSelectedPlayer(store.me);
+            }}
             onImmersiveChange={setPlayImmersive}
-            onCreateMatch={({
+            onCreateMatch={async ({
               court,
               preferredAt,
               format,
@@ -149,42 +187,96 @@ export function SceneShell({
               guestInviteIds,
               inviteOnly,
             }) => {
-              store.createQuickMatch({
-                courtId: court.id,
-                courtName: court.name,
-                lat: court.lat,
-                lon: court.lon,
-                preferredAt,
-                format: format ?? "1v1",
-                notes,
-                hostBringingBall,
-                guestInviteIds,
-                inviteOnly,
-                allowGuestInvites: false,
-                filters: {
-                  heightMinIn: 60,
-                  heightMaxIn: 84,
-                  ratingMin: 800,
-                  ratingMax: 2500,
-                  sportsmanshipMin: 3,
-                  radiusMiles: 50,
-                },
-              });
-              setRaceMsg(
-                inviteOnly
-                  ? `Private match posted · ${guestInviteIds?.length ?? 0} invite${(guestInviteIds?.length ?? 0) === 1 ? "" : "s"}.`
-                  : guestInviteIds?.length
-                    ? `Public match posted · ${guestInviteIds.length} invite${guestInviteIds.length === 1 ? "" : "s"} sent.`
+              if (!requireAuth("create")) return;
+              const filters = {
+                heightMinIn: 60,
+                heightMaxIn: 84,
+                ratingMin: 800,
+                ratingMax: 2500,
+                sportsmanshipMin: 3,
+                radiusMiles: 50,
+              };
+              if (isDemoMode()) {
+                const match = store.createQuickMatch({
+                  courtId: court.id,
+                  courtName: court.name,
+                  lat: court.lat,
+                  lon: court.lon,
+                  preferredAt,
+                  format: format ?? "1v1",
+                  notes,
+                  hostBringingBall,
+                  guestInviteIds,
+                  inviteOnly,
+                  allowGuestInvites: false,
+                  filters,
+                });
+                setRaceMsg(
+                  inviteOnly
+                    ? `Private match posted · ${guestInviteIds?.length ?? 0} invite${(guestInviteIds?.length ?? 0) === 1 ? "" : "s"}.`
                     : "Public match is live in the lobby.",
-              );
+                );
+                return match;
+              }
+              try {
+                const match = await createGameFn({
+                  data: {
+                    courtId: court.id,
+                    courtName: court.name,
+                    lat: court.lat,
+                    lon: court.lon,
+                    preferredAt,
+                    format: format ?? "1v1",
+                    notes,
+                    hostBringingBall: hostBringingBall ?? false,
+                    guestInviteIds: guestInviteIds ?? [],
+                    inviteOnly: !!inviteOnly,
+                  },
+                });
+                await refreshCompetitiveSnapshot();
+                setRaceMsg(
+                  inviteOnly
+                    ? `Private match posted · ${guestInviteIds?.length ?? 0} invite${(guestInviteIds?.length ?? 0) === 1 ? "" : "s"}.`
+                    : "Public match is live in the lobby.",
+                );
+                return match;
+              } catch (err) {
+                setRaceMsg(mutationError(err));
+                return;
+              }
             }}
-            onAcceptMatch={(id) => {
-              const r = store.tryAcceptRace(id);
-              if (r === "filled") setRaceMsg("That game just filled.");
-              else if (r === "invite_only")
-                setRaceMsg("Private match — invite only.");
-              else setRaceMsg("Game accepted.");
-              return r;
+            onAcceptMatch={async (id, opts) => {
+              if (!requireAuth("join")) return;
+              if (isDemoMode()) {
+                const r = store.tryAcceptRace(id, opts);
+                if (r === "filled") setRaceMsg("That game just filled.");
+                else if (r === "invite_only")
+                  setRaceMsg("Private match — invite only.");
+                else setRaceMsg("Game accepted.");
+                return r;
+              }
+              try {
+                const r = await joinGameFn({
+                  data: {
+                    gameId: id,
+                    bringingBall: opts?.bringingBall ?? false,
+                  },
+                });
+                await refreshCompetitiveSnapshot();
+                if (!r.ok) {
+                  setRaceMsg(
+                    r.reason === "invite_only"
+                      ? "Private match — invite only."
+                      : "That game just filled.",
+                  );
+                  return r.reason;
+                }
+                setRaceMsg("Game accepted.");
+                return "ok";
+              } catch (err) {
+                setRaceMsg(mutationError(err));
+                return;
+              }
             }}
             onOpenPlayer={setSelectedPlayer}
             focusMatchId={focusMatchId}
@@ -197,7 +289,10 @@ export function SceneShell({
         {home === "you" && (
           <YouSection
             me={store.me}
-            onOpenProfile={() => setSelectedPlayer(store.me)}
+            signedIn={signedIn}
+            onOpenProfile={() => {
+              if (signedIn) setSelectedPlayer(store.me);
+            }}
           />
         )}
 
@@ -347,9 +442,11 @@ export function SceneShell({
 
 function YouSection({
   me,
+  signedIn,
   onOpenProfile,
 }: {
   me: Player;
+  signedIn: boolean;
   onOpenProfile: () => void;
 }) {
   const { user, isPending } = useCurrentUserState();
@@ -357,19 +454,29 @@ function YouSection({
 
   return (
     <div className="space-y-4 pb-8">
-      <button
-        type="button"
-        onClick={onOpenProfile}
-        className="flex w-full items-center gap-3 rounded-2xl border border-border bg-bg-elevated p-4 text-left"
-      >
-        <PlayerAvatar player={me} size="lg" />
-        <div className="min-w-0">
-          <p className="truncate text-base font-semibold text-fg">{me.name}</p>
-          <p className="text-sm text-fg-muted">
-            {displayRating(me.rating)} · {me.wins}W–{me.losses}L
+      {signedIn ? (
+        <button
+          type="button"
+          onClick={onOpenProfile}
+          className="flex w-full items-center gap-3 rounded-2xl border border-border bg-bg-elevated p-4 text-left"
+        >
+          <PlayerAvatar player={me} size="lg" />
+          <div className="min-w-0">
+            <p className="truncate text-base font-semibold text-fg">{me.name}</p>
+            <p className="text-sm text-fg-muted">
+              {displayRating(me.rating)} · {me.wins}W–{me.losses}L
+            </p>
+          </div>
+        </button>
+      ) : (
+        <div className="rounded-2xl border border-border bg-bg-elevated p-4">
+          <p className="text-base font-semibold text-fg">Guest</p>
+          <p className="mt-1 text-sm text-fg-muted">
+            Browse courts, open games, and rankings. Sign in to post a 1v1 and
+            get rated.
           </p>
         </div>
-      </button>
+      )}
 
       {/* Account */}
       <section className="rounded-2xl border border-border bg-bg-elevated p-3.5">
@@ -402,7 +509,7 @@ function YouSection({
         ) : (
           <div className="mt-2 space-y-2">
             <p className="text-xs text-fg-muted">
-              Sign in to save favorites and manage your account.
+              Sign in to post games, confirm scores, and climb the board.
             </p>
             <Link
               to="/login"

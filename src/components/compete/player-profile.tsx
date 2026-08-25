@@ -6,6 +6,11 @@ import { displayRating } from "@/lib/rating/engine";
 import { formatLocalWhen, useUpsetStore } from "@/lib/upset/store";
 import type { Player } from "@/lib/upset/types";
 import { formatHeightInches } from "@/lib/utils";
+import { isDemoMode } from "@/lib/config";
+import { challengePlayerFn } from "@/lib/game/fns";
+import { GUEST_PLAYER_ID } from "@/lib/game/guest";
+import { mutationError, refreshCompetitiveSnapshot } from "@/lib/game/client-actions";
+import { useRequireAuth } from "@/lib/game/use-require-auth";
 
 export function PlayerProfile({
   player,
@@ -17,7 +22,8 @@ export function PlayerProfile({
   onChallenged?: () => void;
 }) {
   const store = useUpsetStore();
-  const isMe = player.id === store.me.id;
+  const requireAuth = useRequireAuth();
+  const isMe = player.id === store.me.id && store.me.id !== GUEST_PLAYER_ID;
   const [msg, setMsg] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const courts = useMemo(() => namedAustinCourts(), []);
@@ -50,7 +56,8 @@ export function PlayerProfile({
     });
   }, [store.matches, store.me.id, player.id]);
 
-  const challenge = () => {
+  const challenge = async () => {
+    if (!requireAuth("challenge")) return;
     if (scheduledWith) {
       setStatus("You already have a game scheduled with them.");
       return;
@@ -60,23 +67,45 @@ export function PlayerProfile({
       courts.find((c) => c.id === "cat-battle-bend") ??
       courts[0];
     if (!court) return;
-    const r = store.challengePlayer(player.id, {
-      courtId: court.id,
-      courtName: court.name,
-      lat: court.lat,
-      lon: court.lon,
-      preferredAt: new Date(Date.now() + 3600e3).toISOString(),
-      notes: `Challenge from ${store.me.name}`,
-    });
-    if (r.ok) {
-      setStatus("Challenge sent — private if they decline.");
+    if (isDemoMode()) {
+      const r = store.challengePlayer(player.id, {
+        courtId: court.id,
+        courtName: court.name,
+        lat: court.lat,
+        lon: court.lon,
+        preferredAt: new Date(Date.now() + 3600e3).toISOString(),
+        notes: `Challenge from ${store.me.name}`,
+      });
+      if (r.ok) {
+        setStatus("Challenge sent — private if they decline.");
+        onChallenged?.();
+      } else {
+        setStatus(r.reason);
+      }
+      return;
+    }
+    try {
+      await challengePlayerFn({
+        data: {
+          targetId: player.id,
+          courtId: court.id,
+          courtName: court.name,
+          lat: court.lat,
+          lon: court.lon,
+          preferredAt: new Date(Date.now() + 3600e3).toISOString(),
+          notes: `Challenge from ${store.me.name}`,
+        },
+      });
+      await refreshCompetitiveSnapshot();
+      setStatus("Challenge sent.");
       onChallenged?.();
-    } else {
-      setStatus(r.reason);
+    } catch (err) {
+      setStatus(mutationError(err));
     }
   };
 
   const send = () => {
+    if (!requireAuth("message")) return;
     const r = store.sendDm(player.id, msg);
     if (r.ok) {
       setMsg("");
@@ -175,7 +204,7 @@ export function PlayerProfile({
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={challenge}
+                  onClick={() => void challenge()}
                   className="flex h-11 items-center justify-center gap-2 rounded-xl bg-court text-sm font-semibold text-white"
                 >
                   <Swords className="size-4" strokeWidth={2} />

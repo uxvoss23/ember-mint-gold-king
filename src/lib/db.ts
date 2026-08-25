@@ -44,6 +44,7 @@ export interface Sql {
  */
 const globalRef = globalThis as typeof globalThis & {
   __pgSqlPromise__?: Promise<Sql>;
+  __pgPool__?: import("pg").Pool;
   __pgliteInstance__?: Promise<import("@electric-sql/pglite").PGlite>;
   __pgliteMigrateChain__?: Promise<void>;
 };
@@ -92,6 +93,7 @@ function createNeonSql(): Promise<Sql> {
     types.setTypeParser(OID_DATE, identity);
     types.setTypeParser(OID_INTERVAL, identity);
     const pool = new Pool({ connectionString: databaseUrl });
+    globalRef.__pgPool__ = pool;
     return toSql(async <T>(text: string, params: unknown[]) => {
       const res = await pool.query(text, params);
       return res.rows as T[];
@@ -176,6 +178,18 @@ async function createSql(): Promise<Sql> {
         "or a server route loader, never from client code.",
     );
   }
+  if (!databaseUrl) {
+    // Production deploys (Vercel) must not silently use ephemeral PGLite.
+    if (process.env.VERCEL) {
+      throw new Error(
+        "DATABASE_URL is required in production. Refusing to start with an " +
+          "ephemeral in-memory database.",
+      );
+    }
+    console.warn(
+      "[db] DATABASE_URL is not set — using ephemeral PGLite (development/preview only). This is not production data.",
+    );
+  }
   return dbSource === "neon" ? createNeonSql() : createPgliteSql();
 }
 
@@ -207,6 +221,49 @@ export async function getPglite(): Promise<import("@electric-sql/pglite").PGlite
   const pg = await globalRef.__pgliteInstance__;
   if (!pg) throw new Error("PGLite instance failed to initialize");
   return pg;
+}
+
+/**
+ * Run `fn` in a single-connection transaction (BEGIN/COMMIT). Required for
+ * score confirmation so rating events and player rows commit together.
+ */
+export async function withTransaction<T>(fn: (sql: Sql) => Promise<T>): Promise<T> {
+  if (typeof window !== "undefined") {
+    throw new Error("withTransaction is server-only");
+  }
+  if (dbSource === "pglite") {
+    const pg = await getPglite();
+    return pg.transaction(async (tx) => {
+      const sql = toSql(async <R>(text: string, params: unknown[]) => {
+        const result = await tx.query<R>(text, params);
+        return result.rows;
+      });
+      return fn(sql);
+    });
+  }
+  await getSql();
+  const pool = globalRef.__pgPool__;
+  if (!pool) throw new Error("Postgres pool is not initialized");
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const sql = toSql(async <R>(text: string, params: unknown[]) => {
+      const res = await client.query(text, params);
+      return res.rows as R[];
+    });
+    const result = await fn(sql);
+    await client.query("COMMIT");
+    return result;
+  } catch (err) {
+    try {
+      await client.query("ROLLBACK");
+    } catch {
+      /* keep original */
+    }
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 /**
