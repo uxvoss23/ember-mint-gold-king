@@ -5,6 +5,7 @@ import { optionalAuthMiddleware } from "@/lib/auth/optional-middleware";
 import { STARTING_RATING } from "@/lib/config";
 import { getSql, withTransaction, type Sql } from "@/lib/db";
 import { applyConfirmedResult, canAccessGameChat, canApplyScoreSubmission, canCancelGame, canConfirmScore, canDisputeScore, canEnterScore, canJoinGame, validateScores } from "@/lib/game/rules";
+import { canCheckIn, canReportNoShow } from "@/lib/game/checkin";
 import {
   handleFromName,
   newId,
@@ -634,6 +635,10 @@ export const confirmScoreFn = createServerFn({ method: "POST" })
         game.id,
         `Result dual-confirmed. ${applied.hostWon ? host.name : opp.name} wins. Ratings updated.`,
       );
+      await sql.query(
+        `insert into reliability_event (id, player_id, game_id, kind) values ($1,$2,$3,'confirmed_game'), ($4,$5,$3,'confirmed_game'), ($6,$7,$3,'score_confirm_timely')`,
+        [newId("rel"), host.id, game.id, newId("rel"), opp.id, newId("rel"), me.id],
+      );
       return { ok: true as const, already: false };
     });
   });
@@ -865,6 +870,116 @@ export const reportPlayerFn = createServerFn({ method: "POST" })
     await sql.query(
       `insert into player_report (id, actor_id, target_id, reason) values ($1,$2,$3,$4)`,
       [newId("rp"), me.id, data.targetId, data.reason],
+    );
+    return { ok: true as const };
+  });
+
+export const checkInFn = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((raw: unknown) =>
+    z
+      .object({
+        gameId: z.string(),
+        locationVerified: z.boolean().optional(),
+        distanceM: z.number().int().min(0).max(5000).optional(),
+      })
+      .parse(raw),
+  )
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    const me = await requirePlayer(sql, context.userId);
+    const games = await sql.query<GameRow>("select * from game where id = $1", [data.gameId]);
+    const game = games[0];
+    if (!game) throw new Error("Game not found.");
+    const tip = new Date(game.scheduled_at ?? game.preferred_at).getTime();
+    const check = canCheckIn({
+      hostId: game.host_id,
+      opponentId: game.opponent_id,
+      actorId: me.id,
+      status: game.status,
+      tipMs: tip,
+      nowMs: Date.now(),
+    });
+    if (!check.ok) throw new Error(check.reason);
+    await sql.query(
+      `insert into game_checkin (game_id, player_id, location_verified, distance_m)
+       values ($1,$2,$3,$4)
+       on conflict (game_id, player_id) do update set
+         location_verified = excluded.location_verified,
+         distance_m = excluded.distance_m`,
+      [
+        data.gameId,
+        me.id,
+        data.locationVerified === true,
+        data.locationVerified ? (data.distanceM ?? null) : null,
+      ],
+    );
+    await sql.query(
+      `insert into reliability_event (id, player_id, game_id, kind) values ($1,$2,$3,'checkin_on_time')`,
+      [newId("rel"), me.id, data.gameId],
+    );
+    return { ok: true as const };
+  });
+
+export const reportNoShowFn = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((raw: unknown) => z.object({ gameId: z.string() }).parse(raw))
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    const me = await requirePlayer(sql, context.userId);
+    const games = await sql.query<GameRow>("select * from game where id = $1", [data.gameId]);
+    const game = games[0];
+    if (!game) throw new Error("Game not found.");
+    const mine = await sql.query(
+      `select 1 from game_checkin where game_id = $1 and player_id = $2`,
+      [data.gameId, me.id],
+    );
+    const tip = new Date(game.scheduled_at ?? game.preferred_at).getTime();
+    const check = canReportNoShow({
+      hostId: game.host_id,
+      opponentId: game.opponent_id,
+      actorId: me.id,
+      actorCheckedIn: mine.length > 0,
+      status: game.status,
+      tipMs: tip,
+      nowMs: Date.now(),
+    });
+    if (!check.ok) throw new Error(check.reason);
+    const accused = game.host_id === me.id ? game.opponent_id : game.host_id;
+    if (!accused) throw new Error("Game has no opponent.");
+    await sql.query(
+      `insert into game_noshow (id, game_id, reporter_id, accused_id, status)
+       values ($1,$2,$3,$4,'pending')
+       on conflict (game_id, reporter_id) do nothing`,
+      [newId("ns"), data.gameId, me.id, accused],
+    );
+    await addSystemMessage(
+      sql,
+      data.gameId,
+      `${me.name} reported a no-show. This does not change ratings until a moderator verifies it.`,
+    );
+    return { ok: true as const };
+  });
+
+export const contestNoShowFn = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((raw: unknown) => z.object({ gameId: z.string() }).parse(raw))
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    const me = await requirePlayer(sql, context.userId);
+    const rows = await sql.query<{ id: string }>(
+      `select id from game_noshow where game_id = $1 and accused_id = $2 and status = 'pending'`,
+      [data.gameId, me.id],
+    );
+    if (!rows[0]) throw new Error("No pending no-show to contest.");
+    await sql.query(
+      `update game_noshow set status = 'contested' where id = $1`,
+      [rows[0].id],
+    );
+    await addSystemMessage(
+      sql,
+      data.gameId,
+      `${me.name} contested the no-show. A moderator will review — ratings stay unchanged.`,
     );
     return { ok: true as const };
   });

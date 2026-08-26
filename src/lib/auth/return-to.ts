@@ -8,7 +8,10 @@ export function safeReturnTo(raw: unknown, fallback = "/"): string {
   if (!trimmed.startsWith("/")) return fallback;
   if (trimmed.startsWith("//")) return fallback;
   if (trimmed.includes("\\")) return fallback;
-  if (/[\u0000-\u001f\u007f]/.test(trimmed)) return fallback;
+  for (let i = 0; i < trimmed.length; i += 1) {
+    const code = trimmed.charCodeAt(i);
+    if (code < 32 || code === 127) return fallback;
+  }
   if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(trimmed)) return fallback;
   if (trimmed.length > 400) return fallback;
   return trimmed;

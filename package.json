@@ -15,7 +15,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "test": "node --experimental-strip-types --no-warnings src/lib/game/game.test.ts && node --experimental-strip-types --no-warnings src/lib/auth/return-to.test.ts"
+    "test": "node --experimental-strip-types --no-warnings src/lib/game/game.test.ts && node --experimental-strip-types --no-warnings src/lib/auth/return-to.test.ts && node --experimental-strip-types --no-warnings src/lib/auth/admin.test.ts && node --experimental-strip-types --no-warnings src/lib/game/checkin.test.ts && node scripts/test-migrations.mjs && node scripts/test-two-player-loop.mjs"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.3",

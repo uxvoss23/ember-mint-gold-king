@@ -33,6 +33,7 @@ import { directionsUrl } from "@/lib/maps/directions";
 import { suggestAustinAddresses, type GeoHit } from "@/lib/maps/geocode";
 import { displayRating } from "@/lib/rating/engine";
 import { ScoreConfirmCard } from "@/components/compete/score-confirm-card";
+import { CheckInBar } from "@/components/compete/check-in-bar";
 import type { MatchFormat } from "@/lib/upset/types";
 import { formatLocalWhen, useUpsetStore } from "@/lib/upset/store";
 import { matchActionsForPlayer } from "@/lib/upset/match-actions";
@@ -2126,6 +2127,8 @@ export function QuickMatchFlow({
             ) : null}
           </div>
         ) : null}
+
+        <CheckInBar match={selected} meId={me.id} />
 
         <ScoreConfirmCard
           match={selected}

@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { authMiddleware } from "@/lib/auth/middleware";
-import { isAdminEmail } from "@/lib/auth/admin";
+import { assertModeratorEmail } from "@/lib/auth/admin";
 import { getSql, withTransaction, type Sql } from "@/lib/db";
 import { applyConfirmedResult, validateScores } from "@/lib/game/rules";
 import { newId, type GameRow, type PlayerRow } from "@/lib/game/map";
@@ -13,11 +13,7 @@ async function requireModerator(sql: Sql, userId: string): Promise<{ userId: str
     [userId],
   );
   const email = users[0]?.email ?? "";
-  if (!isAdminEmail(email)) {
-    const err = new Error("Forbidden");
-    (err as Error & { status?: number }).status = 403;
-    throw err;
-  }
+  assertModeratorEmail(email);
   return { userId, email };
 }
 
