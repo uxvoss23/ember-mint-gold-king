@@ -98,18 +98,19 @@ export function BootSplash({
   );
 }
 
-/** One-shot boot gate. Once dismissed, never re-shows this page lifetime. */
+/** One-shot boot gate. Max timer starts once and is never reset. */
 export function useBootSplash(
   ready: boolean,
   opts?: { minMs?: number; maxMs?: number },
 ) {
-  const minMs = opts?.minMs ?? 1600;
-  const maxMs = opts?.maxMs ?? 3500;
+  const minMs = opts?.minMs ?? 400;
+  const maxMs = opts?.maxMs ?? 1200;
   const [active, setActive] = useState(true);
   const startRef = useRef(
     typeof performance !== "undefined" ? performance.now() : Date.now(),
   );
   const finishedRef = useRef(false);
+  const maxStartedRef = useRef(false);
 
   useEffect(() => {
     if (finishedRef.current) return;
@@ -120,21 +121,18 @@ export function useBootSplash(
       setActive(false);
     };
 
-    const maxT = window.setTimeout(finish, maxMs);
-    let minT: number | null = null;
-
-    if (ready) {
-      const now =
-        typeof performance !== "undefined" ? performance.now() : Date.now();
-      const elapsed = now - startRef.current;
-      const wait = Math.max(0, minMs - elapsed);
-      minT = window.setTimeout(finish, wait);
+    if (!maxStartedRef.current) {
+      maxStartedRef.current = true;
+      window.setTimeout(finish, maxMs);
     }
 
-    return () => {
-      window.clearTimeout(maxT);
-      if (minT != null) window.clearTimeout(minT);
-    };
+    if (!ready) return;
+
+    const now =
+      typeof performance !== "undefined" ? performance.now() : Date.now();
+    const wait = Math.max(0, minMs - (now - startRef.current));
+    const minT = window.setTimeout(finish, wait);
+    return () => window.clearTimeout(minT);
   }, [ready, minMs, maxMs]);
 
   return active;

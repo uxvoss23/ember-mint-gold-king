@@ -113,10 +113,8 @@ function Home() {
     if (loc) void loadCourts(loc, radiusMi);
   }, [radiusMi, loadCourts]);
 
-  // Single phase: splash covers until ready, then tabs + content appear together
-  const bootReady =
-    !authPending && !!location && courts.length > 0 && !locating;
-  const showBoot = useBootSplash(bootReady, { minMs: 1600, maxMs: 3500 });
+  // Never wait on auth or GPS — seed courts + Austin are already on screen.
+  const showBoot = useBootSplash(true, { minMs: 400, maxMs: 1200 });
   // Tabs mount in the same gate as splash dismiss — never flash content alone
   const appReady = !showBoot;
 
