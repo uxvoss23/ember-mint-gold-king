@@ -1,16 +1,18 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { User } from "lucide-react";
-import { BootSplash, useBootSplash } from "@/components/boot-splash";
 import { ViewportLock } from "@/components/viewport-lock";
 import { IosKeyboardGuard } from "@/components/ios-keyboard-guard";
-import { SceneShell } from "@/components/compete/scene-shell";
 import { DEFAULT_CITY, catalogNear } from "@/lib/courts/catalog";
 import { fetchCourtsNear } from "@/lib/courts/fetch-courts";
 import type { Court, UserLocation } from "@/lib/courts/types";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { SignedIn, SignedOut, UserButton } from "@/lib/auth/gates";
 import { milesToMeters } from "@/lib/utils";
+
+const SceneShell = lazy(() =>
+  import("@/components/compete/scene-shell").then((m) => ({ default: m.SceneShell })),
+);
 
 export const Route = createFileRoute("/")({ component: Home });
 
@@ -40,7 +42,6 @@ function Home() {
   const bootstrapped = useRef(false);
 
   const loadCourts = useCallback(async (loc: UserLocation, miles: number, catalogOnly = false) => {
-    // Always show seed immediately so the tab never sits empty
     setCourts(seedCourts(loc, miles));
     setLocation(loc);
     locationRef.current = loc;
@@ -99,7 +100,6 @@ function Home() {
         setLocError("Couldn’t get your location. Showing Austin.");
         void loadCourts(AUSTIN, radiusMi);
       },
-      // Fast GPS first — high accuracy can hang for 10–12s on iPhone
       { enableHighAccuracy: false, timeout: 6000, maximumAge: 60_000 },
     );
   }, [loadCourts, radiusMi]);
@@ -113,16 +113,10 @@ function Home() {
     if (loc) void loadCourts(loc, radiusMi);
   }, [radiusMi, loadCourts]);
 
-  // Never wait on auth or GPS — seed courts + Austin are already on screen.
-  const showBoot = useBootSplash(true, { minMs: 400, maxMs: 1200 });
-  // Tabs mount in the same gate as splash dismiss — never flash content alone
-  const appReady = !showBoot;
-
   return (
     <div className="app-shell mx-auto w-full max-w-lg overflow-hidden bg-bg">
       <ViewportLock />
       <IosKeyboardGuard />
-      <BootSplash active={showBoot} />
 
       <header className="sticky top-0 z-30 shrink-0 border-b border-border/70 bg-bg/90 px-3 pt-1 pb-1 backdrop-blur-md safe-pt">
         <div className="flex h-9 items-center justify-between gap-2">
@@ -160,25 +154,25 @@ function Home() {
 
       <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {location ? (
-          <SceneShell
-            courts={courts}
-            location={location}
-            courtsLoading={loading}
-            courtsLocating={locating}
-            courtsError={error}
-            courtsLocError={locError}
-            radiusMi={radiusMi}
-            dataSource={dataSource}
-            onRadiusChange={setRadiusMi}
-            onRefreshCourts={() =>
-              location && void loadCourts(location, radiusMi)
-            }
-            onNearMe={requestLocation}
-            showTabBar={appReady}
-          />
-        ) : (
-          <p className="px-4 pt-4 text-center text-sm text-fg-muted">Loading…</p>
-        )}
+          <Suspense fallback={null}>
+            <SceneShell
+              courts={courts}
+              location={location}
+              courtsLoading={loading}
+              courtsLocating={locating}
+              courtsError={error}
+              courtsLocError={locError}
+              radiusMi={radiusMi}
+              dataSource={dataSource}
+              onRadiusChange={setRadiusMi}
+              onRefreshCourts={() =>
+                location && void loadCourts(location, radiusMi)
+              }
+              onNearMe={requestLocation}
+              showTabBar
+            />
+          </Suspense>
+        ) : null}
       </main>
     </div>
   );
