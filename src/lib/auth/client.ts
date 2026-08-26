@@ -163,7 +163,8 @@ function waitForPopupToken(popup: Window, handoffId: string): Promise<string | n
       if (event.origin !== origin) return;
       const data = event.data as PopupMessage | undefined;
       if (!data || data.source !== "grok-auth-popup") return;
-      settle(data.token ?? null);
+      if (data.token) settle(data.token);
+      else if (data.error) settle(null);
     };
     const pollHandoff = async () => {
       try {
@@ -191,7 +192,8 @@ function waitForPopupToken(popup: Window, handoffId: string): Promise<string | n
       bc.onmessage = (event) => {
         const data = event.data as PopupMessage | undefined;
         if (!data || data.source !== "grok-auth-popup") return;
-        settle(data.token ?? null);
+        if (data.token) settle(data.token);
+        else if (data.error) settle(null);
       };
     } catch {
       bc = null;

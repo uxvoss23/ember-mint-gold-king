@@ -51,16 +51,26 @@ function peekHandoff(id: string): HandoffRow | null {
   return handoffs.get(id) ?? null;
 }
 
+function allSetCookies(response: Response): string[] {
+  const headers = response.headers;
+  if (typeof headers.getSetCookie === "function") {
+    const list = headers.getSetCookie();
+    if (list.length) return list;
+  }
+  const raw = headers.get("set-cookie");
+  return raw ? [raw] : [];
+}
+
 function tokenFromSetCookie(response: Response): string | null {
-  const cookies =
-    typeof response.headers.getSetCookie === "function"
-      ? response.headers.getSetCookie()
-      : [];
-  const prefix = `${SESSION_TOKEN_COOKIE}=`;
+  const cookies = allSetCookies(response);
   for (const c of cookies) {
     const part = (c.split(";")[0] ?? "").trim();
-    if (!part.startsWith(prefix)) continue;
-    const raw = part.slice(prefix.length);
+    const eq = part.indexOf("=");
+    if (eq <= 0) continue;
+    const name = part.slice(0, eq);
+    if (name !== SESSION_TOKEN_COOKIE && !name.endsWith("session_token")) continue;
+    const raw = part.slice(eq + 1);
+    if (!raw) continue;
     try {
       return decodeURIComponent(raw);
     } catch {
@@ -68,6 +78,17 @@ function tokenFromSetCookie(response: Response): string | null {
     }
   }
   return null;
+}
+
+function assignCapturedToken(token: string, handoff: string | null) {
+  if (handoff) {
+    putHandoff(handoff, { token });
+    return;
+  }
+  const pending = [...handoffs.entries()].filter(
+    ([, v]) => !v.token && !v.error && Date.now() - v.at < 120_000,
+  );
+  if (pending.length === 1) putHandoff(pending[0]![0], { token });
 }
 
 /**
@@ -86,9 +107,15 @@ export function captureOAuthHandoff(request: Request, response: Response) {
       /* ignore */
     }
   }
+  if (!handoff) {
+    try {
+      handoff = parseHandoff(new URL(request.url).searchParams.get("handoff"));
+    } catch {
+      /* ignore */
+    }
+  }
   if (!handoff) handoff = parseHandoff(readCookie(request, HANDOFF_COOKIE));
-  if (!handoff) return;
-  putHandoff(handoff, { token });
+  assignCapturedToken(token, handoff);
 }
 
 export async function handleAuthPopupRequest(request: Request): Promise<Response> {
@@ -123,10 +150,10 @@ export async function handleAuthPopupRequest(request: Request): Promise<Response
       token,
       ...(errored ? { error: url.searchParams.get("error") ?? "sign_in_failed" } : {}),
     };
-    if (handoffId) {
+    if (handoffId && (token || errored)) {
       putHandoff(handoffId, { token: message.token, error: message.error });
     }
-    return new Response(completionHtml(message), {
+    return new Response(completionHtml(message, handoffId), {
       status: 200,
       headers: {
         "content-type": "text/html; charset=utf-8",
@@ -142,6 +169,8 @@ export async function handleAuthPopupRequest(request: Request): Promise<Response
       headers: { "content-type": "text/plain; charset=utf-8" },
     });
   }
+
+  if (handoffId) putHandoff(handoffId, { token: null });
 
   const back = new URL("/auth/popup", url.origin);
   back.searchParams.set("done", "1");
@@ -208,7 +237,7 @@ export async function handleAuthPopupRequest(request: Request): Promise<Response
 }
 
 function completionResponse(message: PopupMessage): Response {
-  return new Response(completionHtml(message), {
+  return new Response(completionHtml(message, null), {
     status: 200,
     headers: {
       "content-type": "text/html; charset=utf-8",
@@ -217,45 +246,88 @@ function completionResponse(message: PopupMessage): Response {
   });
 }
 
-function completionHtml(message: PopupMessage): string {
+function completionHtml(message: PopupMessage, handoffId: string | null): string {
   const payload = JSON.stringify(message).replace(/</g, "\\u003c");
   const ok = Boolean(message.token);
+  const cancelled = Boolean(message.error);
+  const status = ok
+    ? "Signed in — go back to Upset City."
+    : cancelled
+      ? "Google sign-in was cancelled."
+      : "Finishing sign-in…";
+  const hint = ok
+    ? "You can close this window."
+    : cancelled
+      ? "Close this window, then try email or Continue in this window."
+      : "Stay here a moment. If this stalls, go back and use email.";
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>${ok ? "Signed in" : "Sign-in"}</title>
+<title>Upset City sign-in</title>
 <style>
   html,body{margin:0;min-height:100%;background:#0b0b0c;color:#a1a1aa;
     font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
   main{min-height:100dvh;display:grid;place-items:center;padding:1.5rem;text-align:center}
   p{margin:0}
   .hint{margin-top:12px;color:#f4f4f5;font-weight:600}
+  a{color:#f97316;font-weight:600}
 </style>
 </head>
 <body>
 <main>
-  <p id="status">${ok ? "Signed in — returning to Upset City…" : "Sign-in didn’t finish."}</p>
-  <p class="hint" id="hint">${ok ? "You can close this window and go back to the app." : "Close this window and try again, or use email."}</p>
+  <p id="status">${status}</p>
+  <p class="hint" id="hint">${hint}</p>
+  <p class="hint" style="margin-top:20px"><a href="/login">Back to sign in</a></p>
 </main>
 <script type="application/json" id="grok-auth-popup-msg">${payload}</script>
 <script>
 (function () {
+  var origin = window.location.origin;
+  var handoff = ${JSON.stringify(handoffId ?? "")};
   var el = document.getElementById("grok-auth-popup-msg");
   var msg = { source: "grok-auth-popup", token: null };
   try { if (el && el.textContent) msg = JSON.parse(el.textContent); } catch (e) {}
-  try {
-    if (window.opener) window.opener.postMessage(msg, window.location.origin);
-  } catch (e) {}
-  try {
-    var bc = new BroadcastChannel("grok-auth-popup");
-    bc.postMessage(msg);
-    bc.close();
-  } catch (e) {}
-  try { if (msg.token) window.close(); } catch (e) {}
-  setTimeout(function () {
-    try { if (msg.token) window.close(); } catch (e) {}
+  function send(m) {
+    try { if (window.opener && m.token) window.opener.postMessage(m, origin); } catch (e) {}
+    try {
+      var bc = new BroadcastChannel("grok-auth-popup");
+      if (m.token) bc.postMessage(m);
+      bc.close();
+    } catch (e) {}
+  }
+  function ok(token) {
+    msg.token = token;
+    document.getElementById("status").textContent = "Signed in — go back to Upset City.";
+    document.getElementById("hint").textContent = "You can close this window.";
+    send(msg);
+    try { window.close(); } catch (e) {}
+  }
+  if (msg.token) {
+    send(msg);
+    try { window.close(); } catch (e) {}
+    return;
+  }
+  if (msg.error) return;
+  if (!handoff) return;
+  var n = 0;
+  var t = setInterval(function () {
+    n += 1;
+    fetch("/auth/popup?poll=" + encodeURIComponent(handoff), { cache: "no-store" })
+      .then(function (r) { return r.status === 200 ? r.json() : null; })
+      .then(function (data) {
+        if (data && data.token) {
+          clearInterval(t);
+          ok(data.token);
+        }
+      })
+      .catch(function () {});
+    if (n > 25) {
+      clearInterval(t);
+      document.getElementById("status").textContent = "This preview window couldn’t keep the Google session.";
+      document.getElementById("hint").textContent = "Go back to Upset City and use email, or Continue sign-in in this window.";
+    }
   }, 400);
 })();
 </script>
