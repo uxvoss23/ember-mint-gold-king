@@ -5,21 +5,18 @@ import {
   GROK_PROVIDERS,
   authClient,
   authEnabled,
+  isLikelyIosSafari,
+  needsOAuthPopup,
   signIn,
 } from "@/lib/auth/client";
+import { safeReturnTo } from "@/lib/auth/return-to";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { consumeAuthIntent, peekAuthIntent } from "@/lib/game/guest";
 import { authReasonCopy } from "@/lib/game/use-require-auth";
 
-function safeNext(raw: unknown): string {
-  if (typeof raw !== "string") return "/";
-  if (!raw.startsWith("/") || raw.startsWith("//")) return "/";
-  return raw;
-}
-
 export const Route = createFileRoute("/login")({
   validateSearch: (s: Record<string, unknown>): { next?: string; reason?: string } => ({
-    next: typeof s.next === "string" ? safeNext(s.next) : undefined,
+    next: typeof s.next === "string" ? safeReturnTo(s.next) : undefined,
     reason: typeof s.reason === "string" ? s.reason : undefined,
   }),
   component: Login,
@@ -39,10 +36,13 @@ function Login() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [oauthBusy, setOauthBusy] = useState<string | null>(null);
+  const [showWindowFallback, setShowWindowFallback] = useState(false);
+  const popupEnv = typeof window !== "undefined" && needsOAuthPopup();
+  const ios = typeof window !== "undefined" && isLikelyIosSafari();
 
   const goAfterAuth = () => {
     const intent = consumeAuthIntent();
-    const dest = safeNext(intent?.next ?? next ?? "/");
+    const dest = safeReturnTo(intent?.next ?? next ?? "/");
     if (intent?.action === "create") {
       try {
         sessionStorage.setItem("uc-open-create", "1");
@@ -86,13 +86,33 @@ function Login() {
     }
   };
 
-  const onOAuth = async (providerId: string) => {
+  const onOAuth = async (providerId: string, forceRedirect = false) => {
     setError(null);
     setOauthBusy(providerId);
+    const giveUp = window.setTimeout(() => {
+      setError(
+        "Sign-in is taking too long. Try continuing in this window, or use email.",
+      );
+      setOauthBusy(null);
+      setShowWindowFallback(true);
+    }, 90_000);
     try {
-      await signIn(providerId, { callbackURL: safeNext(next ?? "/") });
+      await signIn(providerId, {
+        callbackURL: safeReturnTo(next ?? "/"),
+        errorCallbackURL: "/login",
+        forceRedirect,
+      });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Sign-in failed");
+      const code = (err as { code?: string } | null)?.code;
+      const msg = err instanceof Error ? err.message : "Sign-in failed";
+      setShowWindowFallback(true);
+      setError(
+        code === "popup_blocked"
+          ? "Pop-up was blocked. Continue in this window, or sign in with email."
+          : msg,
+      );
+    } finally {
+      window.clearTimeout(giveUp);
       setOauthBusy(null);
     }
   };
@@ -131,7 +151,7 @@ function Login() {
                 className="flex h-12 w-full items-center justify-center rounded-xl border border-border-strong bg-bg-elevated text-sm font-semibold text-fg transition-colors hover:bg-bg-subtle active:scale-[0.98] disabled:opacity-60"
               >
                 {oauthBusy === p.providerId
-                  ? "Opening…"
+                  ? `Waiting for ${p.label}…`
                   : `Continue with ${p.label}`}
               </button>
             ))
@@ -139,6 +159,32 @@ function Login() {
             <p className="text-sm text-fg-muted">Sign-in is disabled.</p>
           )}
         </div>
+
+        {showWindowFallback || (popupEnv && ios) ? (
+          <div className="mt-3 space-y-2">
+            <button
+              type="button"
+              disabled={!!oauthBusy}
+              onClick={() => void onOAuth(GROK_PROVIDERS[0]?.providerId ?? "google", true)}
+              className="flex h-11 w-full items-center justify-center rounded-xl border border-border bg-bg-subtle text-[13px] font-semibold text-fg disabled:opacity-60"
+            >
+              Continue sign-in in this window
+            </button>
+            {popupEnv ? (
+              <p className="text-[11px] leading-relaxed text-fg-muted">
+                Preview sign-in uses a pop-up. If it stalls on iPhone, use the
+                button above, or open Upset City in Safari (not inside this
+                preview) and sign in there.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
+        {error ? (
+          <p className="mt-3 text-xs font-medium text-danger" role="alert">
+            {error}
+          </p>
+        ) : null}
 
         <div className="my-6 flex items-center gap-3">
           <div className="h-px flex-1 bg-border" />
@@ -188,12 +234,6 @@ function Login() {
               placeholder="At least 8 characters"
             />
           </label>
-
-          {error ? (
-            <p className="text-xs font-medium text-danger" role="alert">
-              {error}
-            </p>
-          ) : null}
 
           <button
             type="submit"

@@ -1,5 +1,6 @@
 import type { Player } from "@/lib/upset/types";
 import { STARTING_RATING } from "@/lib/config";
+import { safeReturnTo } from "@/lib/auth/return-to";
 
 export const GUEST_PLAYER_ID = "guest";
 
@@ -68,7 +69,10 @@ export type AuthIntent = { next: string; action?: string };
 export function saveAuthIntent(intent: AuthIntent) {
   if (typeof window === "undefined") return;
   try {
-    sessionStorage.setItem(INTENT_KEY, JSON.stringify(intent));
+    sessionStorage.setItem(
+      INTENT_KEY,
+      JSON.stringify({ next: safeReturnTo(intent.next), action: intent.action }),
+    );
   } catch {
     /* ignore */
   }
@@ -82,7 +86,7 @@ export function consumeAuthIntent(): AuthIntent | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw) as AuthIntent;
     if (!parsed?.next || typeof parsed.next !== "string") return null;
-    return parsed;
+    return { next: safeReturnTo(parsed.next), action: parsed.action };
   } catch {
     return null;
   }
@@ -93,7 +97,9 @@ export function peekAuthIntent(): AuthIntent | null {
   try {
     const raw = sessionStorage.getItem(INTENT_KEY);
     if (!raw) return null;
-    return JSON.parse(raw) as AuthIntent;
+    const parsed = JSON.parse(raw) as AuthIntent;
+    if (!parsed?.next || typeof parsed.next !== "string") return null;
+    return { next: safeReturnTo(parsed.next), action: parsed.action };
   } catch {
     return null;
   }
