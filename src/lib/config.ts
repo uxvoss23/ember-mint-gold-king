@@ -7,7 +7,7 @@
  * - VITE_DEMO_MODE=true  → labeled seed/demo data is allowed
  * - VITE_DEMO_MODE unset/false → production: no seeded competitive data
  * - VITE_MATCH_MODE=true/false → force Match Mode on/off
- * - VITE_MATCH_MODE unset → on in development, off in production builds
+ * - VITE_MATCH_MODE unset → Match Mode stays on
  */
 
 function viteFlag(name: string): string | undefined {
@@ -23,14 +23,10 @@ export function isDemoMode(): boolean {
 }
 
 /**
- * Match Mode uses seeded reciprocal likes in demo. Until the production
- * matcher is proven, default OFF in production builds.
+ * Person-first swipe matcher. On unless explicitly set to "false".
  */
 export function isMatchModeEnabled(): boolean {
-  const explicit = viteFlag("VITE_MATCH_MODE");
-  if (explicit === "true") return true;
-  if (explicit === "false") return false;
-  return Boolean(import.meta.env.DEV);
+  return viteFlag("VITE_MATCH_MODE") !== "false";
 }
 
 /** Starting rating for a new real account. */
