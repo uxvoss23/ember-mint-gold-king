@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   MapPinned,
   Trophy,
@@ -83,6 +83,11 @@ export function SceneShell({
   /** Courts tab → Play "create game" with this court locked */
   const [presetCourt, setPresetCourt] = useState<Court | null>(null);
   const [playImmersive, setPlayImmersive] = useState(false);
+  const [courtsVisited, setCourtsVisited] = useState(false);
+
+  useEffect(() => {
+    if (home === "courts") setCourtsVisited(true);
+  }, [home]);
 
   const startQuickAtCourt = (court: Court) => {
     setSelectedCourt(null);
@@ -304,8 +309,13 @@ export function SceneShell({
           />
         )}
 
-        {home === "courts" && (
-          <div className="flex min-h-0 flex-1 flex-col">
+        {(home === "courts" || courtsVisited) && (
+          <div
+            className={cn(
+              "flex min-h-0 flex-1 flex-col",
+              home !== "courts" && "hidden",
+            )}
+          >
             <div className="min-h-0 flex-1 overflow-hidden">
               <CourtsFinder
                 courts={courts}

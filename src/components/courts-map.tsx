@@ -22,6 +22,50 @@ interface CourtsMapProps {
 
 type MapStyle = "satellite" | "street";
 
+function constrainedMobile(): boolean {
+  if (typeof window === "undefined") return false;
+  const cores = navigator.hardwareConcurrency || 8;
+  return window.innerWidth < 520 || cores <= 4;
+}
+
+function streetStyle(): import("maplibre-gl").StyleSpecification {
+  const hiRes =
+    typeof window !== "undefined" &&
+    window.devicePixelRatio >= 2 &&
+    !constrainedMobile();
+  const file = hiRes ? "@2x.png" : ".png";
+  return {
+    version: 8,
+    name: "Upset City Street",
+    sources: {
+      carto: {
+        type: "raster",
+        tiles: [
+          `https://a.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}${file}`,
+          `https://b.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}${file}`,
+        ],
+        tileSize: 256,
+        attribution: "&copy; OSM &copy; CARTO",
+      },
+    },
+    layers: [
+      { id: "bg", type: "background", paint: { "background-color": "#e8e0d4" } },
+      {
+        id: "carto",
+        type: "raster",
+        source: "carto",
+        paint: {
+          "raster-saturation": -0.35,
+          "raster-contrast": -0.08,
+          "raster-brightness-min": 0.04,
+          "raster-brightness-max": 0.9,
+          "raster-opacity": 0.94,
+        },
+      },
+    ],
+  };
+}
+
 function asIdSet(ids?: Set<string> | string[]): Set<string> {
   if (!ids) return new Set();
   return ids instanceof Set ? ids : new Set(ids);
@@ -45,6 +89,7 @@ export function CourtsMap({
   const pinElsRef = useRef<Map<string, HTMLElement>>(new Map());
   const [style, setStyle] = useState<MapStyle>("street");
   const [ready, setReady] = useState(false);
+  const [tileError, setTileError] = useState(false);
   const [zoomTick, setZoomTick] = useState(0);
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
@@ -64,25 +109,30 @@ export function CourtsMap({
 
       const map = new maplibregl.Map({
         container: containerRef.current,
-        style: STREET_STYLE,
+        style: streetStyle(),
         center: [location.lon, location.lat],
         zoom: 10.4,
         minZoom: 9,
         maxZoom: 16,
         attributionControl: { compact: true },
-        // Keep map from expanding past container / creating page scroll
         dragRotate: false,
         pitchWithRotate: false,
+        fadeDuration: 0,
+        pixelRatio: constrainedMobile() ? 1 : undefined,
+        maxTileCacheSize: constrainedMobile() ? 80 : undefined,
       });
       map.addControl(
         new maplibregl.NavigationControl({ showCompass: false }),
         "bottom-right",
       );
       mapRef.current = map;
+      map.on("error", () => {
+        if (!cancelled) setTileError(true);
+      });
       map.on("load", () => {
         if (!cancelled) {
           setReady(true);
-          // Size after layout settles (sheet + full-bleed)
+          setTileError(false);
           requestAnimationFrame(() => {
             map.resize();
             requestAnimationFrame(() => map.resize());
@@ -118,7 +168,7 @@ export function CourtsMap({
     if (!map || !ready) return;
     const center = map.getCenter();
     const zoom = map.getZoom();
-    map.setStyle(style === "satellite" ? SATELLITE_STYLE : STREET_STYLE);
+    map.setStyle(style === "satellite" ? SATELLITE_STYLE : streetStyle());
     map.once("style.load", () => {
       map.setCenter(center);
       map.setZoom(zoom);
@@ -282,7 +332,27 @@ export function CourtsMap({
           }
         }
       } else {
-        for (const c of courts.slice(0, 80)) placePin(c);
+        const zoomClose = zoom >= 12.2;
+        const bounds = zoomClose ? map.getBounds() : null;
+        let shown = 0;
+        for (const c of courts) {
+          if (shown >= 80) break;
+          if (bounds) {
+            const sw = bounds.getSouthWest();
+            const ne = bounds.getNorthEast();
+            const pad = 0.02;
+            if (
+              c.lat < sw.lat - pad ||
+              c.lat > ne.lat + pad ||
+              c.lon < sw.lng - pad ||
+              c.lon > ne.lng + pad
+            ) {
+              continue;
+            }
+          }
+          placePin(c);
+          shown += 1;
+        }
       }
 
       // Neighborhood banners — sit ABOVE the northernmost pin, never on it
@@ -399,10 +469,16 @@ export function CourtsMap({
         )}
       />
       {!ready && (
-        <div className="absolute inset-0 flex items-center justify-center bg-bg-elevated">
+        <div className="absolute inset-0 z-[1] flex flex-col items-center justify-center gap-2 bg-bg-elevated">
           <div className="h-8 w-8 animate-pulse rounded-full bg-bg-subtle" />
+          <p className="text-[11px] font-medium text-fg-muted">Loading map…</p>
         </div>
       )}
+      {tileError && ready ? (
+        <div className="absolute bottom-16 left-3 right-3 z-10 rounded-xl border border-border bg-bg/95 px-3 py-2 text-[11px] text-fg-muted shadow-soft">
+          Map tiles didn’t load. The court list still works.
+        </div>
+      ) : null}
       <div className="absolute top-3 left-3 z-10 flex rounded-full border border-border bg-bg/90 p-0.5 shadow-soft backdrop-blur-md">
         {(
           [
@@ -445,37 +521,6 @@ function esc(s: string) {
     .replace(/"/g, "&" + "quot;")
     .replace(/'/g, "&#39;");
 }
-
-const STREET_STYLE: import("maplibre-gl").StyleSpecification = {
-  version: 8,
-  name: "Upset City Street",
-  sources: {
-    carto: {
-      type: "raster",
-      tiles: [
-        "https://a.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}@2x.png",
-        "https://b.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}@2x.png",
-      ],
-      tileSize: 256,
-      attribution: "&copy; OSM &copy; CARTO",
-    },
-  },
-  layers: [
-    { id: "bg", type: "background", paint: { "background-color": "#e8e0d4" } },
-    {
-      id: "carto",
-      type: "raster",
-      source: "carto",
-      paint: {
-        "raster-saturation": -0.35,
-        "raster-contrast": -0.08,
-        "raster-brightness-min": 0.04,
-        "raster-brightness-max": 0.9,
-        "raster-opacity": 0.94,
-      },
-    },
-  ],
-};
 
 const SATELLITE_STYLE: import("maplibre-gl").StyleSpecification = {
   version: 8,
