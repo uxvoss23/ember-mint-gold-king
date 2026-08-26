@@ -14,6 +14,7 @@ import { PlayHub } from "@/components/compete/play-hub";
 import { YouHome } from "@/components/compete/you-home";
 import { PlayerAvatar } from "@/components/compete/player-avatar";
 import { AdminWorkOrders } from "@/components/admin-work-orders";
+import { ModerationQueue } from "@/components/compete/moderation-queue";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { signOut, authEnabled } from "@/lib/auth/client";
 import { isAdminEmail } from "@/lib/auth/admin";
@@ -545,6 +546,7 @@ function YouSection({
 
       {/* Admin inbox — only for seanvoss23@gmail.com */}
       <AdminWorkOrders email={user?.primaryEmail} />
+      {admin ? <ModerationQueue /> : null}
     </div>
   );
 }

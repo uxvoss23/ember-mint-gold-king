@@ -33,6 +33,28 @@ async function loadPlayerByUser(sql: Sql, userId: string): Promise<PlayerRow | n
 
 async function requirePlayer(sql: Sql, userId: string): Promise<PlayerRow> {
   const existing = await loadPlayerByUser(sql, userId);
+  const row = existing ?? (await createPlayerForUser(sql, userId));
+  try {
+    const flags = await sql.query<{ banned_at: string | null; suspended_until: string | null }>(
+      `select banned_at, suspended_until from player where id = $1`,
+      [row.id],
+    );
+    const f = flags[0];
+    if (f?.banned_at) throw new Error("This account is banned from competitive play.");
+    if (f?.suspended_until && new Date(f.suspended_until).getTime() > Date.now()) {
+      throw new Error("This account is temporarily suspended.");
+    }
+  } catch (err) {
+    if (err instanceof Error && /banned from competitive|temporarily suspended/.test(err.message)) {
+      throw err;
+    }
+    /* columns may not exist until 0004 applies */
+  }
+  return row;
+}
+
+async function createPlayerForUser(sql: Sql, userId: string): Promise<PlayerRow> {
+  const existing = await loadPlayerByUser(sql, userId);
   if (existing) return existing;
   const users = await sql.query<{ name: string; email: string | null; image: string | null }>(
     `select name, email, image from "user" where id = $1`,
