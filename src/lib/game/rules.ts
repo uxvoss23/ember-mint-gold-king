@@ -123,6 +123,59 @@ export function canAccessGameChat(input: {
   return input.actorId === input.hostId || input.actorId === input.opponentId;
 }
 
+export function isBlockedPair(
+  actorId: string,
+  otherId: string,
+  blocks: ReadonlyArray<{ actorId: string; targetId: string }>,
+): boolean {
+  return blocks.some(
+    (b) =>
+      (b.actorId === actorId && b.targetId === otherId) ||
+      (b.actorId === otherId && b.targetId === actorId),
+  );
+}
+
+export function canApplyScoreSubmission(input: {
+  status: GameStatus;
+  existingKey?: string | null;
+  incomingKey: string;
+  existingAtMs?: number | null;
+  incomingAtMs: number;
+}): { ok: true; idempotent?: boolean } | { ok: false; reason: string } {
+  if (input.status === "confirmed") {
+    return { ok: false, reason: "A confirmed result cannot be replaced." };
+  }
+  if (input.status === "cancelled" || input.status === "no_show") {
+    return { ok: false, reason: "This game is closed." };
+  }
+  if (input.existingKey && input.existingKey === input.incomingKey) {
+    return { ok: true, idempotent: true };
+  }
+  if (
+    input.existingAtMs != null &&
+    Number.isFinite(input.existingAtMs) &&
+    input.incomingAtMs < input.existingAtMs
+  ) {
+    return { ok: false, reason: "Stale score submission." };
+  }
+  return { ok: true };
+}
+
+export function canCancelGame(input: {
+  status: GameStatus;
+  hostId: string;
+  opponentId?: string | null;
+  actorId: string;
+}): { ok: true } | { ok: false; reason: string } {
+  if (input.status === "confirmed") {
+    return { ok: false, reason: "A confirmed result cannot be cancelled." };
+  }
+  if (input.actorId !== input.hostId && input.actorId !== input.opponentId) {
+    return { ok: false, reason: "Only participants can leave this game." };
+  }
+  return { ok: true };
+}
+
 export function hostWonSeries(scores: SeriesGameScore[]): boolean {
   let aWins = 0;
   let bWins = 0;

@@ -2139,7 +2139,16 @@ export function QuickMatchFlow({
               return;
             }
             try {
-              await submitScoreFn({ data: { gameId: selected.id, scores } });
+              await submitScoreFn({
+                data: {
+                  gameId: selected.id,
+                  scores,
+                  submissionId:
+                    typeof crypto !== "undefined" && crypto.randomUUID
+                      ? crypto.randomUUID()
+                      : `sc_${Date.now()}`,
+                },
+              });
               await refreshCompetitiveSnapshot();
             } catch (err) {
               setStatusMsg(mutationError(err));

@@ -5,6 +5,9 @@
 import { RATING_FLOOR, rateSeries } from "../rating/engine.ts";
 import {
   canAccessGameChat,
+  canApplyScoreSubmission,
+  canCancelGame,
+  isBlockedPair,
   applyConfirmedResult,
   canConfirmScore,
   canDisputeScore,
@@ -95,6 +98,46 @@ function run(): string[] {
     "invitee cannot read chat before accept",
   );
   logs.push("chat privacy ok");
+
+  assert(
+    isBlockedPair("a", "b", [{ actorId: "b", targetId: "a" }]),
+    "block is bidirectional",
+  );
+  assert(!isBlockedPair("a", "c", [{ actorId: "b", targetId: "a" }]), "unrelated not blocked");
+  logs.push("block pair ok");
+
+  const stale = canApplyScoreSubmission({
+    status: "played_pending",
+    existingKey: "k1",
+    incomingKey: "k2",
+    existingAtMs: 200,
+    incomingAtMs: 100,
+  });
+  assert(!stale.ok, "stale score rejected");
+  const idem = canApplyScoreSubmission({
+    status: "played_pending",
+    existingKey: "k1",
+    incomingKey: "k1",
+    existingAtMs: 200,
+    incomingAtMs: 300,
+  });
+  assert(idem.ok && idem.idempotent === true, "same key is idempotent");
+  const confirmedReplace = canApplyScoreSubmission({
+    status: "confirmed",
+    existingKey: "k1",
+    incomingKey: "k2",
+    existingAtMs: 1,
+    incomingAtMs: 2,
+  });
+  assert(!confirmedReplace.ok, "confirmed cannot be replaced");
+  const cancelConfirmed = canCancelGame({
+    status: "confirmed",
+    hostId: "h",
+    opponentId: "o",
+    actorId: "h",
+  });
+  assert(!cancelConfirmed.ok, "confirmed not cancelable");
+  logs.push("score/cancel integrity ok");
 
   const outsider = canEnterScore({
     status: "scheduled",

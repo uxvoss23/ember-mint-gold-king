@@ -4,7 +4,7 @@ import { authMiddleware } from "@/lib/auth/middleware";
 import { optionalAuthMiddleware } from "@/lib/auth/optional-middleware";
 import { STARTING_RATING } from "@/lib/config";
 import { getSql, withTransaction, type Sql } from "@/lib/db";
-import { applyConfirmedResult, canAccessGameChat, canConfirmScore, canDisputeScore, canEnterScore, canJoinGame, validateScores } from "@/lib/game/rules";
+import { applyConfirmedResult, canAccessGameChat, canApplyScoreSubmission, canCancelGame, canConfirmScore, canDisputeScore, canEnterScore, canJoinGame, validateScores } from "@/lib/game/rules";
 import {
   handleFromName,
   newId,
@@ -99,6 +99,16 @@ async function hydrateMatches(sql: Sql, games: GameRow[], meId: string | null): 
   return games.map((g) =>
     rowToMatch(g, { invites: invites.get(g.id) ?? [], chat: chat.get(g.id) ?? [] }),
   );
+}
+
+async function isBlocked(sql: Sql, a: string, b: string): Promise<boolean> {
+  const rows = await sql.query(
+    `select 1 from player_block
+     where (actor_id = $1 and target_id = $2) or (actor_id = $2 and target_id = $1)
+     limit 1`,
+    [a, b],
+  );
+  return rows.length > 0;
 }
 
 async function addSystemMessage(sql: Sql, gameId: string, text: string) {
@@ -273,9 +283,15 @@ export const joinGameFn = createServerFn({ method: "POST" })
   .handler(async ({ context, data }): Promise<{ ok: true } | { ok: false; reason: "filled" | "invite_only" }> => {
     return withTransaction(async (sql) => {
       const me = await requirePlayer(sql, context.userId);
-      const games = await sql.query<GameRow>("select * from game where id = $1", [data.gameId]);
+      const games = await sql.query<GameRow>(
+        `select * from game where id = $1 for update`,
+        [data.gameId],
+      );
       const game = games[0];
       if (!game) return { ok: false as const, reason: "filled" as const };
+      if (await isBlocked(sql, me.id, game.host_id)) {
+        return { ok: false as const, reason: "filled" as const };
+      }
       const invites = await sql.query<{ player_id: string }>(
         `select player_id from game_invite where game_id = $1`,
         [data.gameId],
@@ -344,7 +360,13 @@ export const cancelGameFn = createServerFn({ method: "POST" })
     const isHost = game.host_id === me.id;
     const isOpp = game.opponent_id === me.id;
     if (!isHost && !isOpp) throw new Error("Only participants can leave this game.");
-    if (game.status === "confirmed") throw new Error("A confirmed result cannot be cancelled.");
+    const cancelCheck = canCancelGame({
+      status: game.status,
+      hostId: game.host_id,
+      opponentId: game.opponent_id,
+      actorId: me.id,
+    });
+    if (!cancelCheck.ok) throw new Error(cancelCheck.reason);
     if (isOpp && game.status === "scheduled") {
       await sql.query(
         `update game set opponent_id = null, status = 'open', accepted_at = null,
@@ -385,6 +407,10 @@ export const sendGameMessageFn = createServerFn({ method: "POST" })
     ) {
       throw new Error("You can’t message this game.");
     }
+    const other = game.host_id === me.id ? game.opponent_id : game.host_id;
+    if (other && (await isBlocked(sql, me.id, other))) {
+      throw new Error("You can’t message this player.");
+    }
     const id = newId("msg");
     await sql.query(
       `insert into game_message (id, game_id, author_id, author_name, body, system)
@@ -397,15 +423,27 @@ export const sendGameMessageFn = createServerFn({ method: "POST" })
 export const submitScoreFn = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((raw: unknown) =>
-    z.object({ gameId: z.string(), scores: z.array(scoreSchema).min(1).max(3) }).parse(raw),
+    z
+      .object({
+        gameId: z.string(),
+        scores: z.array(scoreSchema).min(1).max(3),
+        submissionId: z.string().min(8).max(80).optional(),
+      })
+      .parse(raw),
   )
   .handler(async ({ context, data }) => {
     const invalid = validateScores(data.scores);
     if (invalid) throw new Error(invalid);
     const sql = await getSql();
     const me = await requirePlayer(sql, context.userId);
-    const games = await sql.query<GameRow>("select * from game where id = $1", [data.gameId]);
-    const game = games[0];
+    const games = await sql.query<GameRow>(
+      `select * from game where id = $1 for update`,
+      [data.gameId],
+    );
+    const game = games[0] as GameRow & {
+      score_submission_id?: string | null;
+      score_submitted_at?: string | Date | null;
+    };
     if (!game) throw new Error("Game not found.");
     const check = canEnterScore({
       status: game.status,
@@ -414,11 +452,25 @@ export const submitScoreFn = createServerFn({ method: "POST" })
       actorId: me.id,
     });
     if (!check.ok) throw new Error(check.reason);
+    const incomingKey = data.submissionId ?? newId("sc");
+    const incomingAt = Date.now();
+    const existingAt =
+      game.score_submitted_at != null ? new Date(game.score_submitted_at).getTime() : null;
+    const apply = canApplyScoreSubmission({
+      status: game.status,
+      existingKey: game.score_submission_id ?? null,
+      incomingKey,
+      existingAtMs: existingAt,
+      incomingAtMs: incomingAt,
+    });
+    if (!apply.ok) throw new Error(apply.reason);
+    if (apply.idempotent) return { ok: true as const };
     await sql.query(
       `update game set scores_json = $2, score_entered_by = $3, score_confirmed_by = null,
-         status = 'played_pending', updated_at = now()
-       where id = $1`,
-      [data.gameId, JSON.stringify(data.scores), me.id],
+         status = 'played_pending', score_submission_id = $4, score_submitted_at = now(),
+         updated_at = now()
+       where id = $1 and status <> 'confirmed'`,
+      [data.gameId, JSON.stringify(data.scores), me.id, incomingKey],
     );
     await addSystemMessage(
       sql,
@@ -765,6 +817,16 @@ export const blockPlayerFn = createServerFn({ method: "POST" })
     if (data.targetId === me.id) throw new Error("You can’t block yourself.");
     await sql.query(
       `insert into player_block (actor_id, target_id) values ($1,$2) on conflict do nothing`,
+      [me.id, data.targetId],
+    );
+    await sql.query(
+      `delete from match_connection
+       where (player_a_id = $1 and player_b_id = $2) or (player_a_id = $2 and player_b_id = $1)`,
+      [me.id, data.targetId],
+    );
+    await sql.query(
+      `delete from match_decision
+       where (actor_id = $1 and target_id = $2) or (actor_id = $2 and target_id = $1)`,
       [me.id, data.targetId],
     );
     return { ok: true as const };
