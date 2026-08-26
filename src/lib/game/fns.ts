@@ -4,7 +4,7 @@ import { authMiddleware } from "@/lib/auth/middleware";
 import { optionalAuthMiddleware } from "@/lib/auth/optional-middleware";
 import { STARTING_RATING } from "@/lib/config";
 import { getSql, withTransaction, type Sql } from "@/lib/db";
-import { applyConfirmedResult, canConfirmScore, canDisputeScore, canEnterScore, canJoinGame, validateScores } from "@/lib/game/rules";
+import { applyConfirmedResult, canAccessGameChat, canConfirmScore, canDisputeScore, canEnterScore, canJoinGame, validateScores } from "@/lib/game/rules";
 import {
   handleFromName,
   newId,
@@ -87,9 +87,15 @@ async function loadMessages(sql: Sql, gameIds: string[]): Promise<Map<string, Re
   return map;
 }
 
-async function hydrateMatches(sql: Sql, games: GameRow[]): Promise<Match[]> {
+async function hydrateMatches(sql: Sql, games: GameRow[], meId: string | null): Promise<Match[]> {
   const ids = games.map((g) => g.id);
-  const [invites, chat] = await Promise.all([loadInvites(sql, ids), loadMessages(sql, ids)]);
+  const chatIds = meId
+    ? games.filter((g) => g.host_id === meId || g.opponent_id === meId).map((g) => g.id)
+    : [];
+  const [invites, chat] = await Promise.all([
+    loadInvites(sql, ids),
+    loadMessages(sql, chatIds),
+  ]);
   return games.map((g) =>
     rowToMatch(g, { invites: invites.get(g.id) ?? [], chat: chat.get(g.id) ?? [] }),
   );
@@ -144,7 +150,7 @@ async function buildSnapshot(sql: Sql, meId: string | null): Promise<Snapshot> {
     ),
     loadVisibleGames(sql, meId),
   ]);
-  const matches = filterVisible(await hydrateMatches(sql, gameRows), meId);
+  const matches = filterVisible(await hydrateMatches(sql, gameRows, meId), meId);
   return {
     players: playerRows.map(rowToPlayer),
     matches,
@@ -254,7 +260,7 @@ export const createGameFn = createServerFn({ method: "POST" })
       `Match posted. ${data.inviteOnly ? "Private — invite only." : "Public — anyone can join."} Ranked 1v1 · best of 3 to 11 win by 2. ${ballLine}`,
     );
     const rows = await sql.query<GameRow>("select * from game where id = $1", [id]);
-    const [match] = await hydrateMatches(sql, rows);
+    const [match] = await hydrateMatches(sql, rows, me.id);
     if (!match) throw new Error("Game was created but could not be loaded.");
     return match;
   });
@@ -370,15 +376,15 @@ export const sendGameMessageFn = createServerFn({ method: "POST" })
     const games = await sql.query<GameRow>("select * from game where id = $1", [data.gameId]);
     const game = games[0];
     if (!game) throw new Error("Game not found.");
-    const invited = await sql.query<{ player_id: string }>(
-      `select player_id from game_invite where game_id = $1 and player_id = $2`,
-      [data.gameId, me.id],
-    );
-    const allowed =
-      game.host_id === me.id ||
-      game.opponent_id === me.id ||
-      invited.length > 0;
-    if (!allowed) throw new Error("You can’t message this game.");
+    if (
+      !canAccessGameChat({
+        hostId: game.host_id,
+        opponentId: game.opponent_id,
+        actorId: me.id,
+      })
+    ) {
+      throw new Error("You can’t message this game.");
+    }
     const id = newId("msg");
     await sql.query(
       `insert into game_message (id, game_id, author_id, author_name, body, system)
@@ -449,6 +455,8 @@ export const confirmScoreFn = createServerFn({ method: "POST" })
       const host = await loadPlayer(sql, game.host_id);
       const opp = game.opponent_id ? await loadPlayer(sql, game.opponent_id) : null;
       if (!host || !opp) throw new Error("Players missing.");
+      const lockIds = [host.id, opp.id].sort();
+      await sql.query(`select id from player where id = $1 or id = $2 order by id for update`, lockIds);
       const applied = applyConfirmedResult({
         host: {
           rating: host.rating,
@@ -657,7 +665,7 @@ export const challengePlayerFn = createServerFn({ method: "POST" })
     );
     await addSystemMessage(sql, id, `${me.name} challenged ${target.name}. Private until they join.`);
     const rows = await sql.query<GameRow>("select * from game where id = $1", [id]);
-    const [match] = await hydrateMatches(sql, rows);
+    const [match] = await hydrateMatches(sql, rows, me.id);
     if (!match) throw new Error("Challenge created but could not be loaded.");
     return match;
   });

@@ -114,6 +114,15 @@ export function canDisputeScore(input: {
   return { ok: true };
 }
 
+export function canAccessGameChat(input: {
+  hostId: string;
+  opponentId?: string | null;
+  actorId: string | null | undefined;
+}): boolean {
+  if (!input.actorId) return false;
+  return input.actorId === input.hostId || input.actorId === input.opponentId;
+}
+
 export function hostWonSeries(scores: SeriesGameScore[]): boolean {
   let aWins = 0;
   let bWins = 0;

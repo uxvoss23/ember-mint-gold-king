@@ -4,6 +4,7 @@
  */
 import { RATING_FLOOR, rateSeries } from "../rating/engine.ts";
 import {
+  canAccessGameChat,
   applyConfirmedResult,
   canConfirmScore,
   canDisputeScore,
@@ -72,6 +73,28 @@ function run(): string[] {
   });
   assert(dup.ok, "idempotent re-join of existing opponent");
   logs.push("join rules ok");
+
+  assert(
+    canAccessGameChat({ hostId: "h", opponentId: "o", actorId: "h" }),
+    "host can chat",
+  );
+  assert(
+    canAccessGameChat({ hostId: "h", opponentId: "o", actorId: "o" }),
+    "opponent can chat",
+  );
+  assert(
+    !canAccessGameChat({ hostId: "h", opponentId: "o", actorId: "x" }),
+    "stranger cannot chat",
+  );
+  assert(
+    !canAccessGameChat({ hostId: "h", opponentId: "o", actorId: null }),
+    "guest cannot chat",
+  );
+  assert(
+    !canAccessGameChat({ hostId: "h", opponentId: null, actorId: "invitee" }),
+    "invitee cannot read chat before accept",
+  );
+  logs.push("chat privacy ok");
 
   const outsider = canEnterScore({
     status: "scheduled",
