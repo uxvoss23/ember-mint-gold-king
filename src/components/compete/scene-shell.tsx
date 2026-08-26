@@ -11,6 +11,7 @@ import { CourtsFinder } from "@/components/courts-finder";
 import { CourtDetail } from "@/components/court-detail";
 import { LeaderboardPanel } from "@/components/compete/leaderboard-panel";
 import { PlayHub } from "@/components/compete/play-hub";
+import { YouHome } from "@/components/compete/you-home";
 import { PlayerAvatar } from "@/components/compete/player-avatar";
 import { AdminWorkOrders } from "@/components/admin-work-orders";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
@@ -290,9 +291,16 @@ export function SceneShell({
           <YouSection
             me={store.me}
             signedIn={signedIn}
+            matches={store.matches}
+            players={store.players}
             onOpenProfile={() => {
               if (signedIn) setSelectedPlayer(store.me);
             }}
+            onOpenMatch={(id) => {
+              setFocusMatchId(id);
+              setHome("games");
+            }}
+            onGoPlay={() => setHome("games")}
           />
         )}
 
@@ -443,11 +451,19 @@ export function SceneShell({
 function YouSection({
   me,
   signedIn,
+  matches,
+  players,
   onOpenProfile,
+  onOpenMatch,
+  onGoPlay,
 }: {
   me: Player;
   signedIn: boolean;
+  matches: Match[];
+  players: Player[];
   onOpenProfile: () => void;
+  onOpenMatch: (id: string) => void;
+  onGoPlay: () => void;
 }) {
   const { user, isPending } = useCurrentUserState();
   const admin = isAdminEmail(user?.primaryEmail);
@@ -455,19 +471,15 @@ function YouSection({
   return (
     <div className="space-y-4 pb-8">
       {signedIn ? (
-        <button
-          type="button"
-          onClick={onOpenProfile}
-          className="flex w-full items-center gap-3 rounded-2xl border border-border bg-bg-elevated p-4 text-left"
-        >
-          <PlayerAvatar player={me} size="lg" />
-          <div className="min-w-0">
-            <p className="truncate text-base font-semibold text-fg">{me.name}</p>
-            <p className="text-sm text-fg-muted">
-              {displayRating(me.rating)} · {me.wins}W–{me.losses}L
-            </p>
-          </div>
-        </button>
+        <YouHome
+          me={me}
+          signedIn={signedIn}
+          matches={matches}
+          players={players}
+          onOpenProfile={onOpenProfile}
+          onOpenMatch={onOpenMatch}
+          onGoPlay={onGoPlay}
+        />
       ) : (
         <div className="rounded-2xl border border-border bg-bg-elevated p-4">
           <p className="text-base font-semibold text-fg">Guest</p>
