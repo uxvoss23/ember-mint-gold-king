@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import {
   MapPinned,
   Trophy,
@@ -7,7 +7,9 @@ import {
   Zap,
 } from "lucide-react";
 import { BottomTabBar } from "@/components/bottom-tab-bar";
-import { CourtsFinder } from "@/components/courts-finder";
+const CourtsFinder = lazy(() =>
+  import("@/components/courts-finder").then((m) => ({ default: m.CourtsFinder })),
+);
 import { CourtDetail } from "@/components/court-detail";
 import { LeaderboardPanel } from "@/components/compete/leaderboard-panel";
 import { PlayHub } from "@/components/compete/play-hub";
@@ -318,6 +320,13 @@ export function SceneShell({
             )}
           >
             <div className="min-h-0 flex-1 overflow-hidden">
+              <Suspense
+                fallback={
+                  <div className="flex h-full items-center justify-center text-sm text-fg-muted">
+                    Opening map…
+                  </div>
+                }
+              >
               <CourtsFinder
                 courts={courts}
                 location={location}
@@ -334,6 +343,7 @@ export function SceneShell({
                 focusCourtId={focusCourtId}
                 onFocusCourtConsumed={() => setFocusCourtId(null)}
               />
+              </Suspense>
             </div>
           </div>
         )}

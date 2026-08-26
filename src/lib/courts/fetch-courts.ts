@@ -10,6 +10,7 @@ const inputSchema = z.object({
   lon: z.number().min(-180).max(180),
   radiusMeters: z.number().min(500).max(50000).default(8000),
   label: z.string().optional(),
+  catalogOnly: z.boolean().optional(),
 });
 
 type OverpassElement = {
@@ -265,7 +266,7 @@ out center tags 80;
 export const fetchCourtsNear = createServerFn({ method: "POST" })
   .validator((raw: unknown) => inputSchema.parse(raw))
   .handler(async ({ data }): Promise<CourtsResult> => {
-    const { lat, lon, radiusMeters, label } = data;
+    const { lat, lon, radiusMeters, label, catalogOnly } = data;
 
     // Instant: curated Austin catalog (photos, notes, neighborhoods)
     const catalog = catalogNear(lat, lon, Math.max(radiusMeters, 12_000), 40);
@@ -273,6 +274,15 @@ export const fetchCourtsNear = createServerFn({ method: "POST" })
       catalog.length >= 4
         ? catalog
         : catalogNear(lat, lon, 20_000_000, 30);
+
+    if (catalogOnly) {
+      return {
+        courts: catalogFallback,
+        location: { lat, lon, label: label ?? "Austin, TX" },
+        source: "catalog",
+        queryRadiusMeters: radiusMeters,
+      };
+    }
 
     // Optional OSM enrich — never block more than ~5s on the wire
     let osm: Court[] = [];

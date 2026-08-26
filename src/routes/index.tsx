@@ -39,7 +39,7 @@ function Home() {
   const skipRadiusEffect = useRef(true);
   const bootstrapped = useRef(false);
 
-  const loadCourts = useCallback(async (loc: UserLocation, miles: number) => {
+  const loadCourts = useCallback(async (loc: UserLocation, miles: number, catalogOnly = false) => {
     // Always show seed immediately so the tab never sits empty
     setCourts(seedCourts(loc, miles));
     setLocation(loc);
@@ -53,6 +53,7 @@ function Home() {
           lon: loc.lon,
           radiusMeters: Math.round(milesToMeters(miles)),
           label: loc.label,
+          catalogOnly,
         },
       });
       setCourts(result.courts);
@@ -61,7 +62,6 @@ function Home() {
       locationRef.current = result.location;
     } catch (e) {
       console.error(e);
-      // Keep seed courts — don’t wipe the map on network failure
       setError(null);
     } finally {
       setLoading(false);
@@ -71,7 +71,7 @@ function Home() {
   useEffect(() => {
     if (bootstrapped.current) return;
     bootstrapped.current = true;
-    void loadCourts(AUSTIN, 8);
+    void loadCourts(AUSTIN, 8, true);
   }, [loadCourts]);
 
   const requestLocation = useCallback(() => {
