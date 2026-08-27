@@ -5,7 +5,11 @@ export const PREMIUM_BOOT_CSS = `
 html,body{background:#070708!important;color:#f4f4f5}
 #uc-premium-boot{position:fixed;inset:0;z-index:2147483646;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;background:#070708;overflow:hidden;font-family:system-ui,-apple-system,sans-serif;color:#fafafa}
 #uc-premium-boot.uc-boot-out{opacity:0;pointer-events:none;transition:opacity .45s cubic-bezier(.22,1,.36,1)}
-#uc-premium-boot .uc-reel{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:saturate(1.08) contrast(1.12) sepia(.18)}
+#uc-premium-boot .uc-reel{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:saturate(1.08) contrast(1.12) sepia(.18);pointer-events:none;-webkit-appearance:none}
+#uc-premium-boot .uc-reel::-webkit-media-controls,
+#uc-premium-boot .uc-reel::-webkit-media-controls-start-playback-button,
+#uc-premium-boot .uc-reel::-webkit-media-controls-overlay-play-button,
+#uc-premium-boot .uc-reel::-webkit-media-controls-enclosure{display:none!important;opacity:0!important;-webkit-appearance:none;pointer-events:none;width:0;height:0}
 #uc-premium-boot .uc-scrim{position:absolute;inset:0;background:
   linear-gradient(180deg,rgba(7,7,8,.2) 0%,rgba(7,7,8,.35) 38%,rgba(7,7,8,.78) 72%,#070708 100%),
   radial-gradient(ellipse 80% 50% at 50% 100%, rgba(196,92,38,.28), transparent 70%)}
@@ -26,7 +30,7 @@ html,body{background:#070708!important;color:#f4f4f5}
 `;
 
 export const PREMIUM_BOOT_HTML = `
-<video class="uc-reel" autoplay muted loop playsinline preload="auto" aria-hidden="true">
+<video id="uc-boot-reel" class="uc-reel" autoplay muted loop playsinline webkit-playsinline disablepictureinpicture disableremoteplayback controlslist="nodownload nofullscreen noremoteplayback" preload="auto" aria-hidden="true">
   <source src="/boot/vintage-1v1.mp4" type="video/mp4" />
 </video>
 <div class="uc-scrim"></div>
@@ -74,13 +78,21 @@ export function PremiumBootFallback() {
       aria-label="Loading Upset City"
     >
       <video
-        className="absolute inset-0 h-full w-full object-cover"
+        className="pointer-events-none absolute inset-0 h-full w-full object-cover [&::-webkit-media-controls]:hidden [&::-webkit-media-controls-start-playback-button]:hidden"
         autoPlay
         muted
         loop
         playsInline
         preload="auto"
+        controls={false}
+        disablePictureInPicture
         aria-hidden
+        onCanPlay={(e) => {
+          const v = e.currentTarget;
+          v.muted = true;
+          v.volume = 0;
+          void v.play().catch(() => {});
+        }}
       >
         <source src="/boot/vintage-1v1.mp4" type="video/mp4" />
       </video>
