@@ -3,54 +3,36 @@
 
 export const PREMIUM_BOOT_CSS = `
 html,body{background:#070708!important;color:#f4f4f5}
-#uc-premium-boot{position:fixed;inset:0;z-index:2147483646;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#070708;overflow:hidden;font-family:system-ui,-apple-system,sans-serif;color:#fafafa}
+#uc-premium-boot{position:fixed;inset:0;z-index:2147483646;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;background:#070708;overflow:hidden;font-family:system-ui,-apple-system,sans-serif;color:#fafafa}
 #uc-premium-boot.uc-boot-out{opacity:0;pointer-events:none;transition:opacity .45s cubic-bezier(.22,1,.36,1)}
-#uc-premium-boot .uc-floor{position:absolute;inset:0;background:
-  radial-gradient(ellipse 90% 55% at 50% 108%, rgba(196,92,38,.38), transparent 58%),
-  radial-gradient(ellipse 70% 45% at 50% 40%, rgba(201,162,39,.12), transparent 70%),
-  radial-gradient(circle at 50% 50%, #14110e 0%, #070708 72%)}
-#uc-premium-boot .uc-grid{position:absolute;inset:0;opacity:.18;background-image:
-  linear-gradient(rgba(255,255,255,.07) 1px, transparent 1px),
-  linear-gradient(90deg, rgba(255,255,255,.07) 1px, transparent 1px);background-size:48px 48px;transform:perspective(500px) rotateX(62deg) translateY(38%) scale(1.6);transform-origin:center bottom}
-#uc-premium-boot .uc-sweep{position:absolute;inset:-40%;background:conic-gradient(from 180deg, transparent 0 62%, rgba(196,92,38,.16) 70%, transparent 78%);animation:uc-sweep 7s linear infinite}
-#uc-premium-boot .uc-stage{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;text-align:center;padding:1.5rem}
-#uc-premium-boot .uc-orb-wrap{position:relative;width:7.25rem;height:7.25rem;margin-bottom:1.6rem}
-#uc-premium-boot .uc-ring{position:absolute;inset:0;border-radius:9999px;border:1px solid rgba(196,92,38,.4);animation:uc-spin 9s linear infinite}
-#uc-premium-boot .uc-ring:after{content:"";position:absolute;top:-3px;left:50%;width:7px;height:7px;margin-left:-3.5px;border-radius:9999px;background:#e0783a;box-shadow:0 0 16px #e0783a}
-#uc-premium-boot .uc-ring-2{position:absolute;inset:-10px;border-radius:9999px;border:1px dashed rgba(201,162,39,.28);animation:uc-spin 14s linear infinite reverse}
-#uc-premium-boot .uc-orb{position:absolute;inset:18px;border-radius:9999px;background:linear-gradient(165deg,#f0a36a,#c45c26 55%,#8a3514);box-shadow:0 18px 50px rgba(196,92,38,.55), inset 0 1px 0 rgba(255,255,255,.28);display:grid;place-items:center;animation:uc-pulse 2.1s ease-in-out infinite}
-#uc-premium-boot .uc-brand{letter-spacing:.34em;font-size:11px;font-weight:700;color:#e0783a;text-transform:uppercase;margin:0}
-#uc-premium-boot h1{margin:.55rem 0 0;font-size:1.85rem;font-weight:650;line-height:1.12;max-width:16.5rem;letter-spacing:-.03em}
-#uc-premium-boot .uc-line{margin-top:1.35rem;width:9.5rem;height:3px;border-radius:9999px;background:rgba(255,255,255,.08);overflow:hidden}
+#uc-premium-boot .uc-reel{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:saturate(1.08) contrast(1.12) sepia(.18)}
+#uc-premium-boot .uc-scrim{position:absolute;inset:0;background:
+  linear-gradient(180deg,rgba(7,7,8,.2) 0%,rgba(7,7,8,.35) 38%,rgba(7,7,8,.78) 72%,#070708 100%),
+  radial-gradient(ellipse 80% 50% at 50% 100%, rgba(196,92,38,.28), transparent 70%)}
+#uc-premium-boot .uc-grain{position:absolute;inset:0;opacity:.22;pointer-events:none;mix-blend-mode:overlay;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .55 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");animation:uc-grain .18s steps(2) infinite}
+#uc-premium-boot .uc-vignette{position:absolute;inset:0;box-shadow:inset 0 0 120px 24px #070708}
+#uc-premium-boot .uc-stage{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;text-align:center;padding:0 1.5rem 3.4rem;width:100%}
+#uc-premium-boot .uc-brand{letter-spacing:.34em;font-size:11px;font-weight:700;color:#e0783a;text-transform:uppercase;margin:0;text-shadow:0 2px 18px rgba(0,0,0,.8)}
+#uc-premium-boot h1{margin:.5rem 0 0;font-size:1.85rem;font-weight:650;line-height:1.12;max-width:16.5rem;letter-spacing:-.03em;text-shadow:0 8px 28px rgba(0,0,0,.75)}
+#uc-premium-boot .uc-line{margin-top:1.2rem;width:9.5rem;height:3px;border-radius:9999px;background:rgba(255,255,255,.12);overflow:hidden}
 #uc-premium-boot .uc-line>i{display:block;height:100%;width:38%;border-radius:inherit;background:linear-gradient(90deg,#c9a227,#e0783a);animation:uc-bar 1.25s cubic-bezier(.22,1,.36,1) infinite}
-#uc-premium-boot .uc-status{margin:.7rem 0 0;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#a1a1aa;min-height:1.1em;font-weight:600}
-#uc-premium-boot .uc-tick{position:absolute;width:3px;height:10px;background:#c9a227;border-radius:2px;opacity:.7;animation:uc-tick 1.8s ease-in-out infinite}
-@keyframes uc-spin{to{transform:rotate(360deg)}}
-@keyframes uc-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.045)}}
+#uc-premium-boot .uc-status{margin:.7rem 0 0;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#d4d4d8;min-height:1.1em;font-weight:600;text-shadow:0 1px 10px #000}
 @keyframes uc-bar{0%{transform:translateX(-120%)}100%{transform:translateX(340%)}}
-@keyframes uc-sweep{to{transform:rotate(360deg)}}
-@keyframes uc-tick{0%,100%{opacity:.25}50%{opacity:1}}
+@keyframes uc-grain{0%{transform:translate(0,0)}100%{transform:translate(-2%,1%)}}
 @media (prefers-reduced-motion:reduce){
-  #uc-premium-boot .uc-ring,#uc-premium-boot .uc-ring-2,#uc-premium-boot .uc-orb,#uc-premium-boot .uc-line>i,#uc-premium-boot .uc-sweep,#uc-premium-boot .uc-tick{animation:none}
+  #uc-premium-boot .uc-line>i,#uc-premium-boot .uc-grain{animation:none}
+  #uc-premium-boot .uc-reel{display:none}
 }
 `;
 
 export const PREMIUM_BOOT_HTML = `
-<div class="uc-floor"></div>
-<div class="uc-grid"></div>
-<div class="uc-sweep"></div>
+<video class="uc-reel" autoplay muted loop playsinline preload="auto" aria-hidden="true">
+  <source src="/boot/vintage-1v1.mp4" type="video/mp4" />
+</video>
+<div class="uc-scrim"></div>
+<div class="uc-grain"></div>
+<div class="uc-vignette"></div>
 <div class="uc-stage">
-  <div class="uc-orb-wrap">
-    <div class="uc-ring-2"></div>
-    <div class="uc-ring"></div>
-    <div class="uc-orb">
-      <svg width="42" height="42" viewBox="0 0 64 64" fill="none" aria-hidden="true">
-        <circle cx="32" cy="32" r="22" stroke="white" stroke-width="2.2"/>
-        <path d="M32 10v44M10 32h44" stroke="white" stroke-width="2"/>
-        <path d="M18 16c8 6 20 6 28 0M18 48c8-6 20-6 28 0" stroke="white" stroke-width="2"/>
-      </svg>
-    </div>
-  </div>
   <p class="uc-brand">Upset City</p>
   <h1>Where the best hoopers emerge</h1>
   <div class="uc-line"><i></i></div>
@@ -87,14 +69,28 @@ export function armPremiumBoot() {
 export function PremiumBootFallback() {
   return (
     <div
-      className="flex min-h-0 flex-1 flex-col items-center justify-center bg-[#070708] px-6 text-center"
+      className="relative flex min-h-0 flex-1 flex-col items-center justify-end overflow-hidden bg-[#070708] px-6 pb-14 text-center"
       role="status"
       aria-label="Loading Upset City"
     >
-      <p className="text-[11px] font-bold tracking-[0.34em] text-court uppercase">Upset City</p>
-      <p className="mt-2 max-w-[16rem] font-display text-[1.4rem] font-semibold leading-tight text-fg">
-        Finding your run
-      </p>
+      <video
+        className="absolute inset-0 h-full w-full object-cover"
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="auto"
+        aria-hidden
+      >
+        <source src="/boot/vintage-1v1.mp4" type="video/mp4" />
+      </video>
+      <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/40 to-[#070708]" />
+      <div className="relative">
+        <p className="text-[11px] font-bold tracking-[0.34em] text-court uppercase">Upset City</p>
+        <p className="mt-2 max-w-[16rem] font-display text-[1.4rem] font-semibold leading-tight text-fg">
+          Finding your run
+        </p>
+      </div>
     </div>
   );
 }
