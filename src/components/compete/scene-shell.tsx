@@ -20,7 +20,7 @@ import { ModerationQueue } from "@/components/compete/moderation-queue";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { signOut, authEnabled } from "@/lib/auth/client";
 import { isAdminEmail } from "@/lib/auth/admin";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { PlayerProfile } from "@/components/compete/player-profile";
 import type { Court, UserLocation } from "@/lib/courts/types";
 import { isDemoMode } from "@/lib/config";
@@ -487,6 +487,7 @@ function YouSection({
   onGoPlay: () => void;
 }) {
   const { user, isPending } = useCurrentUserState();
+  const navigate = useNavigate();
   const admin = isAdminEmail(user?.primaryEmail);
 
   return (
@@ -532,7 +533,16 @@ function YouSection({
             {authEnabled ? (
               <button
                 type="button"
-                onClick={() => void signOut("/")}
+                onClick={() => {
+                  void (async () => {
+                    await signOut();
+                    await navigate({
+                      to: "/login",
+                      search: { signedout: true },
+                      replace: true,
+                    });
+                  })();
+                }}
                 className="mt-1 text-xs font-semibold text-fg-muted underline-offset-2 hover:underline"
               >
                 Sign out

@@ -212,12 +212,41 @@ function waitForPopupToken(popup: Window, handoffId: string): Promise<string | n
   });
 }
 
-/** Sign out of THIS app's local session, clear the preview token, then redirect. */
-export async function signOut(redirectTo = "/"): Promise<void> {
+/** Sign out of THIS app's local session and clear the preview token.
+ *  Callers should SPA-navigate to `/login` — do not full-reload `/`
+ *  (that re-shows the boot overlay and can bounce a leftover session home). */
+export async function signOut(): Promise<void> {
+  const token = getBearerToken();
   try {
-    await authClient.signOut();
-  } finally {
-    setBearerToken(null);
+    const res = await fetch("/api/auth/sign-out", {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: "{}",
+    });
+    if (!res.ok) {
+      await authClient.signOut();
+    }
+  } catch {
+    try {
+      await authClient.signOut();
+    } catch {
+      /* still wipe local */
+    }
   }
-  window.location.href = safeReturnTo(redirectTo);
+  setBearerToken(null);
+  try {
+    window.sessionStorage.removeItem(BEARER_KEY);
+    window.localStorage.removeItem(BEARER_KEY);
+  } catch {
+    /* ignore */
+  }
+  try {
+    await authClient.getSession();
+  } catch {
+    /* session store will settle on next read */
+  }
 }

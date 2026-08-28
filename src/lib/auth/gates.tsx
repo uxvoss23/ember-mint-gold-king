@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Navigate } from "@tanstack/react-router";
+import { Navigate, useNavigate } from "@tanstack/react-router";
 import { authEnabled, signOut } from "./client";
 import { useCurrentUser, useCurrentUserState } from "./use-current-user";
 
@@ -51,6 +51,7 @@ export function RedirectToSignIn({ to = SIGN_IN_PATH }: { to?: string }) {
  */
 export function UserButton() {
   const user = useCurrentUser();
+  const navigate = useNavigate();
   if (!user) return null;
   const label = user.displayName ?? user.primaryEmail ?? "Account";
   return (
@@ -70,7 +71,16 @@ export function UserButton() {
       {authEnabled && (
         <button
           type="button"
-          onClick={() => void signOut()}
+          onClick={() => {
+            void (async () => {
+              await signOut();
+              await navigate({
+                to: "/login",
+                search: { signedout: true },
+                replace: true,
+              });
+            })();
+          }}
           className="cursor-pointer text-sm underline-offset-4 opacity-70 hover:underline"
         >
           Sign out

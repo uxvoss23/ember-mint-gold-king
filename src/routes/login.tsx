@@ -15,9 +15,10 @@ import { consumeAuthIntent, peekAuthIntent } from "@/lib/game/guest";
 import { authReasonCopy } from "@/lib/game/use-require-auth";
 
 export const Route = createFileRoute("/login")({
-  validateSearch: (s: Record<string, unknown>): { next?: string; reason?: string } => ({
+  validateSearch: (s: Record<string, unknown>): { next?: string; reason?: string; signedout?: boolean } => ({
     next: typeof s.next === "string" ? safeReturnTo(s.next) : undefined,
     reason: typeof s.reason === "string" ? s.reason : undefined,
+    signedout: s.signedout === true || s.signedout === "true" || s.signedout === "1",
   }),
   component: Login,
 });
@@ -26,7 +27,7 @@ type Mode = "signin" | "signup";
 
 function Login() {
   const navigate = useNavigate();
-  const { next, reason: searchReason } = Route.useSearch();
+  const { next, reason: searchReason, signedout } = Route.useSearch();
   const reason = searchReason ?? peekAuthIntent()?.action;
   const { user, isPending } = useCurrentUserState();
   const [mode, setMode] = useState<Mode>("signin");
@@ -54,9 +55,10 @@ function Login() {
   };
 
   useEffect(() => {
+    if (signedout) return;
     if (!isPending && user) goAfterAuth();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPending, user?.id]);
+  }, [isPending, user?.id, signedout]);
 
   const onEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
