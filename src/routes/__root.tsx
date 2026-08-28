@@ -1,7 +1,7 @@
 import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
 import { AuthProvider } from "@/lib/auth/provider";
 import { CreatedWithGrokBanner } from "@/components/created-with-grok-banner";
-import { PREMIUM_BOOT_CSS, PREMIUM_BOOT_HTML } from "@/components/premium-boot";
+import { PREMIUM_BOOT_CSS, PremiumBootHost } from "@/components/premium-boot";
 import appCss from "../styles.css?url";
 
 const APP_NAME = "Upset City — Where the best hoopers emerge";
@@ -13,7 +13,7 @@ const ogImage = host
 const FONT_HREF =
   "https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Instrument+Sans:wght@500;600;700&display=swap";
 
-const BOOT_SCRIPT = `(function(){var lines=["Lacing up","Checking the board","Finding a run","Tip-off soon"];var i=0;var s=document.getElementById("uc-boot-status");var t=setInterval(function(){i=(i+1)%lines.length;if(s)s.textContent=lines[i];},900);function paint(){document.querySelectorAll("link[data-uc-defer]").forEach(function(l){l.media="all";});}paint();document.querySelectorAll("link[data-uc-defer]").forEach(function(l){l.addEventListener("load",function(){l.media="all";});});function hide(){clearInterval(t);var el=document.getElementById("uc-premium-boot");if(!el||el.classList.contains("uc-boot-out"))return;el.classList.add("uc-boot-out");setTimeout(function(){try{el.remove()}catch(e){}},500);}document.addEventListener("uc:app-ready",hide,{once:true});setTimeout(hide,12000);})();`;
+const BOOT_SCRIPT = `(function(){document.documentElement.removeAttribute("data-uc-booting");var lines=["Lacing up","Checking the board","Finding a run","Tip-off soon"];var i=0;var s=document.getElementById("uc-boot-status");var t=setInterval(function(){i=(i+1)%lines.length;if(s)s.textContent=lines[i];if(!document.getElementById("uc-premium-boot"))clearInterval(t);},900);document.querySelectorAll("link[data-uc-defer]").forEach(function(l){l.media="all";l.addEventListener("load",function(){l.media="all";});});})();`;
 
 export const Route = createRootRoute({
   head: () => ({
@@ -70,13 +70,7 @@ function RootDocument() {
         className="bg-bg text-fg antialiased"
         style={{ background: "#070708", color: "#f4f4f5", margin: 0 }}
       >
-        <div
-          id="uc-premium-boot"
-          suppressHydrationWarning
-          role="status"
-          aria-label="Loading Upset City"
-          dangerouslySetInnerHTML={{ __html: PREMIUM_BOOT_HTML }}
-        />
+        <PremiumBootHost />
         <script dangerouslySetInnerHTML={{ __html: BOOT_SCRIPT }} />
         <CreatedWithGrokBanner />
         <AuthProvider>

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ComponentProps } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, type ComponentProps } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { User } from "lucide-react";
 import { ViewportLock } from "@/components/viewport-lock";
@@ -16,7 +16,7 @@ const SceneShellLazy = lazy(() =>
 );
 
 function SceneShell(props: ComponentProps<typeof SceneShellLazy>) {
-  useEffect(() => {
+  useLayoutEffect(() => {
     document.dispatchEvent(new Event("uc:app-ready"));
   }, []);
   return <SceneShellLazy {...props} />;
@@ -48,6 +48,14 @@ function Home() {
   const locationRef = useRef<UserLocation | null>(AUSTIN);
   const skipRadiusEffect = useRef(true);
   const bootstrapped = useRef(false);
+
+  useLayoutEffect(() => {
+    document.documentElement.removeAttribute("data-uc-booting");
+    const t = window.setTimeout(() => {
+      document.dispatchEvent(new Event("uc:app-ready"));
+    }, 450);
+    return () => window.clearTimeout(t);
+  }, []);
 
   const loadCourts = useCallback(async (loc: UserLocation, miles: number, catalogOnly = false) => {
     setCourts(seedCourts(loc, miles));

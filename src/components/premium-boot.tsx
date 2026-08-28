@@ -1,10 +1,12 @@
+import { useLayoutEffect, useState } from "react";
+
 /** Shared markup for the first-paint + in-app loader. Keep CSS inline so it
  *  never flashes white while styles.css / JS are still arriving. */
 
 export const PREMIUM_BOOT_CSS = `
 html,body{background:#070708!important;color:#f4f4f5}
 #uc-premium-boot{position:fixed;inset:0;z-index:2147483646;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#070708;overflow:hidden;font-family:system-ui,-apple-system,sans-serif;color:#fafafa}
-#uc-premium-boot.uc-boot-out{opacity:0;pointer-events:none;transition:opacity .45s cubic-bezier(.22,1,.36,1)}
+#uc-premium-boot.uc-boot-out{opacity:0;pointer-events:none!important;transition:opacity .28s cubic-bezier(.22,1,.36,1)}
 #uc-premium-boot .uc-floor{position:absolute;inset:0;background:
   radial-gradient(ellipse 90% 55% at 50% 108%, rgba(196,92,38,.38), transparent 58%),
   radial-gradient(ellipse 70% 45% at 50% 40%, rgba(201,162,39,.12), transparent 70%),
@@ -58,30 +60,42 @@ export const PREMIUM_BOOT_HTML = `
 </div>
 `;
 
-const LINES = ["Lacing up", "Checking the board", "Finding a run", "Tip-off soon"];
+/** Full-screen boot. Unmounts for good so it cannot eat taps after fade. */
+export function PremiumBootHost() {
+  const [alive, setAlive] = useState(true);
 
-export function hidePremiumBoot() {
-  if (typeof document === "undefined") return;
-  const el = document.getElementById("uc-premium-boot");
-  if (!el || el.classList.contains("uc-boot-out")) return;
-  el.classList.add("uc-boot-out");
-  window.setTimeout(() => el.remove(), 500);
-}
+  useLayoutEffect(() => {
+    document.documentElement.removeAttribute("data-uc-booting");
+    let gone = false;
+    const hide = () => {
+      if (gone) return;
+      gone = true;
+      const el = document.getElementById("uc-premium-boot");
+      if (el) {
+        el.classList.add("uc-boot-out");
+        el.style.pointerEvents = "none";
+      }
+      window.setTimeout(() => setAlive(false), 280);
+    };
+    document.addEventListener("uc:app-ready", hide);
+    const max = window.setTimeout(hide, 1800);
+    return () => {
+      document.removeEventListener("uc:app-ready", hide);
+      window.clearTimeout(max);
+    };
+  }, []);
 
-export function armPremiumBoot() {
-  if (typeof document === "undefined") return;
-  const status = document.getElementById("uc-boot-status");
-  let i = 0;
-  const tick = window.setInterval(() => {
-    i = (i + 1) % LINES.length;
-    if (status) status.textContent = LINES[i];
-  }, 900);
-  const hide = () => {
-    window.clearInterval(tick);
-    hidePremiumBoot();
-  };
-  document.addEventListener("uc:app-ready", hide, { once: true });
-  window.setTimeout(hide, 12000);
+  if (!alive) return null;
+
+  return (
+    <div
+      id="uc-premium-boot"
+      suppressHydrationWarning
+      role="status"
+      aria-label="Loading Upset City"
+      dangerouslySetInnerHTML={{ __html: PREMIUM_BOOT_HTML }}
+    />
+  );
 }
 
 export function PremiumBootFallback() {
