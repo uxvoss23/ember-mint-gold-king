@@ -10,7 +10,10 @@ const ogImage = host
   ? `https://og.grok.me/v1/card.png?host=${encodeURIComponent(host)}&title=${encodeURIComponent("Upset City")}`
   : undefined;
 
-const BOOT_SCRIPT = `(function(){var lines=["Lacing up","Checking the board","Finding a run","Tip-off soon"];var i=0;var s=document.getElementById("uc-boot-status");var t=setInterval(function(){i=(i+1)%lines.length;if(s)s.textContent=lines[i];},900);function hide(){clearInterval(t);var el=document.getElementById("uc-premium-boot");if(!el||el.classList.contains("uc-boot-out"))return;el.classList.add("uc-boot-out");setTimeout(function(){try{el.remove()}catch(e){}},500);}document.addEventListener("uc:app-ready",hide,{once:true});setTimeout(hide,12000);})();`;
+const FONT_HREF =
+  "https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Instrument+Sans:wght@500;600;700&display=swap";
+
+const BOOT_SCRIPT = `(function(){var lines=["Lacing up","Checking the board","Finding a run","Tip-off soon"];var i=0;var s=document.getElementById("uc-boot-status");var t=setInterval(function(){i=(i+1)%lines.length;if(s)s.textContent=lines[i];},900);function paint(){document.querySelectorAll("link[data-uc-defer]").forEach(function(l){l.media="all";});}paint();document.querySelectorAll("link[data-uc-defer]").forEach(function(l){l.addEventListener("load",function(){l.media="all";});});function hide(){clearInterval(t);var el=document.getElementById("uc-premium-boot");if(!el||el.classList.contains("uc-boot-out"))return;el.classList.add("uc-boot-out");setTimeout(function(){try{el.remove()}catch(e){}},500);}document.addEventListener("uc:app-ready",hide,{once:true});setTimeout(hide,12000);})();`;
 
 export const Route = createRootRoute({
   head: () => ({
@@ -26,6 +29,7 @@ export const Route = createRootRoute({
           "Upset City — where the best hoopers emerge. Find Austin outdoor courts and step into the rated 1v1 scene.",
       },
       { name: "theme-color", content: "#070708" },
+      { name: "color-scheme", content: "dark" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
       { title: APP_NAME },
@@ -38,13 +42,8 @@ export const Route = createRootRoute({
         : []),
     ],
     links: [
-      { rel: "stylesheet", href: appCss },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Instrument+Sans:wght@500;600;700&display=swap",
-      },
     ],
   }),
   component: RootDocument,
@@ -52,12 +51,25 @@ export const Route = createRootRoute({
 
 function RootDocument() {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      style={{ background: "#070708", colorScheme: "dark" }}
+    >
       <head>
+        <style
+          dangerouslySetInnerHTML={{
+            __html: `html,body,#root{background:#070708!important;color-scheme:dark}${PREMIUM_BOOT_CSS}`,
+          }}
+        />
         <HeadContent />
-        <style dangerouslySetInnerHTML={{ __html: PREMIUM_BOOT_CSS }} />
+        <link rel="stylesheet" href={appCss} media="print" data-uc-defer="1" />
+        <link rel="stylesheet" href={FONT_HREF} media="print" data-uc-defer="1" />
       </head>
-      <body className="bg-bg text-fg antialiased">
+      <body
+        className="bg-bg text-fg antialiased"
+        style={{ background: "#070708", color: "#f4f4f5", margin: 0 }}
+      >
         <div
           id="uc-premium-boot"
           suppressHydrationWarning
