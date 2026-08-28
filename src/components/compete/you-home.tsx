@@ -6,6 +6,7 @@ import { displayRating } from "@/lib/rating/engine";
 import { formatLocalWhen } from "@/lib/upset/store";
 import type { Match, Player } from "@/lib/upset/types";
 import { cn } from "@/lib/utils";
+import { isProfileComplete } from "@/lib/game/profile";
 
 export function YouHome({
   me,
@@ -81,6 +82,20 @@ export function YouHome({
           </p>
         </div>
       </button>
+
+      {signedIn && !isProfileComplete(me) ? (
+        <button
+          type="button"
+          onClick={onOpenProfile}
+          className="w-full rounded-2xl border border-court/40 bg-court/10 px-4 py-3 text-left"
+        >
+          <p className="text-sm font-semibold text-fg">Finish your profile</p>
+          <p className="mt-0.5 text-xs text-fg-muted">
+            Age, weight, gender, and ethnicity are required before you can post
+            or join a 1v1.
+          </p>
+        </button>
+      ) : null}
 
       <div className="grid grid-cols-3 gap-2">
         {(

@@ -1,4 +1,5 @@
 import type { Player } from "@/lib/upset/types";
+import { ETHNICITY_OPTIONS } from "@/lib/game/profile";
 
 export type GenderFilter = "man" | "woman" | "nonbinary" | "prefer_not";
 
@@ -30,18 +31,7 @@ export const DEFAULT_BROWSE_FILTERS: BrowseFilters = {
   milesMax: null,
 };
 
-export const ETHNICITY_OPTIONS = [
-  "Asian",
-  "Black",
-  "Latino",
-  "Middle Eastern",
-  "Native",
-  "Pacific Islander",
-  "South Asian",
-  "White",
-  "Mixed",
-  "Other",
-] as const;
+export { ETHNICITY_OPTIONS };
 
 export const GENDER_OPTIONS: { id: GenderFilter; label: string }[] = [
   { id: "man", label: "Men" },

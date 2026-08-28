@@ -17,6 +17,12 @@ import {
   type PlayerRow,
 } from "@/lib/game/map";
 import type { Match, MatchGame, Player } from "@/lib/upset/types";
+import {
+  isProfileComplete,
+  parseProfileFields,
+  PROFILE_INCOMPLETE_MESSAGE,
+  toPublicPlayer,
+} from "@/lib/game/profile";
 
 const scoreSchema = z.object({ a: z.number().int().min(0).max(99), b: z.number().int().min(0).max(99) });
 
@@ -52,6 +58,12 @@ async function requirePlayer(sql: Sql, userId: string): Promise<PlayerRow> {
     /* columns may not exist until 0004 applies */
   }
   return row;
+}
+
+function assertProfileComplete(row: PlayerRow) {
+  if (!isProfileComplete(rowToPlayer(row))) {
+    throw new Error(PROFILE_INCOMPLETE_MESSAGE);
+  }
 }
 
 async function createPlayerForUser(sql: Sql, userId: string): Promise<PlayerRow> {
@@ -185,7 +197,10 @@ async function buildSnapshot(sql: Sql, meId: string | null): Promise<Snapshot> {
   ]);
   const matches = filterVisible(await hydrateMatches(sql, gameRows, meId), meId);
   return {
-    players: playerRows.map(rowToPlayer),
+    players: playerRows.map((row) => {
+      const p = rowToPlayer(row);
+      return p.id === meId ? p : toPublicPlayer(p);
+    }),
     matches,
     meId: meId ?? "",
   };
@@ -227,6 +242,44 @@ export const ensureMyPlayer = createServerFn({ method: "POST" })
     return rowToPlayer(row);
   });
 
+export const completeProfileFn = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((raw: unknown) =>
+    z
+      .object({
+        age: z.number(),
+        weightLb: z.number(),
+        gender: z.string(),
+        ethnicity: z.string(),
+      })
+      .parse(raw),
+  )
+  .handler(async ({ context, data }): Promise<Player> => {
+    const parsed = parseProfileFields(data);
+    if (!parsed.ok) throw new Error(parsed.reason);
+    const sql = await getSql();
+    const me = await requirePlayer(sql, context.userId);
+    const rows = await sql.query<PlayerRow>(
+      `update player set
+         age = $2,
+         weight_lb = $3,
+         gender = $4,
+         ethnicity = $5,
+         profile_completed_at = coalesce(profile_completed_at, now()),
+         updated_at = now()
+       where id = $1
+       returning *`,
+      [
+        me.id,
+        parsed.value.age,
+        parsed.value.weightLb,
+        parsed.value.gender,
+        parsed.value.ethnicity,
+      ],
+    );
+    return rowToPlayer(rows[0] ?? me);
+  });
+
 export const createGameFn = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((raw: unknown) =>
@@ -256,6 +309,7 @@ export const createGameFn = createServerFn({ method: "POST" })
     }
     const sql = await getSql();
     const me = await requirePlayer(sql, context.userId);
+    assertProfileComplete(me);
     const id = newId("g");
     const invites = data.guestInviteIds.filter((x) => x && x !== me.id);
     await sql.query(
@@ -306,6 +360,7 @@ export const joinGameFn = createServerFn({ method: "POST" })
   .handler(async ({ context, data }): Promise<{ ok: true } | { ok: false; reason: "filled" | "invite_only" }> => {
     return withTransaction(async (sql) => {
       const me = await requirePlayer(sql, context.userId);
+      assertProfileComplete(me);
       const games = await sql.query<GameRow>(
         `select * from game where id = $1 for update`,
         [data.gameId],
@@ -459,6 +514,7 @@ export const submitScoreFn = createServerFn({ method: "POST" })
     if (invalid) throw new Error(invalid);
     const sql = await getSql();
     const me = await requirePlayer(sql, context.userId);
+    assertProfileComplete(me);
     const games = await sql.query<GameRow>(
       `select * from game where id = $1 for update`,
       [data.gameId],
@@ -509,6 +565,7 @@ export const confirmScoreFn = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     return withTransaction(async (sql) => {
       const me = await requirePlayer(sql, context.userId);
+      assertProfileComplete(me);
       const games = await sql.query<GameRow>(
         `select * from game where id = $1 for update`,
         [data.gameId],
@@ -696,6 +753,7 @@ export const challengePlayerFn = createServerFn({ method: "POST" })
   .handler(async ({ context, data }): Promise<Match> => {
     const sql = await getSql();
     const me = await requirePlayer(sql, context.userId);
+    assertProfileComplete(me);
     if (data.targetId === me.id) throw new Error("You can’t challenge yourself.");
     const target = await loadPlayer(sql, data.targetId);
     if (!target) throw new Error("Player not found.");
@@ -783,6 +841,7 @@ export const matchDecideFn = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const me = await requirePlayer(sql, context.userId);
+    assertProfileComplete(me);
     if (data.targetId === me.id) throw new Error("That’s you.");
     await sql.query(
       `insert into match_decision (actor_id, target_id, decision) values ($1,$2,$3)
@@ -810,6 +869,7 @@ export const listMatchCandidatesFn = createServerFn({ method: "POST" })
   .handler(async ({ context }): Promise<Player[]> => {
     const sql = await getSql();
     const me = await requirePlayer(sql, context.userId);
+    assertProfileComplete(me);
     const rows = await sql.query<PlayerRow>(
       `select p.* from player p
        where p.id <> $1
@@ -832,7 +892,7 @@ export const listMatchCandidatesFn = createServerFn({ method: "POST" })
        limit 50`,
       [me.id],
     );
-    return rows.map(rowToPlayer);
+    return rows.map((row) => toPublicPlayer(rowToPlayer(row)));
   });
 
 export const blockPlayerFn = createServerFn({ method: "POST" })
@@ -888,6 +948,7 @@ export const checkInFn = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const me = await requirePlayer(sql, context.userId);
+    assertProfileComplete(me);
     const games = await sql.query<GameRow>("select * from game where id = $1", [data.gameId]);
     const game = games[0];
     if (!game) throw new Error("Game not found.");
@@ -927,6 +988,7 @@ export const reportNoShowFn = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const me = await requirePlayer(sql, context.userId);
+    assertProfileComplete(me);
     const games = await sql.query<GameRow>("select * from game where id = $1", [data.gameId]);
     const game = games[0];
     if (!game) throw new Error("Game not found.");

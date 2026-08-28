@@ -67,6 +67,8 @@ export interface Player {
   /** Linked Better Auth user id when signed in */
   authUserId?: string;
   email?: string;
+  /** Set when age, weight, gender, and ethnicity were submitted */
+  profileCompletedAt?: string;
 }
 
 export interface CourtMeta {

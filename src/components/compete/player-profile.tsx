@@ -11,6 +11,8 @@ import { challengePlayerFn } from "@/lib/game/fns";
 import { GUEST_PLAYER_ID } from "@/lib/game/guest";
 import { mutationError, refreshCompetitiveSnapshot } from "@/lib/game/client-actions";
 import { useRequireAuth } from "@/lib/game/use-require-auth";
+import { ProfileCompleteForm } from "@/components/compete/profile-complete-form";
+import { isProfileComplete } from "@/lib/game/profile";
 
 export function PlayerProfile({
   player,
@@ -148,6 +150,12 @@ export function PlayerProfile({
               </p>
           </div>
         </div>
+
+        {isMe && !isProfileComplete(player) ? (
+          <div className="mt-5 rounded-2xl border border-border bg-bg-subtle p-4">
+            <ProfileCompleteForm me={player} />
+          </div>
+        ) : null}
 
         <div className="mt-5 grid grid-cols-3 gap-2">
           {(

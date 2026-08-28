@@ -22,6 +22,8 @@ import { signOut, authEnabled } from "@/lib/auth/client";
 import { isAdminEmail } from "@/lib/auth/admin";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { PlayerProfile } from "@/components/compete/player-profile";
+import { ProfileCompleteForm } from "@/components/compete/profile-complete-form";
+import { isProfileComplete } from "@/lib/game/profile";
 import type { Court, UserLocation } from "@/lib/courts/types";
 import { isDemoMode } from "@/lib/config";
 import {
@@ -87,6 +89,16 @@ export function SceneShell({
   const [presetCourt, setPresetCourt] = useState<Court | null>(null);
   const [playImmersive, setPlayImmersive] = useState(false);
   const [courtsVisited, setCourtsVisited] = useState(false);
+  const [needProfile, setNeedProfile] = useState(false);
+
+  const requirePlay = (action: string) => {
+    if (!requireAuth(action)) return false;
+    if (signedIn && !isProfileComplete(store.me)) {
+      setNeedProfile(true);
+      return false;
+    }
+    return true;
+  };
 
   useEffect(() => {
     if (home === "courts") setCourtsVisited(true);
@@ -196,7 +208,7 @@ export function SceneShell({
               guestInviteIds,
               inviteOnly,
             }) => {
-              if (!requireAuth("create")) return;
+              if (!requirePlay("create")) return;
               const filters = {
                 heightMinIn: 60,
                 heightMaxIn: 84,
@@ -255,7 +267,7 @@ export function SceneShell({
               }
             }}
             onAcceptMatch={async (id, opts) => {
-              if (!requireAuth("join")) return;
+              if (!requirePlay("join")) return;
               if (isDemoMode()) {
                 const r = store.tryAcceptRace(id, opts);
                 if (r === "filled") setRaceMsg("That game just filled.");
@@ -431,6 +443,31 @@ export function SceneShell({
           ))}
         </div>
       </BottomTabBar>
+      ) : null}
+
+      {needProfile && signedIn ? (
+        <div className="fixed inset-0 z-[70] flex items-end justify-center sm:items-center">
+          <button
+            type="button"
+            className="absolute inset-0 bg-bg/70 backdrop-blur-sm"
+            onClick={() => setNeedProfile(false)}
+            aria-label="Dismiss"
+          />
+          <div className="relative z-10 mb-0 w-full max-w-lg rounded-t-3xl border border-border bg-bg-elevated p-5 shadow-soft sm:mb-0 sm:rounded-3xl">
+            <button
+              type="button"
+              onClick={() => setNeedProfile(false)}
+              className="absolute top-4 right-4 flex size-9 items-center justify-center rounded-full border border-border text-fg-muted"
+              aria-label="Close"
+            >
+              <X className="size-4" />
+            </button>
+            <ProfileCompleteForm
+              me={store.me}
+              onDone={() => setNeedProfile(false)}
+            />
+          </div>
+        </div>
       ) : null}
 
       {selectedPlayer && (

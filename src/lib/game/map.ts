@@ -36,6 +36,7 @@ export type PlayerRow = {
   rating_last_week: number;
   rank_last_week: number;
   preferred_hour: number | null;
+  profile_completed_at?: string | null;
 };
 
 export type GameRow = {
@@ -142,6 +143,7 @@ export function rowToPlayer(row: PlayerRow): Player {
     weeklyLosses: num(row.weekly_losses, 0),
     ratingLastWeek: num(row.rating_last_week, STARTING_RATING),
     authUserId: row.user_id ?? undefined,
+    profileCompletedAt: row.profile_completed_at ?? undefined,
   };
 }
 
