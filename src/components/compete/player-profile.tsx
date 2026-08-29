@@ -25,7 +25,8 @@ export function PlayerProfile({
 }) {
   const store = useUpsetStore();
   const requireAuth = useRequireAuth();
-  const isMe = player.id === store.me.id && store.me.id !== GUEST_PLAYER_ID;
+  const live = player.id === store.me.id ? store.me : player;
+  const isMe = live.id === store.me.id && store.me.id !== GUEST_PLAYER_ID;
   const [msg, setMsg] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const courts = useMemo(() => namedAustinCourts(), []);
@@ -151,9 +152,9 @@ export function PlayerProfile({
           </div>
         </div>
 
-        {isMe && !isProfileComplete(player) ? (
+        {isMe && !isProfileComplete(live) ? (
           <div className="mt-5 rounded-2xl border border-border bg-bg-subtle p-4">
-            <ProfileCompleteForm me={player} />
+            <ProfileCompleteForm me={live} />
           </div>
         ) : null}
 

@@ -746,6 +746,22 @@ export function applyServerSnapshot(snap: {
   }));
 }
 
+/** Patch one player locally so profile save doesn’t wait on a full snapshot. */
+export function upsertPlayer(player: Player) {
+  setState((s) => {
+    const i = s.players.findIndex((p) => p.id === player.id);
+    const players =
+      i >= 0
+        ? s.players.map((p, idx) => (idx === i ? { ...p, ...player } : p))
+        : [player, ...s.players];
+    return {
+      ...s,
+      players,
+      meId: s.meId || player.id,
+    };
+  });
+}
+
 function getSnap() {
   return state;
 }

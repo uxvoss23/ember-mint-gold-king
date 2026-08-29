@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { ETHNICITY_OPTIONS, GENDER_OPTIONS } from "@/lib/upset/browse-filters";
 import { completeProfileFn } from "@/lib/game/fns";
-import { mutationError, refreshCompetitiveSnapshot } from "@/lib/game/client-actions";
+import { mutationError, refreshCompetitiveSnapshotSoon } from "@/lib/game/client-actions";
+import { upsertPlayer } from "@/lib/upset/store";
 import type { Player } from "@/lib/upset/types";
 import { cn } from "@/lib/utils";
 
@@ -23,7 +24,7 @@ export function ProfileCompleteForm({
     setError(null);
     setBusy(true);
     try {
-      await completeProfileFn({
+      const saved = await completeProfileFn({
         data: {
           age: Number(age),
           weightLb: Number(weightLb),
@@ -31,8 +32,9 @@ export function ProfileCompleteForm({
           ethnicity,
         },
       });
-      await refreshCompetitiveSnapshot();
+      upsertPlayer(saved);
       onDone?.();
+      refreshCompetitiveSnapshotSoon();
     } catch (err) {
       setError(mutationError(err));
     } finally {

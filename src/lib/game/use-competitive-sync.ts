@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { isDemoMode } from "@/lib/config";
 import { ensureMyPlayer, loadCompetitiveSnapshot } from "@/lib/game/fns";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
@@ -11,17 +11,19 @@ export function useCompetitiveSync() {
     isDemoMode() ? "ready" : "loading",
   );
   const [error, setError] = useState<string | null>(null);
+  const readyOnce = useRef(isDemoMode());
 
   const refresh = useCallback(async () => {
     if (isDemoMode()) {
       setStatus("ready");
       return;
     }
-    setStatus("loading");
+    if (!readyOnce.current) setStatus("loading");
     try {
       const snap = await loadCompetitiveSnapshot();
       applyServerSnapshot(snap);
       setError(null);
+      readyOnce.current = true;
       setStatus("ready");
     } catch (err) {
       setStatus("error");

@@ -157,6 +157,14 @@ export function QuickMatchFlow({
   const [view, setView] = useState<View>("explore");
   const [createStep, setCreateStep] = useState<1 | 2 | 3>(1);
   const [postingCreate, setPostingCreate] = useState(false);
+
+  const goCreateBack = () => {
+    if (createStep > 1) {
+      setCreateStep((s) => (s === 3 ? 2 : 1));
+      return;
+    }
+    setView("explore");
+  };
   const [exploreLane, setExploreLane] = useState<ExploreLane | null>(null);
   const [openDeskTab, setOpenDeskTab] = useState<"open" | "scheduled" | "waiting">("open");
   /** Highlight newly approved game on Scheduled without opening detail */
@@ -931,8 +939,8 @@ export function QuickMatchFlow({
           <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={() => setView("explore")}
-              className="text-xs font-medium text-fg-muted"
+              onClick={goCreateBack}
+              className="relative z-30 min-h-11 min-w-[4.5rem] -ml-1 px-1 text-left text-xs font-semibold text-fg-muted pointer-events-auto"
             >
               ← Explore
             </button>
@@ -942,14 +950,8 @@ export function QuickMatchFlow({
           <>
         <button
           type="button"
-          onClick={() => {
-            if (createStep > 1) {
-              setCreateStep((s) => (s === 3 ? 2 : 1));
-              return;
-            }
-            setView("explore");
-          }}
-          className="text-xs font-medium text-fg-muted"
+          onClick={goCreateBack}
+          className="relative z-30 min-h-11 -ml-1 px-1 text-left text-xs font-semibold text-fg-muted pointer-events-auto"
         >
           {createStep > 1 ? "← Back" : "← Explore"}
         </button>
@@ -1462,23 +1464,23 @@ export function QuickMatchFlow({
         {aboutSheet}
       </div>
 
-      <div className="shrink-0 border-t border-border bg-bg px-4 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      <div className="relative z-30 shrink-0 border-t border-border bg-bg px-4 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] pointer-events-auto">
         <button
           type="button"
           onClick={() => {
+            if (postingCreate) return;
             if (createStep === 1) {
               if (!createCourtId) {
-                setStatusMsg("Pick a court to continue.");
+                goCreateBack();
                 return;
               }
               setCreateStep(2);
               return;
             }
             if (createStep === 2) {
-              if (!createWhen) { setStatusMsg("Pick a date and time."); return; }
-              if (createBringingBall === null) { setStatusMsg("Say if you’re bringing a basketball."); return; }
-              if (createVisibility === "invite_only" && createInviteIds.length === 0) {
-                setStatusMsg("Private matches need at least one invite.");
+              if (!createWhen || createBringingBall === null ||
+                (createVisibility === "invite_only" && createInviteIds.length === 0)) {
+                goCreateBack();
                 return;
               }
               setCreateStep(3);
@@ -1486,29 +1488,12 @@ export function QuickMatchFlow({
             }
             void submitCreate();
           }}
-          disabled={
-            postingCreate ||
-            (createStep === 1 && !createCourtId) ||
-            (createStep === 3 && (
-              !createCourtId ||
-              !createWhen ||
-              createBringingBall === null ||
-              (createVisibility === "invite_only" && createInviteIds.length === 0)
-            ))
-          }
+          disabled={postingCreate}
           className={cn(
             "w-full rounded-full py-3 text-sm font-semibold",
             postingCreate
               ? "cursor-wait bg-court/70 text-white"
-              : (createStep === 1 && createCourtId) ||
-                  createStep === 2 ||
-                  (createStep === 3 &&
-                    createCourtId &&
-                    createWhen &&
-                    createBringingBall !== null &&
-                    !(createVisibility === "invite_only" && createInviteIds.length === 0))
-                ? "bg-court text-white"
-                : "cursor-not-allowed bg-bg-elevated text-fg-subtle",
+              : "bg-court text-white",
           )}
         >
           {postingCreate
@@ -1516,7 +1501,7 @@ export function QuickMatchFlow({
             : createStep === 1
               ? createCourtId
                 ? "Continue"
-                : "Select a court to continue"
+                : "Back to Explore"
               : createStep === 2
                 ? "Review & post"
                 : createVisibility === "invite_only"
@@ -2666,8 +2651,11 @@ export function QuickMatchFlow({
         <div className="min-w-0">
           <button
             type="button"
-            onClick={() => setView("explore")}
-            className="text-[11px] font-medium text-fg-muted"
+            onClick={() => {
+              setExploreLane(null);
+              setView("explore");
+            }}
+            className="relative z-30 min-h-11 -ml-1 px-1 text-left text-[11px] font-semibold text-fg-muted pointer-events-auto"
           >
             ← Explore
           </button>

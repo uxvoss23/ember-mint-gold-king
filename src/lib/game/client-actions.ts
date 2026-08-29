@@ -8,6 +8,13 @@ export async function refreshCompetitiveSnapshot() {
   applyServerSnapshot(snap);
 }
 
+/** Fire-and-forget so a mutation doesn’t hold the UI on a full reload. */
+export function refreshCompetitiveSnapshotSoon() {
+  void refreshCompetitiveSnapshot().catch(() => {
+    /* next sync pass will recover */
+  });
+}
+
 export function mutationError(err: unknown): string {
   if (err instanceof Error) {
     if (err.message === "Unauthorized") return "Sign in to continue.";

@@ -445,7 +445,7 @@ export function SceneShell({
       </BottomTabBar>
       ) : null}
 
-      {needProfile && signedIn ? (
+      {needProfile && signedIn && !isProfileComplete(store.me) ? (
         <div className="fixed inset-0 z-[70] flex items-end justify-center sm:items-center">
           <button
             type="button"
