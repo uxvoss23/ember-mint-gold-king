@@ -1508,9 +1508,17 @@ export function QuickMatchFlow({
               return;
             }
             if (createStep === 2) {
-              if (!createWhen || createBringingBall === null ||
-                (createVisibility === "invite_only" && createInviteIds.length === 0)) {
-                goCreateBack();
+              if (!createWhen) {
+                setStatusMsg("Pick a date and time.");
+                return;
+              }
+              if (createBringingBall === null) {
+                setStatusMsg("Say if you’re bringing a basketball.");
+                return;
+              }
+              if (createVisibility === "invite_only" && createInviteIds.length === 0) {
+                setStatusMsg("Private matches need at least one invite.");
+                setCreateInviteOpen(true);
                 return;
               }
               setCreateStep(3);
