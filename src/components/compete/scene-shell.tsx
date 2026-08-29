@@ -92,6 +92,7 @@ export function SceneShell({
   const [boardVisited, setBoardVisited] = useState(false);
   const [youVisited, setYouVisited] = useState(false);
   const [needProfile, setNeedProfile] = useState(false);
+  const [gameBackTo, setGameBackTo] = useState<"you" | null>(null);
 
   const requirePlay = (action: string) => {
     if (!requireAuth(action)) return false;
@@ -323,6 +324,11 @@ export function SceneShell({
             presetCourt={presetCourt}
             onPresetCourtConsumed={() => setPresetCourt(null)}
             active={home === "games"}
+            gameBackTo={gameBackTo}
+            onGameBack={() => {
+              setGameBackTo(null);
+              startTransition(() => setHome("you"));
+            }}
           />
         </div>
 
@@ -341,6 +347,7 @@ export function SceneShell({
               if (signedIn) setSelectedPlayer(store.me);
             }}
             onOpenMatch={(id) => {
+              setGameBackTo("you");
               setFocusMatchId(id);
               setHome("games");
             }}

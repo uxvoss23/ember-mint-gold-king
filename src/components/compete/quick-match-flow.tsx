@@ -104,6 +104,9 @@ interface QuickMatchFlowProps {
   onPresetCourtConsumed?: () => void;
   /** False when another tab is showing — don’t steal the tab bar. */
   active?: boolean;
+  /** Opened this game from You / Upcoming — Back should return there. */
+  gameBackTo?: "you" | null;
+  onGameBack?: () => void;
 }
 
 function haversineMi(lat1: number, lon1: number, lat2: number, lon2: number) {
@@ -153,6 +156,8 @@ export function QuickMatchFlow({
   focusMatchId = null, onFocusMatchConsumed,
   presetCourt = null, onPresetCourtConsumed,
   active = true,
+  gameBackTo = null,
+  onGameBack,
 }: QuickMatchFlowProps) {
   const store = useUpsetStore();
   const requireAuth = useRequireAuth();
@@ -161,6 +166,7 @@ export function QuickMatchFlow({
   const [createStep, setCreateStep] = useState<1 | 2 | 3>(1);
   const [postingCreate, setPostingCreate] = useState(false);
   const [createHeld, setCreateHeld] = useState(false);
+  const [gameReturn, setGameReturn] = useState<"you" | "explore" | "find">("find");
 
   useEffect(() => {
     if (view === "create") setCreateHeld(true);
@@ -331,8 +337,9 @@ export function QuickMatchFlow({
     }
     setSelectedId(focusMatchId);
     setView("game");
+    setGameReturn(gameBackTo === "you" ? "you" : "find");
     onFocusMatchConsumed?.();
-  }, [focusMatchId, matches, store.matches, onFocusMatchConsumed]);
+  }, [focusMatchId, matches, store.matches, onFocusMatchConsumed, gameBackTo]);
 
   const parentOrigin = {
     lat: userLat ?? AUSTIN_CENTER.lat,
@@ -841,11 +848,23 @@ export function QuickMatchFlow({
     }
   };
 
-  const openGame = (id: string) => {
+  const openGame = (id: string, back: "you" | "explore" | "find" = "find") => {
     setSelectedId(id);
     setView("game");
+    setGameReturn(back);
     setChatDraft("");
     setJoinBringingBall(null);
+  };
+
+  const closeGame = () => {
+    setSelectedId(null);
+    setGameTab("details");
+    if (gameReturn === "you") {
+      setView("explore");
+      onGameBack?.();
+      return;
+    }
+    setView(gameReturn);
   };
 
   const joinGame = async (id: string, bringingBall?: boolean) => {
@@ -1624,8 +1643,14 @@ export function QuickMatchFlow({
               : "max(1.5rem, env(safe-area-inset-bottom, 0px))",
         }}
       >
-        <button type="button" onClick={() => { setView("find"); setSelectedId(null); setGameTab("details"); }}
-          className="text-xs font-medium text-fg-muted">← Back to open games</button>
+        <button type="button" onClick={closeGame}
+          className="relative z-30 min-h-11 -ml-1 px-1 text-left text-xs font-semibold text-fg-muted pointer-events-auto">
+          {gameReturn === "you"
+            ? "← Upcoming"
+            : gameReturn === "explore"
+              ? "← Explore"
+              : "← Back to open games"}
+        </button>
 
         {/* Details | Chat */}
         <div className="grid grid-cols-2 gap-1 rounded-2xl border border-border bg-bg-elevated p-1">
@@ -2515,7 +2540,7 @@ export function QuickMatchFlow({
                 <button
                   key={m.id}
                   type="button"
-                  onClick={() => openGame(m.id)}
+                  onClick={() => openGame(m.id, "explore")}
                   className="flex w-full items-center justify-between gap-2 rounded-xl border border-border bg-bg-elevated px-3 py-2 text-left"
                 >
                   <span className="truncate text-[12px] font-semibold text-fg">

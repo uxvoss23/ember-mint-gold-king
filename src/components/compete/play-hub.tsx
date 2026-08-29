@@ -38,6 +38,8 @@ interface PlayHubProps {
   onPresetCourtConsumed?: () => void;
   onImmersiveChange?: (immersive: boolean) => void;
   active?: boolean;
+  gameBackTo?: "you" | null;
+  onGameBack?: () => void;
 }
 
 /**
@@ -63,6 +65,8 @@ export const PlayHub = memo(function PlayHub({
   onPresetCourtConsumed,
   onImmersiveChange,
   active = true,
+  gameBackTo = null,
+  onGameBack,
 }: PlayHubProps) {
   const [immersive, setImmersive] = useState(false);
   const setImmersiveBoth = useCallback((v: boolean) => {
@@ -121,6 +125,8 @@ export const PlayHub = memo(function PlayHub({
         presetCourt={presetCourt}
         onPresetCourtConsumed={onPresetCourtConsumed}
         active={active}
+        gameBackTo={gameBackTo}
+        onGameBack={onGameBack}
       />
       </div>
     </div>
