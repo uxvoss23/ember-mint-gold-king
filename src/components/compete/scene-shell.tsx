@@ -389,7 +389,12 @@ export function SceneShell({
       </div>
 
       {/* Portaled tabs — only after boot splash fully unmounts */}
-      {showTabBar && !tabsHidden ? (
+      {showTabBar ? (
+      <div
+        className={tabsHidden ? "hidden" : undefined}
+        hidden={tabsHidden}
+        aria-hidden={tabsHidden}
+      >
       <BottomTabBar>
         <div className="pointer-events-auto relative flex w-full max-w-lg items-end rounded-2xl border border-border-strong bg-bg-elevated/95 px-0.5 py-0.5 shadow-soft backdrop-blur-md">
           {(
@@ -464,6 +469,7 @@ export function SceneShell({
           ))}
         </div>
       </BottomTabBar>
+      </div>
       ) : null}
 
       {needProfile && signedIn && !isProfileComplete(store.me) ? (

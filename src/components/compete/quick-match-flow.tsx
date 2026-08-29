@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Bell,
   Calendar,
@@ -161,12 +161,19 @@ export function QuickMatchFlow({
   const [createStep, setCreateStep] = useState<1 | 2 | 3>(1);
   const [postingCreate, setPostingCreate] = useState(false);
 
+  const goExplore = useCallback(() => {
+    startTransition(() => {
+      setExploreLane(null);
+      setView("explore");
+    });
+  }, []);
+
   const goCreateBack = () => {
     if (createStep > 1) {
-      setCreateStep((s) => (s === 3 ? 2 : 1));
+      startTransition(() => setCreateStep((s) => (s === 3 ? 2 : 1)));
       return;
     }
-    setView("explore");
+    goExplore();
   };
   const [exploreLane, setExploreLane] = useState<ExploreLane | null>(null);
   const [openDeskTab, setOpenDeskTab] = useState<"open" | "scheduled" | "waiting">("open");
@@ -337,11 +344,21 @@ export function QuickMatchFlow({
   const hasPreciseLocation = !!nearOrigin || parentLooksLikeGps;
 
   useLayoutEffect(() => {
+    if (!active) return;
+    if (view === "create") {
+      setTabsHidden(true);
+      onImmersiveChange?.(true);
+      document.documentElement.style.setProperty("--uc-tab-h", "0px");
+    }
+  }, [active, view, onImmersiveChange, setTabsHidden]);
+
+  useEffect(() => {
     if (!active) {
       onImmersiveChange?.(false);
       setTabsHidden(false);
       return;
     }
+    if (view !== "create") setTabsHidden(false);
     const immersive =
       view === "game" ||
       view === "create" ||
@@ -349,12 +366,6 @@ export function QuickMatchFlow({
       view === "hoop_now" ||
       view === "alerts_setup";
     onImmersiveChange?.(immersive);
-    setTabsHidden(view === "create");
-    if (view === "create") {
-      document.documentElement.style.setProperty("--uc-tab-h", "0px");
-      const el = createGridRef.current;
-      if (el) el.style.maxHeight = "";
-    }
   }, [active, view, onImmersiveChange, setTabsHidden]);
 
   useLayoutEffect(() => {
@@ -2604,7 +2615,7 @@ export function QuickMatchFlow({
         userLon={userLon}
         browseFilters={browseFilters}
         onBrowseFiltersChange={updateBrowseFilters}
-        onBack={() => setView("explore")}
+        onBack={goExplore}
         onChallenge={(p) => {
           setStatusMsg(
             `Challenge sent to ${p.name.split(" ")[0]}. Waiting on them to accept.`,
@@ -2659,10 +2670,7 @@ export function QuickMatchFlow({
         <div className="min-w-0">
           <button
             type="button"
-            onClick={() => {
-              setExploreLane(null);
-              setView("explore");
-            }}
+            onClick={goExplore}
             className="relative z-30 min-h-11 -ml-1 px-1 text-left text-[11px] font-semibold text-fg-muted pointer-events-auto"
           >
             ← Explore
