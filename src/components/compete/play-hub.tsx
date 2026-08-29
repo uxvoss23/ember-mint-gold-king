@@ -37,6 +37,7 @@ interface PlayHubProps {
   presetCourt?: Court | null;
   onPresetCourtConsumed?: () => void;
   onImmersiveChange?: (immersive: boolean) => void;
+  active?: boolean;
 }
 
 /**
@@ -61,6 +62,7 @@ export function PlayHub({
   presetCourt = null,
   onPresetCourtConsumed,
   onImmersiveChange,
+  active = true,
 }: PlayHubProps) {
   const [immersive, setImmersive] = useState(false);
   const setImmersiveBoth = useCallback((v: boolean) => {
@@ -118,6 +120,7 @@ export function PlayHub({
         onFocusMatchConsumed={onFocusMatchConsumed}
         presetCourt={presetCourt}
         onPresetCourtConsumed={onPresetCourtConsumed}
+        active={active}
       />
       </div>
     </div>

@@ -102,6 +102,8 @@ interface QuickMatchFlowProps {
   onFocusMatchConsumed?: () => void;
   presetCourt?: Court | null;
   onPresetCourtConsumed?: () => void;
+  /** False when another tab is showing — don’t steal the tab bar. */
+  active?: boolean;
 }
 
 function haversineMi(lat1: number, lon1: number, lat2: number, lon2: number) {
@@ -150,6 +152,7 @@ export function QuickMatchFlow({
   compactHeader = false, onImmersiveChange,
   focusMatchId = null, onFocusMatchConsumed,
   presetCourt = null, onPresetCourtConsumed,
+  active = true,
 }: QuickMatchFlowProps) {
   const store = useUpsetStore();
   const requireAuth = useRequireAuth();
@@ -334,6 +337,11 @@ export function QuickMatchFlow({
   const hasPreciseLocation = !!nearOrigin || parentLooksLikeGps;
 
   useLayoutEffect(() => {
+    if (!active) {
+      onImmersiveChange?.(false);
+      setTabsHidden(false);
+      return;
+    }
     const immersive =
       view === "game" ||
       view === "create" ||
@@ -347,7 +355,7 @@ export function QuickMatchFlow({
       const el = createGridRef.current;
       if (el) el.style.maxHeight = "";
     }
-  }, [view, onImmersiveChange, setTabsHidden]);
+  }, [active, view, onImmersiveChange, setTabsHidden]);
 
   useLayoutEffect(() => {
     return () => {

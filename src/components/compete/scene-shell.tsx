@@ -89,6 +89,8 @@ export function SceneShell({
   const [presetCourt, setPresetCourt] = useState<Court | null>(null);
   const [playImmersive, setPlayImmersive] = useState(false);
   const [courtsVisited, setCourtsVisited] = useState(false);
+  const [boardVisited, setBoardVisited] = useState(false);
+  const [youVisited, setYouVisited] = useState(false);
   const [needProfile, setNeedProfile] = useState(false);
 
   const requirePlay = (action: string) => {
@@ -102,6 +104,8 @@ export function SceneShell({
 
   useEffect(() => {
     if (home === "courts") setCourtsVisited(true);
+    if (home === "leaderboard") setBoardVisited(true);
+    if (home === "you") setYouVisited(true);
   }, [home]);
 
   const startQuickAtCourt = (court: Court) => {
@@ -164,8 +168,12 @@ export function SceneShell({
           home === "games" && playImmersive ? "px-0 pt-0 pb-0" : "",
         )}
       >
-        {home === "leaderboard" && (
-          <>
+        {(home === "leaderboard" || boardVisited) && (
+          <div
+            className={home === "leaderboard" ? undefined : "hidden"}
+            hidden={home !== "leaderboard"}
+            aria-hidden={home !== "leaderboard"}
+          >
             {sync.status === "error" ? (
               <div className="mb-2 rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-[12px]">
                 {sync.error ?? "Couldn’t load rankings."}
@@ -184,10 +192,16 @@ export function SceneShell({
               onOpenPlayer={setSelectedPlayer}
               onOpenProfile={() => signedIn && setSelectedPlayer(store.me)}
             />
-          </>
+          </div>
         )}
 
-        {home === "games" && (
+        <div
+          className={cn(
+            home === "games" ? "flex min-h-0 flex-1 flex-col" : "hidden",
+          )}
+          hidden={home !== "games"}
+          aria-hidden={home !== "games"}
+        >
           <PlayHub
             me={store.me}
             players={store.players}
@@ -304,10 +318,16 @@ export function SceneShell({
             onFocusMatchConsumed={() => setFocusMatchId(null)}
             presetCourt={presetCourt}
             onPresetCourtConsumed={() => setPresetCourt(null)}
+            active={home === "games"}
           />
-        )}
+        </div>
 
-        {home === "you" && (
+        {(home === "you" || youVisited) && (
+          <div
+            className={home === "you" ? undefined : "hidden"}
+            hidden={home !== "you"}
+            aria-hidden={home !== "you"}
+          >
           <YouSection
             me={store.me}
             signedIn={signedIn}
@@ -322,6 +342,7 @@ export function SceneShell({
             }}
             onGoPlay={() => setHome("games")}
           />
+          </div>
         )}
 
         {(home === "courts" || courtsVisited) && (

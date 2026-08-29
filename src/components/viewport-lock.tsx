@@ -80,7 +80,7 @@ export function ViewportLock() {
     const mo = new MutationObserver(schedule);
     mo.observe(document.documentElement, {
       attributes: true,
-      attributeFilter: ["data-uc-booting", "data-uc-chat-open", "style"],
+      attributeFilter: ["data-uc-booting", "data-uc-chat-open"],
     });
 
     window.addEventListener("resize", schedule);
