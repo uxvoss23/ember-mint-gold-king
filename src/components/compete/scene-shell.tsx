@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, startTransition, useCallback, useEffect, useState } from "react";
 import {
   MapPinned,
   Trophy,
@@ -108,11 +108,15 @@ export function SceneShell({
     if (home === "you") setYouVisited(true);
   }, [home]);
 
-  const startQuickAtCourt = (court: Court) => {
+  const goHome = useCallback((id: SceneHome) => {
+    startTransition(() => setHome(id));
+  }, []);
+
+  const startQuickAtCourt = useCallback((court: Court) => {
     setSelectedCourt(null);
     setPresetCourt(court);
-    setHome("games");
-  };
+    startTransition(() => setHome("games"));
+  }, []);
 
   const title =
     home === "leaderboard"
@@ -406,7 +410,7 @@ export function SceneShell({
             <button
               key={t.id}
               type="button"
-              onClick={() => setHome(t.id)}
+              onClick={() => goHome(t.id)}
               className={cn(
                 "flex flex-1 flex-col items-center gap-0 rounded-xl py-1.5 text-[9px] font-semibold leading-tight",
                 home === t.id ? "bg-bg-soft text-fg" : "text-fg-muted",
@@ -421,7 +425,7 @@ export function SceneShell({
           <div className="relative flex w-14 shrink-0 flex-col items-center justify-end">
             <button
               type="button"
-              onClick={() => setHome("courts")}
+              onClick={() => goHome("courts")}
               className="flex -translate-y-1.5 flex-col items-center gap-0 transition-transform active:scale-95"
               aria-label="Nearby courts"
               aria-pressed={home === "courts"}
@@ -456,7 +460,7 @@ export function SceneShell({
             <button
               key={t.id}
               type="button"
-              onClick={() => setHome(t.id)}
+              onClick={() => goHome(t.id)}
               className={cn(
                 "flex flex-1 flex-col items-center gap-0 rounded-xl py-1.5 text-[9px] font-semibold leading-tight",
                 home === t.id ? "bg-bg-soft text-fg" : "text-fg-muted",

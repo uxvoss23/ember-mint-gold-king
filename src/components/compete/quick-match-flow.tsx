@@ -1,4 +1,4 @@
-import { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Bell,
   Calendar,
@@ -160,6 +160,11 @@ export function QuickMatchFlow({
   const [view, setView] = useState<View>("explore");
   const [createStep, setCreateStep] = useState<1 | 2 | 3>(1);
   const [postingCreate, setPostingCreate] = useState(false);
+  const [createHeld, setCreateHeld] = useState(false);
+
+  useEffect(() => {
+    if (view === "create") setCreateHeld(true);
+  }, [view]);
 
   const goExplore = useCallback(() => {
     startTransition(() => {
@@ -893,8 +898,9 @@ export function QuickMatchFlow({
       />
     ) : null;
 
-  // CREATE
-  if (view === "create") {
+  // CREATE — keep the pane mounted after first visit so Back/Explore doesn’t rebuild the map
+  let createPane: ReactNode = null;
+  if (view === "create" || (createHeld && view === "explore")) {
     const hoods = Array.from(
       new Set(courtOptions.map((c) => c.neighborhood).filter((n): n is string => !!n && n.length > 0)),
     ).sort();
@@ -939,10 +945,15 @@ export function QuickMatchFlow({
       ? courtImagesFor(selectedCreateCourt.id, 1)[0]
       : undefined;
 
-    return (
+    createPane = (
       <div
         ref={createGridRef}
-        className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden"
+        hidden={view !== "create"}
+        aria-hidden={view !== "create"}
+        className={cn(
+          "flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden",
+          view !== "create" && "hidden",
+        )}
       >
       <div
         data-uc-create-scroll="1"
@@ -1570,6 +1581,7 @@ export function QuickMatchFlow({
         ) : null}
       </div>
     );
+    if (view === "create") return createPane;
   }
 
   // GAME DETAIL
@@ -2414,7 +2426,8 @@ export function QuickMatchFlow({
 
 
     return (
-      <div className="space-y-3">
+      <>
+      <div className={cn("space-y-3", view !== "explore" && "hidden")}>
         {statusMsg ? (
           <p className="rounded-lg bg-court/15 px-3 py-2 text-xs font-medium text-court">
             {statusMsg}
@@ -2509,6 +2522,8 @@ export function QuickMatchFlow({
           </div>
         ) : null}
       </div>
+      {createPane}
+      </>
     );
   }
 

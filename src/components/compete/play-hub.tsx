@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { memo, useCallback, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { QuickMatchFlow } from "@/components/compete/quick-match-flow";
 import { PlayerAvatar } from "@/components/compete/player-avatar";
@@ -45,7 +45,7 @@ interface PlayHubProps {
  * Open games (time/place first) + Match Mode (person first).
  * + Create feeds the open list.
  */
-export function PlayHub({
+export const PlayHub = memo(function PlayHub({
   me,
   players,
   courts,
@@ -125,4 +125,4 @@ export function PlayHub({
       </div>
     </div>
   );
-}
+});
