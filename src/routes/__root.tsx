@@ -13,7 +13,7 @@ const ogImage = host
 const FONT_HREF =
   "https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Instrument+Sans:wght@500;600;700&display=swap";
 
-const BOOT_SCRIPT = `(function(){document.documentElement.removeAttribute("data-uc-booting");var lines=["Lacing up","Checking the board","Finding a run","Tip-off soon"];var i=0;var s=document.getElementById("uc-boot-status");var t=setInterval(function(){i=(i+1)%lines.length;if(s)s.textContent=lines[i];if(!document.getElementById("uc-premium-boot"))clearInterval(t);},900);document.querySelectorAll("link[data-uc-defer]").forEach(function(l){l.media="all";l.addEventListener("load",function(){l.media="all";});});})();`;
+const BOOT_SCRIPT = `(function(){document.documentElement.removeAttribute("data-uc-booting");var lines=["Lacing up","Checking the board","Finding a run","Tip-off soon"];var i=0;var s=document.getElementById("uc-boot-status");var t=setInterval(function(){i=(i+1)%lines.length;if(s)s.textContent=lines[i];if(!document.getElementById("uc-premium-boot"))clearInterval(t);},900);})();`;
 
 export const Route = createRootRoute({
   head: () => ({
@@ -63,8 +63,8 @@ function RootDocument() {
           }}
         />
         <HeadContent />
-        <link rel="stylesheet" href={appCss} media="print" data-uc-defer="1" />
-        <link rel="stylesheet" href={FONT_HREF} media="print" data-uc-defer="1" />
+        <link rel="stylesheet" href={appCss} />
+        <link rel="stylesheet" href={FONT_HREF} />
       </head>
       <body
         className="bg-bg text-fg antialiased"
