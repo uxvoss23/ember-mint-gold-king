@@ -78,6 +78,8 @@ export type MessageRow = {
   body: string;
   system: boolean;
   created_at: string;
+  kind?: string | null;
+  payload?: unknown;
 };
 
 function num(v: unknown, fallback = 0): number {
@@ -161,6 +163,34 @@ export function parseScores(json: string | null): MatchGame[] | undefined {
 }
 
 export function rowToMessage(row: MessageRow): ChatMessage {
+  const kind =
+    row.kind === "proposal" || row.kind === "proposal_update" || row.kind === "text"
+      ? row.kind
+      : undefined;
+  let proposal: ChatMessage["proposal"];
+  if (kind === "proposal" && row.payload && typeof row.payload === "object") {
+    const p = row.payload as Record<string, unknown>;
+    if (
+      typeof p.courtId === "string" &&
+      typeof p.courtName === "string" &&
+      typeof p.whenIso === "string"
+    ) {
+      proposal = {
+        courtId: p.courtId,
+        courtName: p.courtName,
+        lat: Number(p.lat) || 0,
+        lon: Number(p.lon) || 0,
+        whenIso: p.whenIso,
+        whenLabel: String(p.whenLabel ?? ""),
+        proposedById: String(p.proposedById ?? ""),
+        proposedByName: String(p.proposedByName ?? ""),
+        status:
+          p.status === "approved" || p.status === "superseded"
+            ? p.status
+            : "pending",
+      };
+    }
+  }
   return {
     id: row.id,
     authorId: row.author_id ?? undefined,
@@ -168,6 +198,8 @@ export function rowToMessage(row: MessageRow): ChatMessage {
     text: row.body,
     at: iso(row.created_at),
     system: bool(row.system, false),
+    kind,
+    proposal,
   };
 }
 

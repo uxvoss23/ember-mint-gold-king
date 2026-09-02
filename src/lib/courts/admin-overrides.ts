@@ -1,5 +1,5 @@
+import { useEffect } from "react";
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
 import type { Court, CourtAmenity, CourtSurface } from "@/lib/courts/types";
 import { isAdminEmail } from "@/lib/auth/admin";
 
@@ -29,105 +29,74 @@ export interface CourtAdminOverride extends CourtFieldOverride {
 
 interface CourtAdminState {
   overrides: Record<string, CourtAdminOverride>;
-  setFields: (courtId: string, fields: CourtFieldOverride) => void;
-  setPreview: (courtId: string, dataUrl: string | undefined) => void;
-  addGalleryPhoto: (courtId: string, dataUrl: string) => void;
-  addGalleryPhotos: (courtId: string, dataUrls: string[]) => void;
-  replaceGalleryPhoto: (courtId: string, index: number, dataUrl: string) => void;
-  removeGalleryPhoto: (courtId: string, index: number) => void;
-  setGallery: (courtId: string, gallery: string[]) => void;
-  clearOverride: (courtId: string) => void;
+  setFields: (courtId: string, fields: CourtFieldOverride) => Promise<void>;
+  setPreview: (courtId: string, dataUrl: string | undefined) => Promise<void>;
+  addGalleryPhoto: (courtId: string, dataUrl: string) => Promise<void>;
+  addGalleryPhotos: (courtId: string, dataUrls: string[]) => Promise<void>;
+  replaceGalleryPhoto: (courtId: string, index: number, dataUrl: string) => Promise<void>;
+  removeGalleryPhoto: (courtId: string, index: number) => Promise<void>;
+  setGallery: (courtId: string, gallery: string[]) => Promise<void>;
+  clearOverride: (courtId: string) => Promise<void>;
 }
 
-function patch(
-  overrides: Record<string, CourtAdminOverride>,
-  courtId: string,
-  next: Partial<CourtAdminOverride>,
-): Record<string, CourtAdminOverride> {
-  const prev = overrides[courtId] ?? {};
-  return {
-    ...overrides,
-    [courtId]: {
-      ...prev,
-      ...next,
-      photos: next.photos ?? prev.photos,
-      updatedAt: new Date().toISOString(),
-    },
-  };
+function applyOverrides(overrides: Record<string, CourtAdminOverride>) {
+  useCourtAdmin.setState({ overrides });
 }
 
-export const useCourtAdmin = create<CourtAdminState>()(
-  persist(
-    (set, get) => ({
-      overrides: {},
-      setFields: (courtId, fields) =>
-        set((s) => ({
-          overrides: patch(s.overrides, courtId, fields),
-        })),
-      setPreview: (courtId, dataUrl) => {
-        const prev = get().overrides[courtId]?.photos ?? { gallery: [] };
-        set((s) => ({
-          overrides: patch(s.overrides, courtId, {
-            photos: { ...prev, preview: dataUrl, gallery: prev.gallery ?? [] },
-          }),
-        }));
-      },
-      addGalleryPhoto: (courtId, dataUrl) => {
-        get().addGalleryPhotos(courtId, [dataUrl]);
-      },
-      addGalleryPhotos: (courtId, dataUrls) => {
-        if (!dataUrls.length) return;
-        const prev = get().overrides[courtId]?.photos ?? { gallery: [] };
-        set((s) => ({
-          overrides: patch(s.overrides, courtId, {
-            photos: {
-              preview: prev.preview,
-              gallery: [...(prev.gallery ?? []), ...dataUrls],
-            },
-          }),
-        }));
-      },
-      replaceGalleryPhoto: (courtId, index, dataUrl) => {
-        const prev = get().overrides[courtId]?.photos ?? { gallery: [] };
-        const gallery = [...(prev.gallery ?? [])];
-        if (index < 0 || index >= gallery.length) return;
-        gallery[index] = dataUrl;
-        set((s) => ({
-          overrides: patch(s.overrides, courtId, {
-            photos: { preview: prev.preview, gallery },
-          }),
-        }));
-      },
-      removeGalleryPhoto: (courtId, index) => {
-        const prev = get().overrides[courtId]?.photos ?? { gallery: [] };
-        const gallery = (prev.gallery ?? []).filter((_, i) => i !== index);
-        set((s) => ({
-          overrides: patch(s.overrides, courtId, {
-            photos: { preview: prev.preview, gallery },
-          }),
-        }));
-      },
-      setGallery: (courtId, gallery) => {
-        const prev = get().overrides[courtId]?.photos ?? { gallery: [] };
-        set((s) => ({
-          overrides: patch(s.overrides, courtId, {
-            photos: { preview: prev.preview, gallery },
-          }),
-        }));
-      },
-      clearOverride: (courtId) =>
-        set((s) => {
-          const { [courtId]: _, ...rest } = s.overrides;
-          return { overrides: rest };
-        }),
-    }),
-    {
-      name: "upset-court-admin-v1",
-      // Drop huge blobs if storage balloons — keep last-write overrides
-      partialize: (s) => ({ overrides: s.overrides }),
-    },
-  ),
-);
+export async function refreshCourtAdmin() {
+  const { listCourtOverridesFn } = await import("@/lib/courts/court-admin-fns");
+  applyOverrides(await listCourtOverridesFn());
+}
+
+export const useCourtAdmin = create<CourtAdminState>()((set, get) => ({
+  overrides: {},
+  setFields: async (courtId, fields) => {
+    const { upsertCourtFieldsFn } = await import("@/lib/courts/court-admin-fns");
+    applyOverrides(await upsertCourtFieldsFn({ data: { courtId, fields } }));
+  },
+  setPreview: async (courtId, dataUrl) => {
+    const { setCourtPreviewFn } = await import("@/lib/courts/court-admin-fns");
+    applyOverrides(
+      await setCourtPreviewFn({ data: { courtId, photoUrl: dataUrl ?? null } }),
+    );
+  },
+  addGalleryPhoto: async (courtId, dataUrl) => {
+    await get().addGalleryPhotos(courtId, [dataUrl]);
+  },
+  addGalleryPhotos: async (courtId, dataUrls) => {
+    if (!dataUrls.length) return;
+    const { addCourtGalleryPhotosFn } = await import("@/lib/courts/court-admin-fns");
+    applyOverrides(
+      await addCourtGalleryPhotosFn({ data: { courtId, photos: dataUrls } }),
+    );
+  },
+  replaceGalleryPhoto: async (courtId, index, dataUrl) => {
+    const { replaceCourtGalleryPhotoFn } = await import("@/lib/courts/court-admin-fns");
+    applyOverrides(
+      await replaceCourtGalleryPhotoFn({
+        data: { courtId, index, photoUrl: dataUrl },
+      }),
+    );
+  },
+  removeGalleryPhoto: async (courtId, index) => {
+    const { removeCourtGalleryPhotoFn } = await import("@/lib/courts/court-admin-fns");
+    applyOverrides(await removeCourtGalleryPhotoFn({ data: { courtId, index } }));
+  },
+  setGallery: async () => {
+    /* unused — gallery is edited per photo */
+  },
+  clearOverride: async () => {
+    /* unused */
+  },
+}));
+
+export function useHydrateCourtAdmin() {
+  useEffect(() => {
+    void refreshCourtAdmin().catch(() => {
+      /* empty until first admin save */
+    });
+  }, []);
+}
 
 export function mergeCourtWithOverride(
   court: Court,

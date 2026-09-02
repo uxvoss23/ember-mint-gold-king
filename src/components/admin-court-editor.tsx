@@ -17,6 +17,7 @@ import {
 import { compressWorkOrderPhoto } from "@/components/work-order-popup";
 import { courtImagesFor } from "@/lib/courts/images";
 import { cn } from "@/lib/utils";
+import { mutationError } from "@/lib/game/client-actions";
 
 const SURFACES: CourtSurface[] = ["concrete", "asphalt", "rubber", "unknown"];
 const AMENITIES: { id: CourtAmenity; label: string }[] = [
@@ -63,6 +64,7 @@ export function AdminCourtEditor({
   const [hours, setHours] = useState(merged.hours ?? "");
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
   const previewCam = useRef<HTMLInputElement>(null);
   const previewLib = useRef<HTMLInputElement>(null);
@@ -96,7 +98,7 @@ export function AdminCourtEditor({
   const livePreview =
     preview ?? courtImagesFor(court.id, 1, photos)[0];
 
-  const saveDetails = () => {
+  const saveDetails = async () => {
     const fields: CourtFieldOverride = {
       name: name.trim() || court.name,
       address: address.trim() || undefined,
@@ -108,9 +110,17 @@ export function AdminCourtEditor({
       lightsHours: lightsHours.trim() || undefined,
       hours: hours.trim() || undefined,
     };
-    setFields(court.id, fields);
-    setSaved(true);
-    window.setTimeout(() => setSaved(false), 2000);
+    setBusy(true);
+    setErr(null);
+    try {
+      await setFields(court.id, fields);
+      setSaved(true);
+      window.setTimeout(() => setSaved(false), 2000);
+    } catch (e) {
+      setErr(mutationError(e));
+    } finally {
+      setBusy(false);
+    }
   };
 
   const pickFiles = async (
@@ -122,22 +132,24 @@ export function AdminCourtEditor({
       : [];
     if (!list.length) return;
     setBusy(true);
+    setErr(null);
     try {
       if (mode === "preview") {
-        // preview is a single dedicated slot — use first selected
         const url = await compressWorkOrderPhoto(list[0]!);
-        setPreview(court.id, url);
+        await setPreview(court.id, url);
       } else if (mode === "gallery") {
         const urls: string[] = [];
         for (const f of list) {
           urls.push(await compressWorkOrderPhoto(f));
         }
-        addGalleryPhotos(court.id, urls);
+        await addGalleryPhotos(court.id, urls);
       } else if (mode === "replace" && replaceIdx.current != null) {
         const url = await compressWorkOrderPhoto(list[0]!);
-        replaceGalleryPhoto(court.id, replaceIdx.current, url);
+        await replaceGalleryPhoto(court.id, replaceIdx.current, url);
         replaceIdx.current = null;
       }
+    } catch (e) {
+      setErr(mutationError(e));
     } finally {
       setBusy(false);
     }
@@ -285,7 +297,7 @@ export function AdminCourtEditor({
                     <button
                       type="button"
                       className="rounded px-1.5 py-0.5 text-[9px] font-bold text-white"
-                      onClick={() => removeGalleryPhoto(court.id, i)}
+                      onClick={() => void removeGalleryPhoto(court.id, i)}
                     >
                       ✕
                     </button>
@@ -467,12 +479,18 @@ export function AdminCourtEditor({
         </div>
 
         <div className="shrink-0 border-t border-border p-3">
+          {err ? (
+            <p className="mb-2 text-center text-[12px] text-danger" role="alert">
+              {err}
+            </p>
+          ) : null}
           <button
             type="button"
-            onClick={saveDetails}
-            className="flex h-11 w-full items-center justify-center rounded-xl bg-fg text-sm font-semibold text-bg"
+            onClick={() => void saveDetails()}
+            disabled={busy}
+            className="flex h-11 w-full items-center justify-center rounded-xl bg-fg text-sm font-semibold text-bg disabled:opacity-60"
           >
-            {saved ? "Saved" : "Save court details"}
+            {busy ? "Saving…" : saved ? "Saved" : "Save court details"}
           </button>
           <p className="mt-1.5 text-center text-[10px] text-fg-subtle">
             Photos save as soon as you add or replace them.

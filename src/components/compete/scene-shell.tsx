@@ -40,6 +40,7 @@ import type { Match, Player } from "@/lib/upset/types";
 import { cn } from "@/lib/utils";
 import { useTabBarGate } from "@/lib/ui/tab-bar-gate";
 import { useHydrateCourtSocial } from "@/lib/courts/social";
+import { useHydrateCourtAdmin } from "@/lib/courts/admin-overrides";
 
 type SceneHome = "leaderboard" | "games" | "you" | "courts";
 
@@ -80,6 +81,7 @@ export function SceneShell({
   const signedIn = !!user && store.me.id !== GUEST_PLAYER_ID;
   const tabsHidden = useTabBarGate((s) => s.hidden);
   useHydrateCourtSocial();
+  useHydrateCourtAdmin();
   const [home, setHome] = useState<SceneHome>("courts");
   const [selectedCourt, setSelectedCourt] = useState<Court | null>(null);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);

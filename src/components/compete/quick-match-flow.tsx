@@ -46,9 +46,12 @@ import { GUEST_PLAYER_ID } from "@/lib/game/guest";
 import { useRequireAuth } from "@/lib/game/use-require-auth";
 import { mutationError, refreshCompetitiveSnapshot } from "@/lib/game/client-actions";
 import {
+  approveGameChangeFn,
   cancelGameFn,
   confirmScoreFn,
   disputeScoreFn,
+  invitePlayerToGameFn,
+  proposeGameChangeFn,
   sendGameMessageFn,
   submitScoreFn,
 } from "@/lib/game/fns";
@@ -1799,16 +1802,31 @@ export function QuickMatchFlow({
                               ) : (
                                 <button
                                   type="button"
-                                  onClick={() => {
-                                    const r = store.approveMatchChangeProposal(
-                                      selected.id,
-                                      c.id,
-                                    );
-                                    setStatusMsg(
-                                      r.ok
-                                        ? "Change approved — game updated."
-                                        : r.reason,
-                                    );
+                                  onClick={async () => {
+                                    if (isDemoMode()) {
+                                      const r = store.approveMatchChangeProposal(
+                                        selected.id,
+                                        c.id,
+                                      );
+                                      setStatusMsg(
+                                        r.ok
+                                          ? "Change approved — game updated."
+                                          : r.reason,
+                                      );
+                                      return;
+                                    }
+                                    try {
+                                      await approveGameChangeFn({
+                                        data: {
+                                          gameId: selected.id,
+                                          messageId: c.id,
+                                        },
+                                      });
+                                      await refreshCompetitiveSnapshot();
+                                      setStatusMsg("Change approved — game updated.");
+                                    } catch (err) {
+                                      setStatusMsg(mutationError(err));
+                                    }
                                   }}
                                   className="w-full rounded-full bg-court py-2.5 text-[13px] font-semibold text-white"
                                 >
@@ -2121,7 +2139,7 @@ export function QuickMatchFlow({
                 </div>
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={async () => {
                     const cid = changeCourtId || selected.courtId;
                     const c = courts.find((x) => x.id === cid);
                     if (!c) {
@@ -2151,18 +2169,38 @@ export function QuickMatchFlow({
                         return changeWhen;
                       }
                     })();
-                    const r = store.submitMatchChangeProposal({
-                      matchId: selected.id,
-                      courtId: c.id,
-                      courtName: c.name,
-                      lat: c.lat,
-                      lon: c.lon,
-                      whenIso,
-                      whenLabel,
-                    });
-                    if (!r.ok) {
-                      setStatusMsg(r.reason);
-                      return;
+                    if (isDemoMode()) {
+                      const r = store.submitMatchChangeProposal({
+                        matchId: selected.id,
+                        courtId: c.id,
+                        courtName: c.name,
+                        lat: c.lat,
+                        lon: c.lon,
+                        whenIso,
+                        whenLabel,
+                      });
+                      if (!r.ok) {
+                        setStatusMsg(r.reason);
+                        return;
+                      }
+                    } else {
+                      try {
+                        await proposeGameChangeFn({
+                          data: {
+                            gameId: selected.id,
+                            courtId: c.id,
+                            courtName: c.name,
+                            lat: c.lat,
+                            lon: c.lon,
+                            whenIso,
+                            whenLabel,
+                          },
+                        });
+                        await refreshCompetitiveSnapshot();
+                      } catch (err) {
+                        setStatusMsg(mutationError(err));
+                        return;
+                      }
                     }
                     setChangeCourtOpen(false);
                     setGameTab("chat");
@@ -2402,11 +2440,22 @@ export function QuickMatchFlow({
             invitedIds={selected.guestInviteIds ?? []}
             friendIds={friendIds}
             playersById={playerById}
-            onInvite={() => ({
-              ok: false as const,
-              reason:
-                "Invite when you create the match — later invites aren’t saved on the server yet.",
-            })}
+            onInvite={async (pid) => {
+              if (isDemoMode()) {
+                const r = store.inviteToMatch(selected.id, pid);
+                if (!r.ok) return r;
+                return { ok: true as const };
+              }
+              try {
+                await invitePlayerToGameFn({
+                  data: { gameId: selected.id, playerId: pid },
+                });
+                await refreshCompetitiveSnapshot();
+                return { ok: true as const };
+              } catch (err) {
+                return { ok: false as const, reason: mutationError(err) };
+              }
+            }}
             onAddFriend={() => undefined}
             onClose={() => setInviteOpen(false)}
           />
@@ -3704,7 +3753,14 @@ function InviteSheet({
   invitedIds: string[];
   friendIds: string[];
   /** Return false/reason on failure so we can show it without closing */
-  onInvite: (id: string) => void | boolean | { ok: true } | { ok: false; reason: string };
+  onInvite: (
+    id: string,
+  ) =>
+    | void
+    | boolean
+    | { ok: true }
+    | { ok: false; reason: string }
+    | Promise<void | boolean | { ok: true } | { ok: false; reason: string }>;
   onAddFriend: (id: string) => void;
   onClose: () => void;
   playersById?: Map<string, Player>;
@@ -3739,9 +3795,9 @@ function InviteSheet({
     )
     .filter((p): p is Player => !!p);
 
-  const handleInvite = (p: Player) => {
+  const handleInvite = async (p: Player) => {
     setErr(null);
-    const r = onInvite(p.id);
+    const r = await onInvite(p.id);
     if (r && typeof r === "object" && "ok" in r) {
       if (!r.ok) {
         setErr(r.reason);

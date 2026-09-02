@@ -1045,3 +1045,152 @@ export const contestNoShowFn = createServerFn({ method: "POST" })
     );
     return { ok: true as const };
   });
+
+export const invitePlayerToGameFn = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((raw: unknown) =>
+    z.object({ gameId: z.string(), playerId: z.string() }).parse(raw),
+  )
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    const me = await requirePlayer(sql, context.userId);
+    assertProfileComplete(me);
+    if (data.playerId === me.id) throw new Error("You can’t invite yourself.");
+    const games = await sql.query<GameRow>(`select * from game where id = $1`, [data.gameId]);
+    const game = games[0];
+    if (!game) throw new Error("Game not found.");
+    if (game.host_id !== me.id) throw new Error("Only the host can invite.");
+    if (game.status !== "open") throw new Error("That game isn’t open for invites.");
+    if (await isBlocked(sql, me.id, data.playerId)) throw new Error("You can’t invite that player.");
+    const target = await loadPlayer(sql, data.playerId);
+    if (!target) throw new Error("Player not found.");
+    await sql.query(
+      `insert into game_invite (game_id, player_id) values ($1,$2) on conflict do nothing`,
+      [data.gameId, data.playerId],
+    );
+    await addSystemMessage(sql, data.gameId, `${me.name} invited ${target.name}.`);
+    return { ok: true as const };
+  });
+
+export const proposeGameChangeFn = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((raw: unknown) =>
+    z
+      .object({
+        gameId: z.string(),
+        courtId: z.string().min(1),
+        courtName: z.string().min(1).max(120),
+        lat: z.number(),
+        lon: z.number(),
+        whenIso: z.string().min(8),
+        whenLabel: z.string().max(80),
+      })
+      .parse(raw),
+  )
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    const me = await requirePlayer(sql, context.userId);
+    assertProfileComplete(me);
+    const games = await sql.query<GameRow>(`select * from game where id = $1`, [data.gameId]);
+    const game = games[0];
+    if (!game) throw new Error("Game not found.");
+    if (game.host_id !== me.id && game.opponent_id !== me.id) {
+      throw new Error("Not your game.");
+    }
+    if (game.status !== "scheduled" && game.status !== "matched") {
+      throw new Error("Can only change court/time before tip-off.");
+    }
+    const when = new Date(data.whenIso);
+    if (Number.isNaN(when.getTime()) || when.getTime() < Date.now() - 60_000) {
+      throw new Error("Pick a future tip-off.");
+    }
+    const who = me.name.split(" ")[0];
+    await sql.query(
+      `update game_message
+          set payload = jsonb_set(coalesce(payload, '{}'::jsonb), '{status}', '"superseded"'),
+              body = replace(body, 'Needs approval', 'Superseded')
+        where game_id = $1 and kind = 'proposal'
+          and coalesce(payload->>'status','pending') = 'pending'`,
+      [data.gameId],
+    );
+    const payload = {
+      courtId: data.courtId,
+      courtName: data.courtName,
+      lat: data.lat,
+      lon: data.lon,
+      whenIso: when.toISOString(),
+      whenLabel: data.whenLabel,
+      proposedById: me.id,
+      proposedByName: me.name,
+      status: "pending",
+    };
+    await sql.query(
+      `insert into game_message (id, game_id, author_id, author_name, body, system, kind, payload)
+       values ($1,$2,$3,$4,$5,false,'proposal',$6::jsonb)`,
+      [
+        newId("prop"),
+        data.gameId,
+        me.id,
+        me.name,
+        `${who} proposed: ${data.courtName} · ${data.whenLabel}. Needs approval.`,
+        JSON.stringify(payload),
+      ],
+    );
+    await addSystemMessage(
+      sql,
+      data.gameId,
+      "Approve in chat to move the game — or chat and send a new plan.",
+    );
+    return { ok: true as const };
+  });
+
+export const approveGameChangeFn = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((raw: unknown) =>
+    z.object({ gameId: z.string(), messageId: z.string() }).parse(raw),
+  )
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    const me = await requirePlayer(sql, context.userId);
+    assertProfileComplete(me);
+    const games = await sql.query<GameRow>(`select * from game where id = $1`, [data.gameId]);
+    const game = games[0];
+    if (!game) throw new Error("Game not found.");
+    if (game.host_id !== me.id && game.opponent_id !== me.id) {
+      throw new Error("Not your game.");
+    }
+    const msgs = await sql.query<MessageRow>(
+      `select * from game_message where id = $1 and game_id = $2`,
+      [data.messageId, data.gameId],
+    );
+    const msg = msgs[0];
+    if (!msg || msg.kind !== "proposal") throw new Error("No pending change to approve.");
+    const payload =
+      msg.payload && typeof msg.payload === "object"
+        ? (msg.payload as Record<string, unknown>)
+        : null;
+    if (!payload || payload.status !== "pending") throw new Error("No pending change to approve.");
+    if (payload.proposedById === me.id) throw new Error("The other player has to approve this.");
+    const courtId = String(payload.courtId);
+    const courtName = String(payload.courtName);
+    const lat = Number(payload.lat);
+    const lon = Number(payload.lon);
+    const whenIso = String(payload.whenIso);
+    const whenLabel = String(payload.whenLabel ?? "");
+    await sql.query(
+      `update game
+          set court_id = $2, court_name = $3, lat = $4, lon = $5,
+              preferred_at = $6::timestamptz, scheduled_at = $6::timestamptz, updated_at = now()
+        where id = $1`,
+      [data.gameId, courtId, courtName, lat, lon, whenIso],
+    );
+    payload.status = "approved";
+    await sql.query(
+      `update game_message
+          set payload = $2::jsonb, body = replace(body, 'Needs approval', 'Approved ✓')
+        where id = $1`,
+      [data.messageId, JSON.stringify(payload)],
+    );
+    await addSystemMessage(sql, data.gameId, `Plan locked · ${courtName} · ${whenLabel}.`);
+    return { ok: true as const };
+  });

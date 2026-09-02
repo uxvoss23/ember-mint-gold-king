@@ -28,6 +28,7 @@ import { ImageCarousel } from "@/components/image-carousel";
 import {
   mergeCourtWithOverride,
   useCourtAdmin,
+  useHydrateCourtAdmin,
 } from "@/lib/courts/admin-overrides";
 import { useFavorites } from "@/lib/courts/favorites";
 import { courtImagesFor } from "@/lib/courts/images";
@@ -625,6 +626,7 @@ export function CourtsFinder({
   onFocusCourtConsumed,
 }: CourtsFinderProps) {
   useHydrateCourtSocial();
+  useHydrateCourtAdmin();
   const social = useCourtSocial();
   const favorites = useFavorites();
   const rootRef = useRef<HTMLDivElement>(null);
