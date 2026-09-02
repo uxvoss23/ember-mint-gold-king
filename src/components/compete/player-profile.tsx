@@ -13,7 +13,7 @@ import { GUEST_PLAYER_ID } from "@/lib/game/guest";
 import { mutationError, refreshCompetitiveSnapshot } from "@/lib/game/client-actions";
 import { useRequireAuth } from "@/lib/game/use-require-auth";
 import { ProfileCompleteForm } from "@/components/compete/profile-complete-form";
-import { isProfileComplete } from "@/lib/game/profile";
+import { isProfileComplete, PROFILE_PRIVACY_NOTE } from "@/lib/game/profile";
 
 export function PlayerProfile({
   player,
@@ -232,6 +232,12 @@ export function PlayerProfile({
             </div>
           ))}
         </div>
+
+        {isMe && isProfileComplete(live) ? (
+          <p className="mt-3 text-[11px] leading-relaxed text-fg-subtle">
+            {PROFILE_PRIVACY_NOTE}
+          </p>
+        ) : null}
 
         {player.bio && (
           <p className="mt-4 text-sm leading-relaxed text-fg-muted">{player.bio}</p>

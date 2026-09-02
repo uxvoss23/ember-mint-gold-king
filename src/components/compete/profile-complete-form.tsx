@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ETHNICITY_OPTIONS, GENDER_OPTIONS } from "@/lib/upset/browse-filters";
 import { completeProfileFn } from "@/lib/game/fns";
+import { PROFILE_PRIVACY_NOTE } from "@/lib/game/profile";
 import { mutationError, refreshCompetitiveSnapshotSoon } from "@/lib/game/client-actions";
 import { upsertPlayer } from "@/lib/upset/store";
 import type { Player } from "@/lib/upset/types";
@@ -47,7 +48,9 @@ export function ProfileCompleteForm({
       <p className="text-sm font-semibold text-fg">Finish your profile</p>
       <p className="text-xs text-fg-muted">
         Age, weight, gender, and ethnicity are required to post or join a 1v1.
-        They’re stored on your account — not shown on other players’ cards.
+      </p>
+      <p className="text-[11px] leading-relaxed text-fg-subtle">
+        {PROFILE_PRIVACY_NOTE}
       </p>
       <label className="block">
         <span className="text-[10px] font-bold tracking-wide text-fg-subtle uppercase">Age</span>

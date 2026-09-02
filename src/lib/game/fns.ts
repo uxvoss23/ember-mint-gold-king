@@ -290,6 +290,7 @@ export const completeProfileFn = createServerFn({ method: "POST" })
         parsed.value.ethnicity,
       ],
     );
+    appLog("profile.complete", { playerId: me.id });
     return rowToPlayer(rows[0] ?? me);
   });
 

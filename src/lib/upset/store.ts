@@ -3,6 +3,7 @@ import { namedAustinCourts } from "@/lib/courts/catalog";
 import { displayRating, rateSeries } from "@/lib/rating/engine";
 import { isDemoMode } from "@/lib/config";
 import { GUEST_PLAYER } from "@/lib/game/guest";
+import { toPublicPlayer } from "@/lib/game/profile";
 import { ensureCityRanks } from "@/lib/upset/city-rank";
 import { SEED_PLAYERS } from "@/lib/upset/seed-players";
 import type {
@@ -628,7 +629,9 @@ function load(): UpsetState {
     }
     return {
       ...base,
-      players: Array.from(byId.values()).map(stripPlayer),
+      players: Array.from(byId.values()).map((p) =>
+        p.id === parsed.meId ? stripPlayer(p) : toPublicPlayer(stripPlayer(p)),
+      ),
       matches: (Array.isArray(parsed.matches) ? parsed.matches : base.matches).map(
         stripMatch,
       ),

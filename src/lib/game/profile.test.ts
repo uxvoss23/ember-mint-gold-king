@@ -6,6 +6,7 @@ import {
   isProfileComplete,
   parseProfileFields,
   toPublicPlayer,
+  PROFILE_PRIVACY_NOTE,
 } from "./profile.ts";
 import type { Player } from "../upset/types.ts";
 
@@ -118,6 +119,12 @@ function run(): string[] {
   assert(pub.weightLb === 180, "public keeps displayed weight");
   assert(pub.heightIn === 72, "public keeps displayed height");
   logs.push("public strip ok");
+
+  assert(
+    PROFILE_PRIVACY_NOTE.toLowerCase().includes("never see"),
+    "privacy note says others never see those fields",
+  );
+  logs.push("privacy copy ok");
 
   return logs;
 }

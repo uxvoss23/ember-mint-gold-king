@@ -75,7 +75,7 @@ export function isProfileComplete(
   }).ok;
 }
 
-/** Other players: no email, auth id, or sensitive profile fields.
+/** Other players: no email, auth id, moderator flag, or sensitive profile fields.
  *  Height and weight stay — catalog and profile already show them. */
 export function toPublicPlayer(p: Player): Player {
   return {
@@ -92,3 +92,7 @@ export function toPublicPlayer(p: Player): Player {
 
 export const PROFILE_INCOMPLETE_MESSAGE =
   "Finish your profile (age, weight, gender, ethnicity) to play.";
+
+/** Short in-app privacy copy. Not a legal policy. */
+export const PROFILE_PRIVACY_NOTE =
+  "Age, gender, and ethnicity stay on your account so we can match fairly. Other players never see them. Height and weight already show on profiles because that’s how people size up a 1v1.";

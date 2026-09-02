@@ -124,7 +124,7 @@ export function loadBrowseFilters(): {
       localStorage.removeItem(BROWSE_FILTERS_KEY);
       return { filters: { ...DEFAULT_BROWSE_FILTERS }, saved: false };
     }
-    return { filters: data.filters, saved };
+    return { filters: sanitizePublicFilters(data.filters), saved };
   } catch {
     return { filters: { ...DEFAULT_BROWSE_FILTERS }, saved: false };
   }
@@ -154,4 +154,15 @@ export function clearPersistedBrowseFilters(): void {
   } catch {
     /* ignore */
   }
+}
+
+/** Age, gender, and ethnicity are not public — drop them from client filters. */
+export function sanitizePublicFilters(f: BrowseFilters): BrowseFilters {
+  return {
+    ...f,
+    ageMin: null,
+    ageMax: null,
+    genders: [],
+    ethnicities: [],
+  };
 }

@@ -3,37 +3,9 @@ import { ChevronDown, ChevronLeft, SlidersHorizontal } from "lucide-react";
 import {
   browseFilterActiveCount,
   DEFAULT_BROWSE_FILTERS,
-  ETHNICITY_OPTIONS,
-  GENDER_OPTIONS,
   type BrowseFilters,
-  type GenderFilter,
 } from "@/lib/upset/browse-filters";
 import { cn, formatHeightInches } from "@/lib/utils";
-
-function Chip({
-  active,
-  onClick,
-  children,
-}: {
-  active?: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium tracking-tight transition",
-        active
-          ? "bg-fg text-bg shadow-sm"
-          : "bg-bg-soft/80 text-fg-muted hover:bg-bg-soft hover:text-fg",
-      )}
-    >
-      {children}
-    </button>
-  );
-}
 
 function snap(n: number, min: number, max: number, step: number) {
   const s = Math.round((n - min) / step) * step + min;
@@ -241,24 +213,6 @@ export function PlayerBrowseFilters({
   const set = (patch: Partial<BrowseFilters>) =>
     onChange({ ...value, ...patch });
 
-  const toggleGender = (g: GenderFilter) => {
-    const has = value.genders.includes(g);
-    set({
-      genders: has
-        ? value.genders.filter((x) => x !== g)
-        : [...value.genders, g],
-    });
-  };
-
-  const toggleEth = (e: string) => {
-    const has = value.ethnicities.includes(e);
-    set({
-      ethnicities: has
-        ? value.ethnicities.filter((x) => x !== e)
-        : [...value.ethnicities, e],
-    });
-  };
-
   return (
     <div
       className={cn(
@@ -351,16 +305,6 @@ export function PlayerBrowseFilters({
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3.5 pt-3.5 [-webkit-overflow-scrolling:touch]">
               <div className="space-y-4 pb-2">
                 <DualRangeSlider
-                  label="Age"
-                  min={18}
-                  max={55}
-                  step={1}
-                  valueMin={value.ageMin}
-                  valueMax={value.ageMax}
-                  onChange={(lo, hi) => set({ ageMin: lo, ageMax: hi })}
-                  format={(n) => (n >= 55 ? "55+" : String(n))}
-                />
-                <DualRangeSlider
                   label="Rating"
                   min={1000}
                   max={2200}
@@ -385,43 +329,6 @@ export function PlayerBrowseFilters({
                   onChange={(v) => set({ milesMax: v })}
                   max={25}
                 />
-              </div>
-
-              <div className="h-px bg-white/[0.05]" />
-
-              <div className="space-y-2.5 py-3">
-                <div>
-                  <p className="mb-1.5 text-[11px] font-medium text-fg-muted">
-                    Gender
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {GENDER_OPTIONS.map((g) => (
-                      <Chip
-                        key={g.id}
-                        active={value.genders.includes(g.id)}
-                        onClick={() => toggleGender(g.id)}
-                      >
-                        {g.label}
-                      </Chip>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <p className="mb-1.5 text-[11px] font-medium text-fg-muted">
-                    Ethnicity
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {ETHNICITY_OPTIONS.map((e) => (
-                      <Chip
-                        key={e}
-                        active={value.ethnicities.includes(e)}
-                        onClick={() => toggleEth(e)}
-                      >
-                        {e}
-                      </Chip>
-                    ))}
-                  </div>
-                </div>
               </div>
 
               <label className="mb-3 flex cursor-pointer items-center gap-2 rounded-xl border border-border bg-bg-soft/60 px-3 py-2">
