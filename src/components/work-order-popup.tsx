@@ -28,24 +28,46 @@ const OPTIONS: { id: WorkOrderKind; label: string }[] = KIND_ORDER.map((id) => (
 const CONFIRM_MSG =
   "Thank you for letting the city know. A ticket has been submitted. The mayor may be in touch with you to gather more details.";
 
-/** Compress for localStorage-friendly court-issue photos */
+const PHOTO_TARGET_CHARS = 220_000;
+
+/** Shrink a photo until it fits the server size cap. */
 export async function compressWorkOrderPhoto(file: File): Promise<string> {
   const bitmap = await createImageBitmap(file);
-  const max = 1280;
-  let { width, height } = bitmap;
-  if (width > max || height > max) {
-    const scale = max / Math.max(width, height);
-    width = Math.round(width * scale);
-    height = Math.round(height * scale);
-  }
+  let max = 960;
+  let quality = 0.68;
   const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
   const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Canvas unavailable");
-  ctx.drawImage(bitmap, 0, 0, width, height);
+  if (!ctx) {
+    bitmap.close();
+    throw new Error("Couldn’t process that photo.");
+  }
+
+  let dataUrl = "";
+  for (let i = 0; i < 8; i++) {
+    let { width, height } = bitmap;
+    if (width > max || height > max) {
+      const scale = max / Math.max(width, height);
+      width = Math.max(1, Math.round(width * scale));
+      height = Math.max(1, Math.round(height * scale));
+    }
+    canvas.width = width;
+    canvas.height = height;
+    ctx.fillStyle = "#111";
+    ctx.fillRect(0, 0, width, height);
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    dataUrl = canvas.toDataURL("image/jpeg", quality);
+    if (dataUrl.length <= PHOTO_TARGET_CHARS) {
+      bitmap.close();
+      return dataUrl;
+    }
+    if (quality > 0.42) quality -= 0.08;
+    else max = Math.round(max * 0.78);
+  }
   bitmap.close();
-  return canvas.toDataURL("image/jpeg", 0.72);
+  if (dataUrl.length > PHOTO_TARGET_CHARS) {
+    throw new Error("That photo is still too large. Try a different shot.");
+  }
+  return dataUrl;
 }
 
 /**
