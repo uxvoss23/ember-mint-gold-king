@@ -8,7 +8,7 @@ import {
   kFactor,
   rateSeries,
   RATING_CONSTANTS,
-} from "./engine";
+} from "./engine.ts";
 
 function assert(cond: boolean, msg: string) {
   if (!cond) throw new Error(msg);

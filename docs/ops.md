@@ -45,3 +45,8 @@ Server logs are JSON lines from `appLog` (`src/lib/log.ts`). Events: `auth.*`, `
 ## Repo hygiene
 
 `.gitignore` excludes `artifacts/`, `screenshots/`, `attachments/`, `.vercel/output/`, and `.env`. Do not commit those.
+
+## CI
+
+GitHub Actions (`.github/workflows/ci.yml`) runs typecheck, lint (`src`, max 50 warnings), unit tests, migrations, production build, preview smoke, and Playwright acceptance (`npm run test:e2e`).
+

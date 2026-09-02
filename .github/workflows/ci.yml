@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  accept:
+    name: typecheck · lint · test · build · e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - name: Preview smoke + acceptance
+        env:
+          BROWSER_SMOKE_TIMEOUT_MS: "60000"
+        run: |
+          npm run preview -- --host 127.0.0.1 --port 8080 &
+          preview_pid=$!
+          trap 'kill $preview_pid 2>/dev/null || true' EXIT
+          for i in $(seq 1 40); do
+            if curl -sf http://127.0.0.1:8080/ >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:8080/ >/dev/null
+          npm run test:smoke
+          npm run test:e2e
