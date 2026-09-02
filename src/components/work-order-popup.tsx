@@ -7,6 +7,8 @@ import {
   type WorkOrderKind,
 } from "@/lib/courts/social";
 import { cn } from "@/lib/utils";
+import { mutationError } from "@/lib/game/client-actions";
+import { useRequireAuth } from "@/lib/game/use-require-auth";
 
 const KIND_ORDER: WorkOrderKind[] = [
   "new_net",
@@ -61,6 +63,7 @@ export function WorkOrderPopup({
   onClose: () => void;
 }) {
   const social = useCourtSocial();
+  const requireAuth = useRequireAuth();
   const [kind, setKind] = useState<WorkOrderKind>("broken_rim");
   const [photos, setPhotos] = useState<string[]>([]);
   const [picking, setPicking] = useState(false);
@@ -91,22 +94,28 @@ export function WorkOrderPopup({
     }
   };
 
-  const submit = () => {
+  const submit = async () => {
+    if (!requireAuth("report")) return;
     setSubmitting(true);
-    social.addWorkOrder(courtId, kind, undefined, {
-      courtName,
-      reporter: "You",
-      photos: photos.length ? photos : undefined,
-      photoUrl: photos[0],
-    });
-    setMsg(CONFIRM_MSG);
-    setKind("broken_rim");
-    setPhotos([]);
-    setSubmitting(false);
-    window.setTimeout(() => {
-      setMsg(null);
-      onClose();
-    }, 10_000);
+    setMsg(null);
+    try {
+      await social.addWorkOrder(courtId, kind, undefined, {
+        courtName,
+        photos: photos.length ? photos : undefined,
+        photoUrl: photos[0],
+      });
+      setMsg(CONFIRM_MSG);
+      setKind("broken_rim");
+      setPhotos([]);
+      window.setTimeout(() => {
+        setMsg(null);
+        onClose();
+      }, 10_000);
+    } catch (err) {
+      setMsg(mutationError(err));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return createPortal(

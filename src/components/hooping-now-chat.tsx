@@ -128,7 +128,9 @@ export function HoopingNowChat({
   const send = useCallback(() => {
     const t = draft.trim();
     if (!t) return;
-    postHoopChat(checkIn.id, t, authorName);
+    postHoopChat(checkIn.id, t, authorName).catch(() => {
+      /* next hydrate recovers */
+    });
     setDraft("");
     // Also wipe the DOM node in case iOS keeps ghost text
     if (inputRef.current) {

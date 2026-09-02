@@ -1,5 +1,5 @@
+import { useEffect } from "react";
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
 
 export type WorkOrderKind =
   | "new_net"
@@ -80,7 +80,12 @@ interface CourtSocialState {
   favoriteBonus: Record<string, number>;
   workOrders: WorkOrder[];
   checkIns: HoopCheckIn[];
-  addReview: (courtId: string, rating: number, text: string, author?: string) => void;
+  addReview: (
+    courtId: string,
+    rating: number,
+    text: string,
+    author?: string,
+  ) => Promise<void>;
   addWorkOrder: (
     courtId: string,
     kind: WorkOrderKind,
@@ -91,23 +96,24 @@ interface CourtSocialState {
       photoUrl?: string;
       photos?: string[];
     },
-  ) => void;
-  setWorkOrderStatus: (id: string, status: WorkOrderStatus) => void;
+  ) => Promise<void>;
+  setWorkOrderStatus: (id: string, status: WorkOrderStatus) => Promise<void>;
   bumpFavorite: (courtId: string) => void;
-  /** First reporter: photo required. Auto-posts chat announce. Returns the new post. */
   addCheckIn: (input: {
     courtId: string;
     courtName?: string;
     photoUrl: string;
     author?: string;
-  }) => HoopCheckIn | null;
-  /** Later arrivals: simple one-tap confirm on an existing live post */
-  verifyCheckIn: (checkInId: string, author?: string) => void;
-  /** Post to the hooping-now group chat (open to everyone) */
-  postHoopChat: (checkInId: string, text: string, author?: string) => void;
-  /** @deprecated use postHoopChat */
-  commentOnCheckIn: (checkInId: string, text: string, author?: string) => void;
+  }) => Promise<HoopCheckIn | null>;
+  verifyCheckIn: (checkInId: string, author?: string) => Promise<void>;
+  postHoopChat: (checkInId: string, text: string, author?: string) => Promise<void>;
+  commentOnCheckIn: (checkInId: string, text: string, author?: string) => Promise<void>;
   clearCheckIns: () => void;
+  applySnapshot: (snap: {
+    reviews: CourtReview[];
+    workOrders: WorkOrder[];
+    checkIns: HoopCheckIn[];
+  }) => void;
 }
 
 function hashCount(id: string, min: number, max: number) {
@@ -268,241 +274,102 @@ export function patternsForCourt(
   return { summary, sample: mine.length };
 }
 
-const SEED_REVIEWS: CourtReview[] = [
-  {
-    id: "r1",
-    courtId: "cat-zilker",
-    author: "Marcus H.",
-    rating: 5,
-    text: "Best outdoor run in central Austin. Bring water on weekends.",
-    at: "2026-07-12T18:00:00.000Z",
-  },
-  {
-    id: "r2",
-    courtId: "cat-battle-bend",
-    author: "Cam O.",
-    rating: 4,
-    text: "Solid surface, gets busy Friday nights. Nets are good.",
-    at: "2026-07-20T19:30:00.000Z",
-  },
-  {
-    id: "r3",
-    courtId: "cat-givens",
-    author: "Sean R.",
-    rating: 5,
-    text: "East side staple. Lights until late. Competitive but fair.",
-    at: "2026-07-28T21:00:00.000Z",
-  },
-  {
-    id: "r4",
-    courtId: "cat-pease",
-    author: "Jia N.",
-    rating: 4,
-    text: "Shady in the afternoon. Great for kids earlier, then adult runs.",
-    at: "2026-08-01T16:00:00.000Z",
-  },
-  {
-    id: "r5",
-    courtId: "cat-bartholomew",
-    author: "Riley C.",
-    rating: 3,
-    text: "Courts are fine — one rim is a little soft. Still playable.",
-    at: "2026-07-15T17:00:00.000Z",
-  },
-];
-
-const SEED_ORDERS: WorkOrder[] = [
-  {
-    id: "wo-seed-1",
-    courtId: "cat-bartholomew",
-    courtName: "Bartholomew District Park",
-    kind: "broken_rim",
-    at: "2026-08-03T15:20:00.000Z",
-    status: "submitted",
-    reporter: "Riley C.",
-  },
-  {
-    id: "wo-seed-2",
-    courtId: "cat-rosewood",
-    courtName: "Rosewood Park",
-    kind: "new_net",
-    at: "2026-08-04T19:05:00.000Z",
-    status: "received",
-    reporter: "Marcus H.",
-  },
-];
-
-function minutesAgo(mins: number): string {
-  return new Date(Date.now() - mins * 60_000).toISOString();
+function applySnap(
+  snap: { reviews: CourtReview[]; workOrders: WorkOrder[]; checkIns: HoopCheckIn[] },
+) {
+  useCourtSocial.setState({
+    reviews: snap.reviews,
+    workOrders: snap.workOrders,
+    checkIns: snap.checkIns,
+  });
 }
 
-function daysAgoAt(days: number, hour: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() - days);
-  d.setHours(hour, 15, 0, 0);
-  return d.toISOString();
+export async function refreshCourtSocial() {
+  const { listCourtSocialFn } = await import("@/lib/courts/social-fns");
+  const snap = await listCourtSocialFn();
+  applySnap(snap);
+  return snap;
 }
 
-/** Empty on purpose — start fresh; users create live posts via Confirm Pick Game */
-const SEED_CHECKINS: HoopCheckIn[] = [];
-
-export const useCourtSocial = create<CourtSocialState>()(
-  persist(
-    (set) => ({
-      reviews: SEED_REVIEWS,
-      favoriteBonus: {},
-      workOrders: SEED_ORDERS,
-      checkIns: SEED_CHECKINS,
-      addReview: (courtId, rating, text, author = "You") => {
-        const t = text.trim();
-        if (!t) return;
-        set((s) => ({
-          reviews: [
-            {
-              id: `r-${Date.now().toString(36)}`,
-              courtId,
-              author,
-              rating: Math.min(5, Math.max(1, rating)),
-              text: t,
-              at: new Date().toISOString(),
-            },
-            ...s.reviews,
-          ],
-        }));
-      },
-      addWorkOrder: (courtId, kind, detail, meta) => {
-        set((s) => ({
-          workOrders: [
-            {
-              id: `wo-${Date.now().toString(36)}`,
-              courtId,
-              courtName: meta?.courtName,
-              kind,
-              detail: detail?.trim() || undefined,
-              at: new Date().toISOString(),
-              status: "submitted",
-              reporter: meta?.reporter ?? "Player",
-              photoUrl: meta?.photos?.[0] ?? meta?.photoUrl,
-              photos:
-                meta?.photos && meta.photos.length
-                  ? meta.photos
-                  : meta?.photoUrl
-                    ? [meta.photoUrl]
-                    : undefined,
-            },
-            ...s.workOrders,
-          ],
-        }));
-      },
-      setWorkOrderStatus: (id, status) => {
-        set((s) => ({
-          workOrders: s.workOrders.map((w) =>
-            w.id === id ? { ...w, status } : w,
-          ),
-        }));
-      },
-      bumpFavorite: (courtId) => {
-        set((s) => ({
-          favoriteBonus: {
-            ...s.favoriteBonus,
-            [courtId]: (s.favoriteBonus[courtId] ?? 0) + 1,
-          },
-        }));
-      },
-      addCheckIn: ({ courtId, courtName, photoUrl, author }) => {
-        if (!photoUrl) return null;
-        const at = new Date().toISOString();
-        const who = author ?? "You";
-        const announce: HoopChatMessage = {
-          id: `hm-auto-${Date.now().toString(36)}`,
-          author: who,
-          text: hoopingNowAnnounceText(courtName),
-          at,
-          photoUrl,
-          system: true,
-        };
-        const row: HoopCheckIn = {
-          id: `ci-${Date.now().toString(36)}`,
+export const useCourtSocial = create<CourtSocialState>()((set, get) => ({
+  reviews: [],
+  favoriteBonus: {},
+  workOrders: [],
+  checkIns: [],
+  applySnapshot: (snap) => applySnap(snap),
+  addReview: async (courtId, rating, text) => {
+    const t = text.trim();
+    if (!t) return;
+    const { addCourtReviewFn } = await import("@/lib/courts/social-fns");
+    applySnap(
+      await addCourtReviewFn({ data: { courtId, rating, text: t } }),
+    );
+  },
+  addWorkOrder: async (courtId, kind, detail, meta) => {
+    const { addWorkOrderFn } = await import("@/lib/courts/social-fns");
+    applySnap(
+      await addWorkOrderFn({
+        data: {
           courtId,
-          courtName,
-          author: who,
-          photoUrl,
-          at,
-          verifications: [],
-          chat: [announce],
-          comments: [],
-        };
-        set((s) => ({
-          checkIns: [row, ...s.checkIns],
-        }));
-        return row;
+          kind,
+          courtName: meta?.courtName,
+          detail: detail?.trim() || undefined,
+          photos: meta?.photos?.length
+            ? meta.photos
+            : meta?.photoUrl
+              ? [meta.photoUrl]
+              : undefined,
+        },
+      }),
+    );
+  },
+  setWorkOrderStatus: async (id, status) => {
+    const { setWorkOrderStatusFn } = await import("@/lib/courts/social-fns");
+    applySnap(await setWorkOrderStatusFn({ data: { id, status } }));
+  },
+  bumpFavorite: (courtId) => {
+    set((s) => ({
+      favoriteBonus: {
+        ...s.favoriteBonus,
+        [courtId]: (s.favoriteBonus[courtId] ?? 0) + 1,
       },
-      verifyCheckIn: (checkInId, author = "You") => {
-        set((s) => ({
-          checkIns: s.checkIns.map((c) => {
-            if (c.id !== checkInId) return c;
-            if (c.author === author) return c;
-            if ((c.verifications ?? []).some((v) => v.author === author)) {
-              return c;
-            }
-            return {
-              ...c,
-              verifications: [
-                ...(c.verifications ?? []),
-                { author, at: new Date().toISOString() },
-              ],
-            };
-          }),
-        }));
-      },
-      postHoopChat: (checkInId, text, author = "You") => {
-        const t = text.trim();
-        if (!t) return;
-        const msg: HoopChatMessage = {
-          id: `hc-${Date.now().toString(36)}`,
-          author,
-          text: t,
-          at: new Date().toISOString(),
-        };
-        set((s) => ({
-          checkIns: s.checkIns.map((c) => {
-            if (c.id !== checkInId) return c;
-            const prev = c.chat?.length ? c.chat : (c.comments ?? []);
-            return {
-              ...c,
-              chat: [...prev, msg],
-              comments: [...prev, msg],
-            };
-          }),
-        }));
-      },
-      commentOnCheckIn: (checkInId, text, author = "You") => {
-        // legacy alias
-        const t = text.trim();
-        if (!t) return;
-        const msg: HoopChatMessage = {
-          id: `hc-${Date.now().toString(36)}`,
-          author,
-          text: t,
-          at: new Date().toISOString(),
-        };
-        set((s) => ({
-          checkIns: s.checkIns.map((c) => {
-            if (c.id !== checkInId) return c;
-            const prev = c.chat?.length ? c.chat : (c.comments ?? []);
-            return {
-              ...c,
-              chat: [...prev, msg],
-              comments: [...prev, msg],
-            };
-          }),
-        }));
-      },
-      clearCheckIns: () => set({ checkIns: [] }),
-    }),
-    { name: "court-social-v9" },
-  ),
-);
+    }));
+  },
+  addCheckIn: async ({ courtId, courtName, photoUrl }) => {
+    if (!photoUrl) return null;
+    const { addHoopCheckInFn } = await import("@/lib/courts/social-fns");
+    applySnap(
+      await addHoopCheckInFn({ data: { courtId, courtName, photoUrl } }),
+    );
+    return (
+      get().checkIns.find(
+        (c) => c.courtId === courtId && c.photoUrl === photoUrl,
+      ) ?? get().checkIns[0] ?? null
+    );
+  },
+  verifyCheckIn: async (checkInId) => {
+    const { verifyHoopCheckInFn } = await import("@/lib/courts/social-fns");
+    applySnap(await verifyHoopCheckInFn({ data: { checkInId } }));
+  },
+  postHoopChat: async (checkInId, text) => {
+    const t = text.trim();
+    if (!t) return;
+    const { postHoopChatFn } = await import("@/lib/courts/social-fns");
+    applySnap(await postHoopChatFn({ data: { checkInId, text: t } }));
+  },
+  commentOnCheckIn: async (checkInId, text) => {
+    await get().postHoopChat(checkInId, text);
+  },
+  clearCheckIns: () => set({ checkIns: [] }),
+}));
+
+export function useHydrateCourtSocial() {
+  useEffect(() => {
+    void refreshCourtSocial().catch(() => {
+      /* empty until signed actions or next retry */
+    });
+  }, []);
+}
 
 export function favoriteCountFor(
   courtId: string,

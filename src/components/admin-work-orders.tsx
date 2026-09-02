@@ -93,7 +93,7 @@ function OrderCard({
             <button
               key={st}
               type="button"
-              onClick={() => setStatus(w.id, st)}
+              onClick={() => void setStatus(w.id, st)}
               className={cn(
                 "rounded-full px-2 py-0.5 text-[10px] font-semibold",
                 w.status === st

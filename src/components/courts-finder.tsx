@@ -43,10 +43,13 @@ import {
   patternsForCourt,
   reviewsFor,
   useCourtSocial,
+  useHydrateCourtSocial,
   type WorkOrderKind,
 } from "@/lib/courts/social";
 import type { Court, UserLocation } from "@/lib/courts/types";
 import { useUpsetStore } from "@/lib/upset/store";
+import { mutationError } from "@/lib/game/client-actions";
+import { useRequireAuth } from "@/lib/game/use-require-auth";
 import { cn, formatDistance, haversineMeters, milesToMeters } from "@/lib/utils";
 
 /* ─── Sheet heights (% of courts root) ─────────────────────────────────── */
@@ -166,6 +169,7 @@ const SelectedCourtPreview = memo(function SelectedCourtPreview({
   onQuickMatch?: (court: Court) => void;
 }) {
   const social = useCourtSocial();
+  const requireAuth = useRequireAuth();
   const favorites = useFavorites();
   const store = useUpsetStore();
   const me = store.me;
@@ -198,31 +202,45 @@ const SelectedCourtPreview = memo(function SelectedCourtPreview({
     if (!isFav) social.bumpFavorite(court.id);
   };
 
-  const onVerify = () => {
+  const onVerify = async () => {
     if (!live) return;
-    social.verifyCheckIn(live.id, authorFirst);
+    if (!requireAuth("check in")) return;
+    try {
+      await social.verifyCheckIn(live.id, authorFirst);
+    } catch (err) {
+      setWoMsg(mutationError(err));
+    }
   };
 
-  const submitPickup = (input: { photoUrl: string }) => {
-    const ci = social.addCheckIn({
-      courtId: court.id,
-      courtName: display.name,
-      photoUrl: input.photoUrl,
-      author: authorFirst,
-    });
-    setPostOpen(false);
-    if (!ci) return;
+  const submitPickup = async (input: { photoUrl: string }) => {
+    if (!requireAuth("check in")) return;
+    try {
+      await social.addCheckIn({
+        courtId: court.id,
+        courtName: display.name,
+        photoUrl: input.photoUrl,
+        author: authorFirst,
+      });
+      setPostOpen(false);
+    } catch (err) {
+      setWoMsg(mutationError(err));
+    }
   };
 
-  const submitWo = () => {
-    social.addWorkOrder(court.id, woKind, undefined, {
-      courtName: display.name,
-      reporter: authorFirst,
-    });
-    setWoMsg(
-      "Thank you for letting the city know. A ticket has been submitted. The mayor may be in touch with you to gather more details.",
-    );
-    window.setTimeout(() => setWoMsg(null), 10_000);
+  const submitWo = async () => {
+    if (!requireAuth("report")) return;
+    try {
+      await social.addWorkOrder(court.id, woKind, undefined, {
+        courtName: display.name,
+        reporter: authorFirst,
+      });
+      setWoMsg(
+        "Thank you for letting the city know. A ticket has been submitted.",
+      );
+      window.setTimeout(() => setWoMsg(null), 10_000);
+    } catch (err) {
+      setWoMsg(mutationError(err));
+    }
   };
 
   const verified = live ? hasVerified(live, authorFirst) : false;
@@ -606,6 +624,7 @@ export function CourtsFinder({
   focusCourtId,
   onFocusCourtConsumed,
 }: CourtsFinderProps) {
+  useHydrateCourtSocial();
   const social = useCourtSocial();
   const favorites = useFavorites();
   const rootRef = useRef<HTMLDivElement>(null);

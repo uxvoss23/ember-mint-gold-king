@@ -34,6 +34,8 @@ import { compressWorkOrderPhoto } from "@/components/work-order-popup";
 import { ImageCarousel } from "@/components/image-carousel";
 import { directionsUrl } from "@/lib/maps/directions";
 import { cn, formatDistance } from "@/lib/utils";
+import { mutationError } from "@/lib/game/client-actions";
+import { useRequireAuth } from "@/lib/game/use-require-auth";
 
 const AMENITY_LABEL: Record<string, string> = {
   lights: "Lights",
@@ -67,6 +69,7 @@ export function CourtDetail({ court, onClose, onQuickMatch }: CourtDetailProps) 
   const woLibRef = useRef<HTMLInputElement>(null);
 
   const authUser = useCurrentUser();
+  const requireAuth = useRequireAuth();
   const ov = useCourtAdmin((s) => (court ? s.overrides[court.id] : undefined));
   const admin = isAdminEmail(authUser?.primaryEmail);
 
@@ -89,25 +92,34 @@ export function CourtDetail({ court, onClose, onQuickMatch }: CourtDetailProps) 
     if (!was) social.bumpFavorite(court.id);
   };
 
-  const submitReview = () => {
+  const submitReview = async () => {
     if (!reviewText.trim()) return;
-    social.addReview(court.id, reviewStars, reviewText);
-    setReviewText("");
-    setReviewStars(5);
+    if (!requireAuth("review")) return;
+    try {
+      await social.addReview(court.id, reviewStars, reviewText);
+      setReviewText("");
+      setReviewStars(5);
+    } catch (err) {
+      setWoMsg(mutationError(err));
+    }
   };
 
-  const submitWorkOrder = () => {
-    social.addWorkOrder(court.id, woKind, undefined, {
-      courtName: display.name,
-      reporter: "You",
-      photos: woPhotos.length ? woPhotos : undefined,
-      photoUrl: woPhotos[0],
-    });
-    setWoMsg(
-      "Thank you for letting the city know. A ticket has been submitted. The mayor may be in touch with you to gather more details.",
-    );
-    setWoPhotos([]);
-    window.setTimeout(() => setWoMsg(null), 10_000);
+  const submitWorkOrder = async () => {
+    if (!requireAuth("report")) return;
+    try {
+      await social.addWorkOrder(court.id, woKind, undefined, {
+        courtName: display.name,
+        photos: woPhotos.length ? woPhotos : undefined,
+        photoUrl: woPhotos[0],
+      });
+      setWoMsg(
+        "Thank you for letting the city know. A ticket has been submitted.",
+      );
+      setWoPhotos([]);
+      window.setTimeout(() => setWoMsg(null), 10_000);
+    } catch (err) {
+      setWoMsg(mutationError(err));
+    }
   };
 
   const pickWoPhoto = async (files: FileList | File[] | null) => {
