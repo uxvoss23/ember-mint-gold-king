@@ -78,7 +78,7 @@ export function SceneShell({
   const { user } = useCurrentUserState();
   const signedIn = !!user && store.me.id !== GUEST_PLAYER_ID;
   const tabsHidden = useTabBarGate((s) => s.hidden);
-  const [home, setHome] = useState<SceneHome>("games");
+  const [home, setHome] = useState<SceneHome>("courts");
   const [selectedCourt, setSelectedCourt] = useState<Court | null>(null);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [matchDetail, setMatchDetail] = useState<Match | null>(null);
@@ -88,7 +88,7 @@ export function SceneShell({
   /** Courts tab → Play "create game" with this court locked */
   const [presetCourt, setPresetCourt] = useState<Court | null>(null);
   const [playImmersive, setPlayImmersive] = useState(false);
-  const [courtsVisited, setCourtsVisited] = useState(false);
+  const [courtsVisited, setCourtsVisited] = useState(true);
   const [boardVisited, setBoardVisited] = useState(false);
   const [youVisited, setYouVisited] = useState(false);
   const [needProfile, setNeedProfile] = useState(false);
@@ -126,7 +126,7 @@ export function SceneShell({
         ? "Play"
         : home === "courts"
           ? "Courts"
-          : "You";
+          : "Me";
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -410,8 +410,10 @@ export function SceneShell({
         <div className="pointer-events-auto relative flex w-full max-w-lg items-end rounded-2xl border border-border-strong bg-bg-elevated/95 px-0.5 py-0.5 shadow-soft backdrop-blur-md">
           {(
             [
+              { id: "courts" as const, label: "Courts", icon: MapPinned },
               { id: "games" as const, label: "Play", icon: Zap },
-              { id: "leaderboard" as const, label: "Board", icon: Trophy },
+              { id: "leaderboard" as const, label: "Leaderboard", icon: Trophy },
+              { id: "you" as const, label: "Me", icon: User },
             ] as const
           ).map((t) => (
             <button
@@ -419,62 +421,16 @@ export function SceneShell({
               type="button"
               onClick={() => goHome(t.id)}
               className={cn(
-                "flex flex-1 flex-col items-center gap-0 rounded-xl py-1.5 text-[9px] font-semibold leading-tight",
+                "flex min-w-0 flex-1 flex-col items-center gap-0 rounded-xl px-0.5 py-1.5 text-[9px] font-semibold leading-tight",
                 home === t.id ? "bg-bg-soft text-fg" : "text-fg-muted",
               )}
+              aria-label={t.label}
               aria-current={home === t.id ? "page" : undefined}
             >
-              <t.icon className="size-3.5" strokeWidth={1.75} />
-              {t.label}
-            </button>
-          ))}
-
-          <div className="relative flex w-14 shrink-0 flex-col items-center justify-end">
-            <button
-              type="button"
-              onClick={() => goHome("courts")}
-              className="flex -translate-y-1.5 flex-col items-center gap-0 transition-transform active:scale-95"
-              aria-label="Nearby courts"
-              aria-pressed={home === "courts"}
-              aria-current={home === "courts" ? "page" : undefined}
-            >
-              <span
-                className={cn(
-                  "flex size-11 items-center justify-center rounded-full border-[3px] border-bg shadow-soft",
-                  home === "courts"
-                    ? "bg-court text-white"
-                    : "bg-bg-elevated text-fg-muted",
-                )}
-              >
-                <MapPinned className="size-4" strokeWidth={2} />
-              </span>
-              <span
-                className={cn(
-                  "text-[9px] font-semibold leading-tight",
-                  home === "courts" ? "text-court" : "text-fg-muted",
-                )}
-              >
-                Courts
-              </span>
-            </button>
-          </div>
-
-          {(
-            [
-              { id: "you" as const, label: "You", icon: User },
-            ] as const
-          ).map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => goHome(t.id)}
-              className={cn(
-                "flex flex-1 flex-col items-center gap-0 rounded-xl py-1.5 text-[9px] font-semibold leading-tight",
-                home === t.id ? "bg-bg-soft text-fg" : "text-fg-muted",
-              )}
-              aria-current={home === t.id ? "page" : undefined}
-            >
-              <t.icon className="size-3.5" strokeWidth={1.75} />
+              <t.icon
+                className={cn("size-3.5", home === t.id && t.id === "courts" && "text-court")}
+                strokeWidth={1.75}
+              />
               {t.label}
             </button>
           ))}

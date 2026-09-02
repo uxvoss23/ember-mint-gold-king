@@ -2402,12 +2402,12 @@ export function QuickMatchFlow({
             invitedIds={selected.guestInviteIds ?? []}
             friendIds={friendIds}
             playersById={playerById}
-            onInvite={(pid) => {
-              const r = store.inviteToMatch(selected.id, pid);
-              if (!r.ok) return r;
-              return { ok: true as const };
-            }}
-            onAddFriend={(pid) => store.addFriend(pid)}
+            onInvite={() => ({
+              ok: false as const,
+              reason:
+                "Invite when you create the match — later invites aren’t saved on the server yet.",
+            })}
+            onAddFriend={() => undefined}
             onClose={() => setInviteOpen(false)}
           />
         ) : null}

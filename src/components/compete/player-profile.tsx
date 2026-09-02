@@ -7,7 +7,7 @@ import { formatLocalWhen, useUpsetStore } from "@/lib/upset/store";
 import type { Player } from "@/lib/upset/types";
 import { formatHeightInches } from "@/lib/utils";
 import { isDemoMode } from "@/lib/config";
-import { challengePlayerFn } from "@/lib/game/fns";
+import { challengePlayerFn, blockPlayerFn, reportPlayerFn } from "@/lib/game/fns";
 import { GUEST_PLAYER_ID } from "@/lib/game/guest";
 import { mutationError, refreshCompetitiveSnapshot } from "@/lib/game/client-actions";
 import { useRequireAuth } from "@/lib/game/use-require-auth";
@@ -109,12 +109,35 @@ export function PlayerProfile({
 
   const send = () => {
     if (!requireAuth("message")) return;
-    const r = store.sendDm(player.id, msg);
-    if (r.ok) {
-      setMsg("");
-      setStatus("Message sent (request inbox if first contact).");
-    } else {
-      setStatus(r.reason);
+    setStatus("Direct messages aren’t on the server yet. Chat inside a shared 1v1.");
+  };
+
+  const toggleFriend = () => {
+    if (!requireAuth("challenge")) return;
+    setStatus("Friend lists aren’t on the server yet. Challenge or share a 1v1 instead.");
+  };
+
+  const block = async () => {
+    if (!requireAuth("challenge")) return;
+    try {
+      await blockPlayerFn({ data: { targetId: player.id } });
+      await refreshCompetitiveSnapshot();
+      setStatus("Blocked.");
+      onClose();
+    } catch (err) {
+      setStatus(mutationError(err));
+    }
+  };
+
+  const report = async () => {
+    if (!requireAuth("challenge")) return;
+    try {
+      await reportPlayerFn({
+        data: { targetId: player.id, reason: "user report" },
+      });
+      setStatus("Report filed for review.");
+    } catch (err) {
+      setStatus(mutationError(err));
     }
   };
 
@@ -249,33 +272,23 @@ export function PlayerProfile({
 
             <button
               type="button"
-              onClick={() => {
-                const isFriend = (store.friendIds ?? []).includes(player.id);
-                if (isFriend) {
-                  store.removeFriend(player.id);
-                  setStatus("Removed from friends.");
-                } else {
-                  store.addFriend(player.id);
-                  setStatus("Added as friend.");
-                }
-              }}
-              className="flex h-10 w-full items-center justify-center rounded-xl border border-border text-sm font-semibold text-fg"
+              onClick={toggleFriend}
+              className="flex h-10 w-full items-center justify-center rounded-xl border border-border text-sm font-semibold text-fg-muted"
             >
-              {(store.friendIds ?? []).includes(player.id)
-                ? "Friends — tap to remove"
-                : "Add friend"}
+              Add friend — not live yet
             </button>
             <div className="flex gap-2">
               <input
                 value={msg}
                 onChange={(e) => setMsg(e.target.value)}
-                placeholder="First message goes to requests…"
-                className="h-11 flex-1 rounded-xl border border-border bg-bg-subtle px-3 text-sm text-fg outline-none"
+                placeholder="DMs aren’t live — use game chat"
+                disabled
+                className="h-11 flex-1 rounded-xl border border-border bg-bg-subtle px-3 text-sm text-fg-subtle outline-none"
               />
               <button
                 type="button"
                 onClick={send}
-                className="h-11 rounded-xl bg-accent px-4 text-sm font-semibold text-accent-fg"
+                className="h-11 rounded-xl border border-border px-4 text-sm font-semibold text-fg-muted"
               >
                 Send
               </button>
@@ -283,21 +296,14 @@ export function PlayerProfile({
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => {
-                  store.blockPlayer(player.id);
-                  setStatus("Blocked — removed from catalog and DMs.");
-                  onClose();
-                }}
+                onClick={() => void block()}
                 className="h-10 flex-1 rounded-xl border border-border text-xs font-medium text-fg-muted"
               >
                 Block
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  store.reportPlayer(player.id, "user report");
-                  setStatus("Report filed for review.");
-                }}
+                onClick={() => void report()}
                 className="flex h-10 flex-1 items-center justify-center gap-1 rounded-xl border border-border text-xs font-medium text-fg-muted"
               >
                 <Flag className="size-3.5" strokeWidth={2} />
