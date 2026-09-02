@@ -43,9 +43,8 @@ interface PlayHubProps {
 }
 
 /**
- * Play = two on-ramps to a locked 1v1:
- * Open games (time/place first) + Match Mode (person first).
- * + Create feeds the open list.
+ * Play = on-ramps to a locked 1v1:
+ * Open games (time/place first). Match Mode stays hidden unless enabled.
  */
 export const PlayHub = memo(function PlayHub({
   me,

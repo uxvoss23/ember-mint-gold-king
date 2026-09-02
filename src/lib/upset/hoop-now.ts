@@ -379,8 +379,22 @@ type HoopNowState = {
   declineChallenge: (challengeId: string) => void;
 };
 
-function seedPrefs(): Record<string, HoopDayPrefs> {
-  return { ...DEMO_PREFS };
+function demoSeedIds(): string[] {
+  return isDemoMode() ? DEMO_SEED_IDS : [];
+}
+
+function demoPrefs(): Record<string, HoopDayPrefs> {
+  return isDemoMode() ? { ...DEMO_PREFS } : {};
+}
+
+function demoAvailability(): Record<string, SoftAvailability> {
+  return isDemoMode() ? seedDemoAvailability() : {};
+}
+
+function stripDemoIds(ids: string[]): string[] {
+  if (isDemoMode()) return ids;
+  const demo = new Set(DEMO_SEED_IDS);
+  return ids.filter((id) => !demo.has(id));
 }
 
 export const useHoopNow = create<HoopNowState>()(
@@ -393,23 +407,35 @@ export const useHoopNow = create<HoopNowState>()(
       likedIds: [],
       matches: [],
       pending: [],
-      softAvailability: seedDemoAvailability(),
+      softAvailability: demoAvailability(),
       ensureToday: () => {
         const today = todayKey();
         const s = get();
+        if (!isDemoMode()) {
+          const nextIds = stripDemoIds(s.playerIds);
+          if (s.day !== today) {
+            set({
+              day: today,
+              playerIds: nextIds,
+              passedIds: [],
+            });
+            return;
+          }
+          if (nextIds.length !== s.playerIds.length) {
+            set({ playerIds: nextIds });
+          }
+          return;
+        }
         if (s.day !== today) {
-          // New calendar day: refresh who is "in the pool" for swipe,
-          // but keep open matches & history so you can book later in the week.
           set({
             day: today,
             playerIds: [...DEMO_SEED_IDS],
-            prefsById: seedPrefs(),
+            prefsById: demoPrefs(),
             passedIds: [],
-            // keep likedIds + matches + pending
           });
           return;
         }
-        const seedAv = seedDemoAvailability();
+        const seedAv = demoAvailability();
         const stored = s.softAvailability ?? {};
         const mergedSoft: Record<string, SoftAvailability> = {
           ...seedAv,
@@ -426,7 +452,7 @@ export const useHoopNow = create<HoopNowState>()(
         if (missing.length > 0 || s.playerIds.length === 0) {
           set({
             playerIds: [...new Set([...DEMO_SEED_IDS, ...s.playerIds])],
-            prefsById: { ...seedPrefs(), ...s.prefsById },
+            prefsById: { ...demoPrefs(), ...s.prefsById },
             softAvailability: mergedSoft,
           });
         } else if (Object.keys(stored).length === 0) {
@@ -474,17 +500,17 @@ export const useHoopNow = create<HoopNowState>()(
         get().ensureToday();
         set((s) => ({
           day: todayKey(),
-          playerIds: s.playerIds.length > 0 ? s.playerIds : [...DEMO_SEED_IDS],
+          playerIds: s.playerIds.length > 0 ? s.playerIds : [...demoSeedIds()],
           prefsById:
-            Object.keys(s.prefsById).length > 0 ? s.prefsById : seedPrefs(),
+            Object.keys(s.prefsById).length > 0 ? s.prefsById : demoPrefs(),
           passedIds: [],
         }));
       },
       resetMatchMode: () => {
         set({
           day: todayKey(),
-          playerIds: [...DEMO_SEED_IDS],
-          prefsById: seedPrefs(),
+          playerIds: [...demoSeedIds()],
+          prefsById: demoPrefs(),
           passedIds: [],
           likedIds: [],
           matches: [],
@@ -498,8 +524,9 @@ export const useHoopNow = create<HoopNowState>()(
       },
       prefsFor: (playerId) => {
         const s = get();
-        if (s.day !== todayKey()) return DEMO_PREFS[playerId] ?? null;
-        return s.prefsById[playerId] ?? DEMO_PREFS[playerId] ?? null;
+        if (s.day !== todayKey()) return isDemoMode() ? DEMO_PREFS[playerId] ?? null : null;
+        if (s.prefsById[playerId]) return s.prefsById[playerId] ?? null;
+        return isDemoMode() ? DEMO_PREFS[playerId] ?? null : null;
       },
       setSoftAvailability: (playerId, av) => {
         set((s) => ({
@@ -530,7 +557,7 @@ export const useHoopNow = create<HoopNowState>()(
       softAvailabilityFor: (playerId) => {
         const s = get();
         const av = s.softAvailability[playerId];
-        if (!av) return seedDemoAvailability()[playerId] ?? null;
+        if (!av) return demoAvailability()[playerId] ?? null;
         return {
           ...av,
           travelRadiusMiles:
@@ -897,8 +924,8 @@ export const useHoopNow = create<HoopNowState>()(
         return {
           ...s,
           softAvailability: soft,
-          playerIds: [...DEMO_SEED_IDS],
-          prefsById: { ...seedPrefs(), ...prefs },
+          playerIds: [...demoSeedIds()],
+          prefsById: { ...demoPrefs(), ...prefs },
           passedIds: [],
           likedIds: [],
           matches: [],

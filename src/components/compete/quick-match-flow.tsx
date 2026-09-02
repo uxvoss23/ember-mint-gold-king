@@ -369,6 +369,12 @@ export function QuickMatchFlow({
   }, [active, view, onImmersiveChange, setTabsHidden]);
 
   useEffect(() => {
+    if (view === "hoop_now" && !isMatchModeEnabled()) {
+      setView("explore");
+    }
+  }, [view]);
+
+  useEffect(() => {
     if (!active) {
       onImmersiveChange?.(false);
       setTabsHidden(false);

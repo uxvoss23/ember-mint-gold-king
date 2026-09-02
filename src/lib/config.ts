@@ -4,10 +4,12 @@
  * Client-visible flags MUST use the `VITE_` prefix (Vite inlines them).
  * Missing values default to the safest production behavior.
  *
+ * Canonical list: `.env.example` (keep `env.example` identical).
+ *
  * - VITE_DEMO_MODE=true  → labeled seed/demo data is allowed
  * - VITE_DEMO_MODE unset/false → production: no seeded competitive data
- * - VITE_MATCH_MODE=true/false → force Match Mode on/off
- * - VITE_MATCH_MODE unset → Match Mode stays on
+ * - VITE_MATCH_MODE=true → show Match Mode (must be server-backed)
+ * - VITE_MATCH_MODE unset/false → Match Mode hidden
  */
 
 function viteFlag(name: string): string | undefined {
@@ -23,10 +25,11 @@ export function isDemoMode(): boolean {
 }
 
 /**
- * Person-first swipe matcher. On unless explicitly set to "false".
+ * Person-first swipe matcher. Off until explicitly enabled.
+ * Server functions exist; keep the tile hidden until two real accounts work.
  */
 export function isMatchModeEnabled(): boolean {
-  return viteFlag("VITE_MATCH_MODE") !== "false";
+  return viteFlag("VITE_MATCH_MODE") === "true";
 }
 
 /** Starting rating for a new real account. */
