@@ -25,6 +25,9 @@ import {
 import { CourtsMap } from "@/components/courts-map";
 import { ConfirmPickupPopup } from "@/components/confirm-pickup-popup";
 import { ImageCarousel } from "@/components/image-carousel";
+import { AdminEditCourtButton } from "@/components/admin-court-editor";
+import { isAdminEmail } from "@/lib/auth/admin";
+import { useCurrentUser } from "@/lib/auth/use-current-user";
 import {
   mergeCourtWithOverride,
   useCourtAdmin,
@@ -174,6 +177,8 @@ const SelectedCourtPreview = memo(function SelectedCourtPreview({
   const favorites = useFavorites();
   const store = useUpsetStore();
   const me = store.me;
+  const authUser = useCurrentUser();
+  const admin = isAdminEmail(authUser?.primaryEmail);
   const ov = useCourtAdmin((s) => s.overrides[court.id]);
   const display = mergeCourtWithOverride(court, ov);
   const images = courtImagesFor(court.id, 5, ov?.photos);
@@ -263,16 +268,19 @@ const SelectedCourtPreview = memo(function SelectedCourtPreview({
             Hooping now
           </span>
         ) : null}
-        {onDismiss ? (
+        {admin || onDismiss ? (
           <div className="absolute top-2 right-2 z-10 flex gap-1.5">
-            <button
-              type="button"
-              onClick={onDismiss}
-              className="flex size-8 items-center justify-center rounded-full border border-border bg-bg/70 text-fg backdrop-blur-md"
-              aria-label="Dismiss selection"
-            >
-              <X className="size-3.5" />
-            </button>
+            {admin ? <AdminEditCourtButton court={display} /> : null}
+            {onDismiss ? (
+              <button
+                type="button"
+                onClick={onDismiss}
+                className="flex size-8 items-center justify-center rounded-full border border-border bg-bg/70 text-fg backdrop-blur-md"
+                aria-label="Dismiss selection"
+              >
+                <X className="size-3.5" />
+              </button>
+            ) : null}
           </div>
         ) : null}
         <div className="absolute bottom-2 left-2 z-10 flex flex-wrap items-center gap-1.5">
