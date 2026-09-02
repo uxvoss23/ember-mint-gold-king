@@ -35,7 +35,7 @@ import { displayRating } from "@/lib/rating/engine";
 import { ScoreConfirmCard } from "@/components/compete/score-confirm-card";
 import { CheckInBar } from "@/components/compete/check-in-bar";
 import type { MatchFormat } from "@/lib/upset/types";
-import { formatLocalWhen, useUpsetStore } from "@/lib/upset/store";
+import { applyFriendsAndDms, formatLocalWhen, useUpsetStore } from "@/lib/upset/store";
 import { matchActionsForPlayer } from "@/lib/upset/match-actions";
 import type { Match, Player, PlayerReview } from "@/lib/upset/types";
 import { cn, formatHeightInches } from "@/lib/utils";
@@ -45,6 +45,7 @@ import { isDemoMode, isMatchModeEnabled } from "@/lib/config";
 import { GUEST_PLAYER_ID } from "@/lib/game/guest";
 import { useRequireAuth } from "@/lib/game/use-require-auth";
 import { mutationError, refreshCompetitiveSnapshot } from "@/lib/game/client-actions";
+import { addFriendFn } from "@/lib/game/dm-fns";
 import {
   approveGameChangeFn,
   cancelGameFn,
@@ -1605,7 +1606,11 @@ export function QuickMatchFlow({
               );
               return { ok: true as const };
             }}
-            onAddFriend={(pid) => store.addFriend(pid)}
+            onAddFriend={(pid) => {
+              void addFriendFn({ data: { targetId: pid } })
+                .then(applyFriendsAndDms)
+                .catch(() => undefined);
+            }}
             onClose={() => setCreateInviteOpen(false)}
           />
         ) : null}
@@ -2456,7 +2461,11 @@ export function QuickMatchFlow({
                 return { ok: false as const, reason: mutationError(err) };
               }
             }}
-            onAddFriend={() => undefined}
+            onAddFriend={(pid) => {
+              void addFriendFn({ data: { targetId: pid } })
+                .then(applyFriendsAndDms)
+                .catch(() => undefined);
+            }}
             onClose={() => setInviteOpen(false)}
           />
         ) : null}

@@ -3,11 +3,12 @@ import { Flag, MessageSquare, Swords, X } from "lucide-react";
 import { PlayerAvatar } from "@/components/compete/player-avatar";
 import { namedAustinCourts } from "@/lib/courts/catalog";
 import { displayRating } from "@/lib/rating/engine";
-import { formatLocalWhen, useUpsetStore } from "@/lib/upset/store";
+import { applyFriendsAndDms, formatLocalWhen, useUpsetStore } from "@/lib/upset/store";
 import type { Player } from "@/lib/upset/types";
 import { formatHeightInches } from "@/lib/utils";
 import { isDemoMode } from "@/lib/config";
 import { challengePlayerFn, blockPlayerFn, reportPlayerFn } from "@/lib/game/fns";
+import { addFriendFn, removeFriendFn, sendDmFn } from "@/lib/game/dm-fns";
 import { GUEST_PLAYER_ID } from "@/lib/game/guest";
 import { mutationError, refreshCompetitiveSnapshot } from "@/lib/game/client-actions";
 import { useRequireAuth } from "@/lib/game/use-require-auth";
@@ -107,14 +108,37 @@ export function PlayerProfile({
     }
   };
 
-  const send = () => {
+  const send = async () => {
     if (!requireAuth("message")) return;
-    setStatus("Direct messages aren’t on the server yet. Chat inside a shared 1v1.");
+    const t = msg.trim();
+    if (!t) {
+      setStatus("Type a message below first.");
+      return;
+    }
+    try {
+      applyFriendsAndDms(
+        await sendDmFn({ data: { targetId: player.id, text: t } }),
+      );
+      setMsg("");
+      setStatus("Message sent.");
+    } catch (err) {
+      setStatus(mutationError(err));
+    }
   };
 
-  const toggleFriend = () => {
+  const toggleFriend = async () => {
     if (!requireAuth("challenge")) return;
-    setStatus("Friend lists aren’t on the server yet. Challenge or share a 1v1 instead.");
+    const isFriend = (store.friendIds ?? []).includes(player.id);
+    try {
+      applyFriendsAndDms(
+        isFriend
+          ? await removeFriendFn({ data: { targetId: player.id } })
+          : await addFriendFn({ data: { targetId: player.id } }),
+      );
+      setStatus(isFriend ? "Removed from friends." : "Added as friend.");
+    } catch (err) {
+      setStatus(mutationError(err));
+    }
   };
 
   const block = async () => {
@@ -244,10 +268,7 @@ export function PlayerProfile({
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    if (msg.trim()) send();
-                    else setStatus("Type a message below first.");
-                  }}
+                  onClick={() => void send()}
                   className="flex h-11 items-center justify-center gap-2 rounded-xl border border-border-strong bg-bg-subtle text-sm font-semibold text-fg"
                 >
                   <MessageSquare className="size-4" strokeWidth={2} />
@@ -272,23 +293,24 @@ export function PlayerProfile({
 
             <button
               type="button"
-              onClick={toggleFriend}
-              className="flex h-10 w-full items-center justify-center rounded-xl border border-border text-sm font-semibold text-fg-muted"
+              onClick={() => void toggleFriend()}
+              className="flex h-10 w-full items-center justify-center rounded-xl border border-border text-sm font-semibold text-fg"
             >
-              Add friend — not live yet
+              {(store.friendIds ?? []).includes(player.id)
+                ? "Friends — tap to remove"
+                : "Add friend"}
             </button>
             <div className="flex gap-2">
               <input
                 value={msg}
                 onChange={(e) => setMsg(e.target.value)}
-                placeholder="DMs aren’t live — use game chat"
-                disabled
-                className="h-11 flex-1 rounded-xl border border-border bg-bg-subtle px-3 text-sm text-fg-subtle outline-none"
+                placeholder="Send a direct message…"
+                className="h-11 flex-1 rounded-xl border border-border bg-bg-subtle px-3 text-sm text-fg outline-none"
               />
               <button
                 type="button"
-                onClick={send}
-                className="h-11 rounded-xl border border-border px-4 text-sm font-semibold text-fg-muted"
+                onClick={() => void send()}
+                className="h-11 rounded-xl bg-accent px-4 text-sm font-semibold text-accent-fg"
               >
                 Send
               </button>

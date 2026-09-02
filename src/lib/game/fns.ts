@@ -16,17 +16,24 @@ import {
   type MessageRow,
   type PlayerRow,
 } from "@/lib/game/map";
-import type { Match, MatchGame, Player } from "@/lib/upset/types";
+import type { DirectThread, Match, MatchGame, Player } from "@/lib/upset/types";
 import {
   isProfileComplete,
   parseProfileFields,
   PROFILE_INCOMPLETE_MESSAGE,
   toPublicPlayer,
 } from "@/lib/game/profile";
+import { loadFriendsAndDms } from "@/lib/game/dm-fns";
 
 const scoreSchema = z.object({ a: z.number().int().min(0).max(99), b: z.number().int().min(0).max(99) });
 
-type Snapshot = { players: Player[]; matches: Match[]; meId: string };
+type Snapshot = {
+  players: Player[];
+  matches: Match[];
+  meId: string;
+  friendIds: string[];
+  dmThreads: DirectThread[];
+};
 
 async function loadPlayer(sql: Sql, id: string): Promise<PlayerRow | null> {
   const rows = await sql.query<PlayerRow>("select * from player where id = $1", [id]);
@@ -196,6 +203,9 @@ async function buildSnapshot(sql: Sql, meId: string | null): Promise<Snapshot> {
     loadVisibleGames(sql, meId),
   ]);
   const matches = filterVisible(await hydrateMatches(sql, gameRows, meId), meId);
+  const social = meId
+    ? await loadFriendsAndDms(sql, meId)
+    : { friendIds: [] as string[], dmThreads: [] as DirectThread[] };
   return {
     players: playerRows.map((row) => {
       const p = rowToPlayer(row);
@@ -203,6 +213,8 @@ async function buildSnapshot(sql: Sql, meId: string | null): Promise<Snapshot> {
     }),
     matches,
     meId: meId ?? "",
+    friendIds: social.friendIds,
+    dmThreads: social.dmThreads,
   };
 }
 

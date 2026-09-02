@@ -737,12 +737,27 @@ export function applyServerSnapshot(snap: {
   players: Player[];
   matches: Match[];
   meId: string;
+  friendIds?: string[];
+  dmThreads?: DirectThread[];
 }) {
   setState((s) => ({
     ...s,
     players: snap.players,
     matches: snap.matches,
     meId: snap.meId || s.meId,
+    friendIds: snap.friendIds ?? s.friendIds,
+    dmThreads: snap.dmThreads ?? s.dmThreads,
+  }));
+}
+
+export function applyFriendsAndDms(snap: {
+  friendIds: string[];
+  dmThreads: DirectThread[];
+}) {
+  setState((s) => ({
+    ...s,
+    friendIds: snap.friendIds,
+    dmThreads: snap.dmThreads,
   }));
 }
 
