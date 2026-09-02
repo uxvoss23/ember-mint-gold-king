@@ -1,7 +1,6 @@
 import { useEffect } from "react";
 import { create } from "zustand";
 import type { Court, CourtAmenity, CourtSurface } from "@/lib/courts/types";
-import { isAdminEmail } from "@/lib/auth/admin";
 
 export interface CourtPhotoState {
   /** Dedicated first image on cards / carousel */
@@ -130,4 +129,4 @@ export function mergeCourtWithOverride(
   };
 }
 
-export { isAdminEmail };
+export { isAdminEmail, isModeratorMe } from "@/lib/auth/admin";

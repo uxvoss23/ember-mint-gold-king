@@ -19,7 +19,7 @@ import { AdminWorkOrders } from "@/components/admin-work-orders";
 import { ModerationQueue } from "@/components/compete/moderation-queue";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { signOut, authEnabled } from "@/lib/auth/client";
-import { isAdminEmail } from "@/lib/auth/admin";
+import { isModeratorMe } from "@/lib/auth/admin";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { PlayerProfile } from "@/components/compete/player-profile";
 import { ProfileCompleteForm } from "@/components/compete/profile-complete-form";
@@ -526,7 +526,7 @@ function YouSection({
 }) {
   const { user, isPending } = useCurrentUserState();
   const navigate = useNavigate();
-  const admin = isAdminEmail(user?.primaryEmail);
+  const admin = isModeratorMe(me.role, user?.primaryEmail);
 
   return (
     <div className="space-y-4 pb-8">

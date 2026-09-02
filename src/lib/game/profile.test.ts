@@ -106,6 +106,7 @@ function run(): string[] {
       ethnicity: "Latino",
       email: "secret@x.com",
       authUserId: "u-secret",
+      role: "moderator",
     }),
   );
   assert(pub.age === undefined, "public omits age");
@@ -113,6 +114,7 @@ function run(): string[] {
   assert(pub.ethnicity === undefined, "public omits ethnicity");
   assert(pub.email === undefined, "public omits email");
   assert(pub.authUserId === undefined, "public omits auth id");
+  assert(pub.role === undefined, "public omits moderator role");
   assert(pub.weightLb === 180, "public keeps displayed weight");
   assert(pub.heightIn === 72, "public keeps displayed height");
   logs.push("public strip ok");

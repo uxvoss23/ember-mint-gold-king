@@ -7,7 +7,8 @@ import {
   type WorkOrder,
   type WorkOrderStatus,
 } from "@/lib/courts/social";
-import { isAdminEmail } from "@/lib/auth/admin";
+import { isModeratorMe } from "@/lib/auth/admin";
+import { useUpsetStore } from "@/lib/upset/store";
 import { cn } from "@/lib/utils";
 
 const ACTIVE_STATUSES: WorkOrderStatus[] = [
@@ -120,6 +121,7 @@ function OrderCard({
 export function AdminWorkOrders({ email }: { email: string | null | undefined }) {
   const workOrders = useCourtSocial((s) => s.workOrders);
   const setStatus = useCourtSocial((s) => s.setWorkOrderStatus);
+  const { me } = useUpsetStore();
   const [view, setView] = useState<"active" | "archive">("active");
 
   const { active, archived } = useMemo(() => {
@@ -136,7 +138,7 @@ export function AdminWorkOrders({ email }: { email: string | null | undefined })
     return { active, archived };
   }, [workOrders]);
 
-  if (!isAdminEmail(email)) return null;
+  if (!isModeratorMe(me.role, email)) return null;
 
   const list = view === "active" ? active : archived;
 

@@ -69,6 +69,8 @@ export interface Player {
   email?: string;
   /** Set when age, weight, gender, and ethnicity were submitted */
   profileCompletedAt?: string;
+  /** Server-only in practice; stripped from public payloads */
+  role?: "player" | "moderator";
 }
 
 export interface CourtMeta {

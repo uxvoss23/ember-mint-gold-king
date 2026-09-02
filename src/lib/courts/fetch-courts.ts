@@ -6,6 +6,7 @@ import { imageIndexFromId } from "./images";
 import { catalogNear, mergeWithCatalog } from "./catalog";
 import { inAustinServiceArea } from "./service-area";
 import { getSql, type Sql } from "@/lib/db";
+import { appLog, appLogError } from "@/lib/log";
 
 const inputSchema = z.object({
   lat: z.number().min(-90).max(90),
@@ -264,6 +265,7 @@ out center tags 80;
   }
 
   console.warn("[courts] Overpass unavailable, using cache/catalog", lastError);
+  appLogError("courts.overpass.fail", lastError);
   return [];
 }
 
@@ -320,12 +322,16 @@ async function loadOsmCourts(
 ): Promise<Court[]> {
   const key = cacheKey(lat, lon, radiusMeters);
   const hit = cache.get(key);
-  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.courts;
+  if (hit && Date.now() - hit.at < CACHE_TTL_MS) {
+    appLog("courts.fetch", { source: "memory", count: hit.courts.length });
+    return hit.courts;
+  }
 
   const sql = await getSql();
   const fresh = await readDurableCache(sql, key, CACHE_TTL_MS);
   if (fresh) {
     cache.set(key, { at: Date.now(), courts: fresh });
+    appLog("courts.fetch", { source: "cache", count: fresh.length });
     return fresh;
   }
 
@@ -333,14 +339,17 @@ async function loadOsmCourts(
   if (live.length) {
     cache.set(key, { at: Date.now(), courts: live });
     await writeDurableCache(sql, key, live);
+    appLog("courts.fetch", { source: "overpass", count: live.length });
     return live;
   }
 
   const stale = await readDurableCache(sql, key, STALE_TTL_MS);
   if (stale) {
     cache.set(key, { at: Date.now() - CACHE_TTL_MS + 60_000, courts: stale });
+    appLog("courts.fetch", { source: "stale", count: stale.length });
     return stale;
   }
+  appLog("courts.fetch", { source: "empty", count: 0 });
   return [];
 }
 

@@ -86,6 +86,7 @@ export function toPublicPlayer(p: Player): Player {
     gender: undefined,
     ethnicity: undefined,
     profileCompletedAt: undefined,
+    role: undefined,
   };
 }
 

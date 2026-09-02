@@ -1,5 +1,6 @@
 import { getRequest } from "@tanstack/react-start/server";
 import { auth, authConfigured } from "./server";
+import { appLog } from "@/lib/log";
 
 /**
  * Server-side session resolution (server-only).
@@ -91,6 +92,9 @@ export async function requireUserId(bearerToken?: string): Promise<string> {
     return DEV_USER_ID;
   }
   const user = await getSessionUser(bearerToken);
-  if (!user) throw new UnauthorizedError();
+  if (!user) {
+    appLog("auth.unauthorized");
+    throw new UnauthorizedError();
+  }
   return user.id;
 }

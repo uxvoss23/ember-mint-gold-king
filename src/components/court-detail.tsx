@@ -28,8 +28,9 @@ import {
   mergeCourtWithOverride,
   useCourtAdmin,
 } from "@/lib/courts/admin-overrides";
-import { isAdminEmail } from "@/lib/auth/admin";
+import { isModeratorMe } from "@/lib/auth/admin";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
+import { useUpsetStore } from "@/lib/upset/store";
 import { compressWorkOrderPhoto } from "@/components/work-order-popup";
 import { ImageCarousel } from "@/components/image-carousel";
 import { directionsUrl } from "@/lib/maps/directions";
@@ -71,7 +72,8 @@ export function CourtDetail({ court, onClose, onQuickMatch }: CourtDetailProps) 
   const authUser = useCurrentUser();
   const requireAuth = useRequireAuth();
   const ov = useCourtAdmin((s) => (court ? s.overrides[court.id] : undefined));
-  const admin = isAdminEmail(authUser?.primaryEmail);
+  const meRole = useUpsetStore().me.role;
+  const admin = isModeratorMe(meRole, authUser?.primaryEmail);
 
   if (!court) return null;
 

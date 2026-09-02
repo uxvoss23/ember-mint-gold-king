@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { optionalAuthMiddleware } from "@/lib/auth/optional-middleware";
-import { assertModeratorEmail } from "@/lib/auth/admin";
+import { requireModerator } from "@/lib/auth/moderator.server";
 import { getSql, type Sql } from "@/lib/db";
 import type { CourtAdminOverride, CourtFieldOverride } from "@/lib/courts/admin-overrides";
 import type { CourtAmenity, CourtSurface } from "@/lib/courts/types";
@@ -62,14 +62,6 @@ async function ensureSchema(sql: Sql) {
       updated_by text
     )
   `);
-}
-
-async function requireModerator(sql: Sql, userId: string) {
-  const users = await sql.query<{ email: string | null }>(
-    `select email from "user" where id = $1`,
-    [userId],
-  );
-  assertModeratorEmail(users[0]?.email ?? "");
 }
 
 function toOverride(row: OverrideRow): CourtAdminOverride {

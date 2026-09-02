@@ -2,7 +2,7 @@
  * Unauthorized admin-request tests.
  * Run: node --experimental-strip-types --no-warnings src/lib/auth/admin.test.ts
  */
-import { ADMIN_EMAIL, assertModeratorEmail, isAdminEmail } from "./admin.ts";
+import { ADMIN_EMAIL, assertModeratorEmail, isAdminEmail, isModeratorMe } from "./admin.ts";
 
 function assert(cond: boolean, msg: string) {
   if (!cond) throw new Error(msg);
@@ -31,6 +31,9 @@ function run(): string[] {
   throwsForbidden("admin@gmail.com", "lookalike throws Forbidden");
   const ok = assertModeratorEmail(ADMIN_EMAIL.toUpperCase());
   assert(ok === ADMIN_EMAIL.toLowerCase(), "case-insensitive allow");
+  assert(isModeratorMe("moderator", "player@example.com"), "db role wins");
+  assert(isModeratorMe("player", ADMIN_EMAIL), "bootstrap email still admin");
+  assert(!isModeratorMe("player", "player@example.com"), "regular player denied");
   logs.push("ALL UNAUTHORIZED ADMIN TESTS PASSED");
   return logs;
 }

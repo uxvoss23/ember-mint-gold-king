@@ -20,6 +20,9 @@ import { compressWorkOrderPhoto } from "@/components/work-order-popup";
 import { courtImagesFor } from "@/lib/courts/images";
 import { cn } from "@/lib/utils";
 import { mutationError } from "@/lib/game/client-actions";
+import { isModeratorMe } from "@/lib/auth/admin";
+import { useCurrentUser } from "@/lib/auth/use-current-user";
+import { useUpsetStore } from "@/lib/upset/store";
 
 const SURFACES: CourtSurface[] = ["concrete", "asphalt", "rubber", "unknown"];
 const AMENITIES: { id: CourtAmenity; label: string }[] = [
@@ -559,7 +562,10 @@ export function AdminEditCourtButton({
   court: Court;
   className?: string;
 }) {
+  const user = useCurrentUser();
+  const { me } = useUpsetStore();
   const [open, setOpen] = useState(false);
+  if (!isModeratorMe(me.role, user?.primaryEmail)) return null;
   return (
     <>
       <button

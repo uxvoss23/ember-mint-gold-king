@@ -7,8 +7,9 @@ import {
   mergeCourtWithOverride,
   useCourtAdmin,
 } from "@/lib/courts/admin-overrides";
-import { isAdminEmail } from "@/lib/auth/admin";
+import { isModeratorMe } from "@/lib/auth/admin";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
+import { useUpsetStore } from "@/lib/upset/store";
 import { ImageCarousel } from "@/components/image-carousel";
 import { WorkOrderPopup } from "@/components/work-order-popup";
 import { AdminEditCourtButton } from "@/components/admin-court-editor";
@@ -39,7 +40,8 @@ interface CourtCardProps {
 export function CourtCard({ court, index, selected, onSelect }: CourtCardProps) {
   const favorites = useFavorites();
   const authUser = useCurrentUser();
-  const admin = isAdminEmail(authUser?.primaryEmail);
+  const { me } = useUpsetStore();
+  const admin = isModeratorMe(me.role, authUser?.primaryEmail);
   const ov = useCourtAdmin((s) => s.overrides[court.id]);
   const display = mergeCourtWithOverride(court, ov);
   const [woOpen, setWoOpen] = useState(false);

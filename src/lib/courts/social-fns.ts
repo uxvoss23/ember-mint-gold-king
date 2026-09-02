@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { optionalAuthMiddleware } from "@/lib/auth/optional-middleware";
-import { assertModeratorEmail } from "@/lib/auth/admin";
+import { requireModerator } from "@/lib/auth/moderator.server";
 import { getSql, type Sql } from "@/lib/db";
 import { newId } from "@/lib/game/map";
 import type { HoopCheckIn, CourtReview, WorkOrder, WorkOrderKind, WorkOrderStatus } from "@/lib/courts/social";
@@ -33,14 +33,6 @@ async function requireNamedPlayer(sql: Sql, userId: string) {
   const row = rows[0];
   if (!row) throw new Error("Sign in to continue.");
   return row;
-}
-
-async function requireModerator(sql: Sql, userId: string) {
-  const users = await sql.query<{ email: string | null }>(
-    `select email from "user" where id = $1`,
-    [userId],
-  );
-  assertModeratorEmail(users[0]?.email ?? "");
 }
 
 type ReviewRow = {

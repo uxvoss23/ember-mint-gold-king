@@ -26,7 +26,7 @@ import { CourtsMap } from "@/components/courts-map";
 import { ConfirmPickupPopup } from "@/components/confirm-pickup-popup";
 import { ImageCarousel } from "@/components/image-carousel";
 import { AdminEditCourtButton } from "@/components/admin-court-editor";
-import { isAdminEmail } from "@/lib/auth/admin";
+import { isModeratorMe } from "@/lib/auth/admin";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 import {
   mergeCourtWithOverride,
@@ -178,7 +178,7 @@ const SelectedCourtPreview = memo(function SelectedCourtPreview({
   const store = useUpsetStore();
   const me = store.me;
   const authUser = useCurrentUser();
-  const admin = isAdminEmail(authUser?.primaryEmail);
+  const admin = isModeratorMe(me?.role, authUser?.primaryEmail);
   const ov = useCourtAdmin((s) => s.overrides[court.id]);
   const display = mergeCourtWithOverride(court, ov);
   const images = courtImagesFor(court.id, 5, ov?.photos);

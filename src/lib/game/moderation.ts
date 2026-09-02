@@ -1,20 +1,19 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { authMiddleware } from "@/lib/auth/middleware";
-import { assertModeratorEmail } from "@/lib/auth/admin";
+import { requireModerator as requireModeratorRole } from "@/lib/auth/moderator.server";
 import { getSql, withTransaction, type Sql } from "@/lib/db";
 import { applyConfirmedResult, validateScores } from "@/lib/game/rules";
 import { newId, type GameRow, type PlayerRow } from "@/lib/game/map";
 import type { MatchGame } from "@/lib/upset/types";
 
 async function requireModerator(sql: Sql, userId: string): Promise<{ userId: string; email: string }> {
+  await requireModeratorRole(sql, userId);
   const users = await sql.query<{ email: string | null }>(
     `select email from "user" where id = $1`,
     [userId],
   );
-  const email = users[0]?.email ?? "";
-  assertModeratorEmail(email);
-  return { userId, email };
+  return { userId, email: users[0]?.email ?? "" };
 }
 
 async function audit(

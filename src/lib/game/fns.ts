@@ -17,6 +17,7 @@ import {
   type PlayerRow,
 } from "@/lib/game/map";
 import type { DirectThread, Match, MatchGame, Player } from "@/lib/upset/types";
+import { appLog } from "@/lib/log";
 import {
   isProfileComplete,
   parseProfileFields,
@@ -361,6 +362,13 @@ export const createGameFn = createServerFn({ method: "POST" })
     const rows = await sql.query<GameRow>("select * from game where id = $1", [id]);
     const [match] = await hydrateMatches(sql, rows, me.id);
     if (!match) throw new Error("Game was created but could not be loaded.");
+    appLog("game.create", {
+      gameId: id,
+      playerId: me.id,
+      courtId: data.courtId,
+      inviteOnly: data.inviteOnly,
+      format: data.format,
+    });
     return match;
   });
 
@@ -427,6 +435,7 @@ export const joinGameFn = createServerFn({ method: "POST" })
       } else {
         await addSystemMessage(sql, data.gameId, "Game locked in.");
       }
+      appLog("game.join", { gameId: data.gameId, playerId: me.id, ok: true });
       return { ok: true as const };
     });
   });
@@ -465,6 +474,7 @@ export const cancelGameFn = createServerFn({ method: "POST" })
         [data.gameId, me.id],
       );
       await addSystemMessage(sql, data.gameId, `${me.name} left the game. It’s open again.`);
+      appLog("game.cancel", { gameId: data.gameId, playerId: me.id, action: "left" });
       return { ok: true as const, action: "left" as const };
     }
     await sql.query(
@@ -474,6 +484,7 @@ export const cancelGameFn = createServerFn({ method: "POST" })
       [data.gameId, me.id, data.reason ?? ""],
     );
     await addSystemMessage(sql, data.gameId, `${me.name} cancelled the game.`);
+    appLog("game.cancel", { gameId: data.gameId, playerId: me.id, action: "cancelled" });
     return { ok: true as const, action: "cancelled" as const };
   });
 
@@ -568,6 +579,7 @@ export const submitScoreFn = createServerFn({ method: "POST" })
       data.gameId,
       `${me.name} submitted scores (${data.scores.map((g) => `${g.a}–${g.b}`).join(", ")}). Opponent must confirm before ratings lock.`,
     );
+    appLog("game.score.submit", { gameId: data.gameId, playerId: me.id, games: data.scores.length });
     return { ok: true as const };
   });
 
@@ -708,6 +720,7 @@ export const confirmScoreFn = createServerFn({ method: "POST" })
         `insert into reliability_event (id, player_id, game_id, kind) values ($1,$2,$3,'confirmed_game'), ($4,$5,$3,'confirmed_game'), ($6,$7,$3,'score_confirm_timely')`,
         [newId("rel"), host.id, game.id, newId("rel"), opp.id, newId("rel"), me.id],
       );
+      appLog("game.score.confirm", { gameId: game.id, playerId: me.id, already: false });
       return { ok: true as const, already: false };
     });
   });
