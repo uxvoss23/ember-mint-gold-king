@@ -53,6 +53,7 @@ interface SceneShellProps {
   courtsLocError?: string | null;
   radiusMi?: number;
   dataSource?: string;
+  outOfArea?: boolean;
   onRadiusChange?: (mi: number) => void;
   onRefreshCourts?: () => void;
   onNearMe?: () => void;
@@ -69,6 +70,7 @@ export function SceneShell({
   courtsLocError = null,
   radiusMi = 8,
   dataSource = "",
+  outOfArea = false,
   onRadiusChange,
   onRefreshCourts,
   onNearMe,
@@ -384,6 +386,7 @@ export function SceneShell({
                 locError={courtsLocError}
                 radiusMi={radiusMi}
                 dataSource={dataSource}
+                outOfArea={outOfArea}
                 onRadiusChange={(mi) => onRadiusChange?.(mi)}
                 onRefresh={() => onRefreshCourts?.()}
                 onNearMe={() => onNearMe?.()}

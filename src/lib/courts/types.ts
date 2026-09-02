@@ -43,4 +43,6 @@ export interface CourtsResult {
   location: UserLocation;
   source: "osm" | "catalog" | "mixed";
   queryRadiusMeters: number;
+  /** True when the search point is outside the Austin service area. */
+  outOfArea?: boolean;
 }

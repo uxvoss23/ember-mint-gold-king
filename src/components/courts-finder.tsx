@@ -609,6 +609,7 @@ export interface CourtsFinderProps {
   locError: string | null;
   radiusMi: number;
   dataSource: string;
+  outOfArea?: boolean;
   onRadiusChange: (mi: number) => void;
   onRefresh: () => void;
   onNearMe: () => void;
@@ -626,6 +627,7 @@ export function CourtsFinder({
   locError,
   radiusMi,
   dataSource,
+  outOfArea = false,
   onRadiusChange,
   onRefresh,
   onNearMe,
@@ -1263,14 +1265,18 @@ export function CourtsFinder({
           ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center rounded-2xl border border-border bg-bg-elevated px-6 py-10 text-center">
               <h2 className="font-display text-base font-semibold text-fg">
-                {filters.has("favorites")
-                  ? "No saved courts yet"
-                  : filters.size > 0
-                    ? "No courts match these filters"
-                    : "No courts in range"}
+                {outOfArea
+                  ? "Austin-first for now"
+                  : filters.has("favorites")
+                    ? "No saved courts yet"
+                    : filters.size > 0
+                      ? "No courts match these filters"
+                      : "No courts in range"}
               </h2>
               <p className="mt-1.5 max-w-xs text-sm text-fg-muted">
-                Widen the radius, clear a filter, or search an address.
+                {outOfArea
+                  ? "Upset City lists outdoor courts in the Austin area. You’re outside that zone, so nothing is shown as near you."
+                  : "Widen the radius, clear a filter, or search an address."}
               </p>
               <div className="mt-4 flex gap-2">
                 {filters.size > 0 ? (

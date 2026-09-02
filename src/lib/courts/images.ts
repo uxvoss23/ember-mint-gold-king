@@ -1,75 +1,47 @@
 /**
- * Real outdoor court photos from the user’s basketball courts pack.
- * Served from public/basketball-courts — Austin park courts.
+ * Court photos must belong to that court record (admin / verified uploads).
+ * The shared pack is NOT assigned to specific courts — that implied the
+ * photo showed that park. Unverified courts get a labeled placeholder.
  */
-export const COURT_IMAGES = [
-  "/basketball-courts/real-2921.jpg",
-  "/basketball-courts/real-2927.jpg",
-  "/basketball-courts/real-2929.jpg",
-  "/basketball-courts/real-2925.jpg",
-  "/basketball-courts/real-2917.jpg",
-  "/basketball-courts/real-2909.jpg",
-  "/basketball-courts/real-2912.jpg",
-  "/basketball-courts/real-2913.jpg",
-  "/basketball-courts/real-2914.jpg",
-  "/basketball-courts/real-2931.jpg",
-  "/basketball-courts/real-2933.jpg",
-  "/basketball-courts/real-2938.jpg",
-  "/basketball-courts/real-2934.jpg",
-  "/basketball-courts/real-2943.jpg",
-  "/basketball-courts/real-2953.jpg",
-  "/basketball-courts/real-2946.jpg",
-  "/basketball-courts/real-2947.jpg",
-  "/basketball-courts/real-2948.jpg",
-] as const;
 
-const N = COURT_IMAGES.length;
-
-export function courtImageFor(index: number): string {
-  const i = ((index % N) + N) % N;
-  return COURT_IMAGES[i]!;
-}
-
-/** Stable image pick from a court id. */
-export function imageIndexFromId(id: string): number {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-  return h % N;
-}
+export const COURT_PLACEHOLDER = "/court-placeholder.svg";
 
 export type CourtImageOverride = {
   preview?: string;
   gallery?: string[];
 };
 
+export function isPlaceholderPhoto(src: string | undefined): boolean {
+  return !src || src === COURT_PLACEHOLDER;
+}
+
 /**
- * At least `count` photos for a court.
- * Admin preview is always first when set; gallery follows; pack fills the rest.
+ * Verified photos for a court, or a single labeled placeholder.
+ * Never pads with unrelated park photos.
  */
 export function courtImagesFor(
-  id: string,
+  _id: string,
   count = 4,
   override?: CourtImageOverride | null,
 ): string[] {
-  const start = imageIndexFromId(id);
-  const n = Math.max(count, 4);
-  const pack: string[] = [];
-  for (let i = 0; i < n + 8; i++) {
-    pack.push(COURT_IMAGES[(start + i) % N]!);
-  }
-
-  if (!override?.preview && !(override?.gallery && override.gallery.length)) {
-    return pack.slice(0, n);
-  }
-
   const out: string[] = [];
-  if (override.preview) out.push(override.preview);
-  for (const g of override.gallery ?? []) {
-    if (g && !out.includes(g)) out.push(g);
+  if (override?.preview && !isPlaceholderPhoto(override.preview)) {
+    out.push(override.preview);
   }
-  for (const p of pack) {
-    if (out.length >= n) break;
-    if (!out.includes(p)) out.push(p);
+  for (const g of override?.gallery ?? []) {
+    if (g && !isPlaceholderPhoto(g) && !out.includes(g)) out.push(g);
   }
-  return out.length > 0 ? out : pack.slice(0, n);
+  if (out.length) return out.slice(0, Math.max(count, 4));
+  return [COURT_PLACEHOLDER];
+}
+
+/** @deprecated hash-index unused; kept so older callers typecheck */
+export function imageIndexFromId(id: string): number {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return h % 18;
+}
+
+export function courtImageFor(_index: number): string {
+  return COURT_PLACEHOLDER;
 }

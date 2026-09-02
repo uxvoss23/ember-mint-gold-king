@@ -1,6 +1,7 @@
 import type { Court } from "./types";
 import { haversineMeters } from "@/lib/utils";
 import { imageIndexFromId } from "./images";
+import { inAustinServiceArea } from "./service-area";
 
 /** Curated public outdoor courts — primary fallback when live map data is rate-limited. */
 const CATALOG: Omit<Court, "distanceMeters" | "imageIndex">[] = [
@@ -372,15 +373,6 @@ const CATALOG: Omit<Court, "distanceMeters" | "imageIndex">[] = [
 /** Austin first — home market for this build. */
 export const CITY_PRESETS = [
   { id: "atx", label: "Austin", lat: 30.2672, lon: -97.7431 },
-  { id: "nyc", label: "New York", lat: 40.7282, lon: -73.9942 },
-  { id: "la", label: "Los Angeles", lat: 34.0195, lon: -118.4912 },
-  { id: "chi", label: "Chicago", lat: 41.8781, lon: -87.6298 },
-  { id: "sf", label: "San Francisco", lat: 37.7749, lon: -122.4194 },
-  { id: "atl", label: "Atlanta", lat: 33.749, lon: -84.388 },
-  { id: "mia", label: "Miami", lat: 25.7617, lon: -80.1918 },
-  { id: "sea", label: "Seattle", lat: 47.6062, lon: -122.3321 },
-  { id: "den", label: "Denver", lat: 39.7392, lon: -104.9903 },
-  { id: "bos", label: "Boston", lat: 42.3601, lon: -71.0589 },
 ] as const;
 
 export const DEFAULT_CITY = CITY_PRESETS[0]!;
@@ -407,7 +399,10 @@ export function catalogNear(
       imageIndex: imageIndexFromId(c.id),
     };
   })
-    .filter((c) => c.distanceMeters <= radiusMeters)
+    .filter(
+      (c) =>
+        inAustinServiceArea(c.lat, c.lon) && c.distanceMeters <= radiusMeters,
+    )
     .sort((a, b) => a.distanceMeters - b.distanceMeters)
     .slice(0, limit);
 }

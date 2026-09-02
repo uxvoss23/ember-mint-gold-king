@@ -4,6 +4,8 @@ import type { Court, CourtAmenity, CourtSurface, CourtsResult } from "./types";
 import { haversineMeters } from "@/lib/utils";
 import { imageIndexFromId } from "./images";
 import { catalogNear, mergeWithCatalog } from "./catalog";
+import { inAustinServiceArea } from "./service-area";
+import { getSql, type Sql } from "@/lib/db";
 
 const inputSchema = z.object({
   lat: z.number().min(-90).max(90),
@@ -23,7 +25,8 @@ type OverpassElement = {
 };
 
 const cache = new Map<string, { at: number; courts: Court[] }>();
-const CACHE_TTL_MS = 10 * 60 * 1000;
+const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const STALE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 function cacheKey(lat: number, lon: number, radius: number) {
   return `v3:${lat.toFixed(3)},${lon.toFixed(3)},${Math.round(radius / 500) * 500}`;
@@ -241,6 +244,7 @@ out center tags 80;
       }
 
       const clustered = clusterCourts(courts)
+        .filter((c) => inAustinServiceArea(c.lat, c.lon))
         .map((c) => {
           if (!isGenericName(c.name)) return c;
           const dir = bearingLabel(lat, lon, c.lat, c.lon);
@@ -259,7 +263,84 @@ out center tags 80;
     }
   }
 
-  console.warn("[courts] Overpass unavailable, using catalog", lastError);
+  console.warn("[courts] Overpass unavailable, using cache/catalog", lastError);
+  return [];
+}
+
+async function ensureSearchCache(sql: Sql) {
+  await sql.query(`
+    create table if not exists court_search_cache (
+      cache_key text primary key,
+      courts_json jsonb not null,
+      fetched_at timestamptz not null default now()
+    )
+  `);
+}
+
+async function readDurableCache(
+  sql: Sql,
+  key: string,
+  maxAgeMs: number,
+): Promise<Court[] | null> {
+  try {
+    await ensureSearchCache(sql);
+    const rows = await sql.query<{ courts_json: unknown; fetched_at: string }>(
+      `select courts_json, fetched_at from court_search_cache where cache_key = $1`,
+      [key],
+    );
+    const row = rows[0];
+    if (!row) return null;
+    const age = Date.now() - new Date(row.fetched_at).getTime();
+    if (!Number.isFinite(age) || age > maxAgeMs) return null;
+    const courts = Array.isArray(row.courts_json) ? (row.courts_json as Court[]) : null;
+    return courts;
+  } catch {
+    return null;
+  }
+}
+
+async function writeDurableCache(sql: Sql, key: string, courts: Court[]) {
+  try {
+    await ensureSearchCache(sql);
+    await sql.query(
+      `insert into court_search_cache (cache_key, courts_json, fetched_at)
+       values ($1, $2::jsonb, now())
+       on conflict (cache_key) do update set courts_json = excluded.courts_json, fetched_at = now()`,
+      [key, JSON.stringify(courts)],
+    );
+  } catch {
+    /* cache is best-effort */
+  }
+}
+
+async function loadOsmCourts(
+  lat: number,
+  lon: number,
+  radiusMeters: number,
+): Promise<Court[]> {
+  const key = cacheKey(lat, lon, radiusMeters);
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.courts;
+
+  const sql = await getSql();
+  const fresh = await readDurableCache(sql, key, CACHE_TTL_MS);
+  if (fresh) {
+    cache.set(key, { at: Date.now(), courts: fresh });
+    return fresh;
+  }
+
+  const live = await queryOverpass(lat, lon, radiusMeters);
+  if (live.length) {
+    cache.set(key, { at: Date.now(), courts: live });
+    await writeDurableCache(sql, key, live);
+    return live;
+  }
+
+  const stale = await readDurableCache(sql, key, STALE_TTL_MS);
+  if (stale) {
+    cache.set(key, { at: Date.now() - CACHE_TTL_MS + 60_000, courts: stale });
+    return stale;
+  }
   return [];
 }
 
@@ -268,26 +349,30 @@ export const fetchCourtsNear = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<CourtsResult> => {
     const { lat, lon, radiusMeters, label, catalogOnly } = data;
 
-    // Instant: curated Austin catalog (photos, notes, neighborhoods)
+    if (!inAustinServiceArea(lat, lon)) {
+      return {
+        courts: [],
+        location: { lat, lon, label },
+        source: "catalog",
+        queryRadiusMeters: radiusMeters,
+        outOfArea: true,
+      };
+    }
+
     const catalog = catalogNear(lat, lon, Math.max(radiusMeters, 12_000), 40);
-    const catalogFallback =
-      catalog.length >= 4
-        ? catalog
-        : catalogNear(lat, lon, 20_000_000, 30);
 
     if (catalogOnly) {
       return {
-        courts: catalogFallback,
+        courts: catalog,
         location: { lat, lon, label: label ?? "Austin, TX" },
         source: "catalog",
         queryRadiusMeters: radiusMeters,
       };
     }
 
-    // Optional OSM enrich — never block more than ~5s on the wire
     let osm: Court[] = [];
     try {
-      osm = await queryOverpass(lat, lon, radiusMeters);
+      osm = await loadOsmCourts(lat, lon, radiusMeters);
     } catch (e) {
       console.warn("[courts] query error", e);
       osm = [];
@@ -297,16 +382,15 @@ export const fetchCourtsNear = createServerFn({ method: "POST" })
     let source: CourtsResult["source"];
 
     if (osm.length === 0) {
-      courts = catalogFallback;
+      courts = catalog;
       source = "catalog";
     } else {
-      // Catalog courts win for named Austin parks (photos + notes)
       courts = mergeWithCatalog(osm, lat, lon, radiusMeters, 10)
+        .filter((c) => inAustinServiceArea(c.lat, c.lon))
         .sort(sortCourts)
         .slice(0, 40);
-      // Guarantee at least catalog coverage if merge thinned too hard
       if (courts.length < 6) {
-        courts = catalogFallback;
+        courts = catalog;
         source = "catalog";
       } else {
         source = osm.length >= 6 ? "mixed" : "catalog";

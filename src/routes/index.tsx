@@ -44,6 +44,7 @@ function Home() {
   const [locError, setLocError] = useState<string | null>(null);
   const [radiusMi, setRadiusMi] = useState(8);
   const [dataSource, setDataSource] = useState<string>("catalog");
+  const [outOfArea, setOutOfArea] = useState(false);
   const { isPending: authPending } = useCurrentUserState();
   const locationRef = useRef<UserLocation | null>(AUSTIN);
   const skipRadiusEffect = useRef(true);
@@ -75,6 +76,7 @@ function Home() {
       });
       setCourts(result.courts);
       setDataSource(result.source);
+      setOutOfArea(!!result.outOfArea);
       setLocation(result.location);
       locationRef.current = result.location;
     } catch (e) {
@@ -111,9 +113,16 @@ function Home() {
         setLocating(false);
         void loadCourts(loc, radiusMi);
       },
-      () => {
+      (err) => {
         setLocating(false);
-        setLocError("Couldn’t get your location. Showing Austin.");
+        const code = typeof err === "object" && err && "code" in err ? Number(err.code) : 0;
+        setLocError(
+          code === 1
+            ? "Location permission denied. Showing Austin courts."
+            : code === 3
+              ? "Location timed out. Showing Austin courts."
+              : "Couldn’t get your location. Showing Austin courts.",
+        );
         void loadCourts(AUSTIN, radiusMi);
       },
       { enableHighAccuracy: false, timeout: 6000, maximumAge: 60_000 },
@@ -180,6 +189,7 @@ function Home() {
               courtsLocError={locError}
               radiusMi={radiusMi}
               dataSource={dataSource}
+              outOfArea={outOfArea}
               onRadiusChange={setRadiusMi}
               onRefreshCourts={() =>
                 location && void loadCourts(location, radiusMi)

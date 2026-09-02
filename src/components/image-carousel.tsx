@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { isPlaceholderPhoto } from "@/lib/courts/images";
 
 interface ImageCarouselProps {
   images: string[];
@@ -258,6 +259,13 @@ export function ImageCarousel({
                   decoding="async"
                   fetchPriority={priority && i === 0 ? "high" : "low"}
                 />
+                {isPlaceholderPhoto(src) ? (
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/35 to-transparent px-3 pb-3 pt-8">
+                    <p className="text-center text-[11px] font-semibold tracking-wide text-white/90">
+                      No verified photo of this court
+                    </p>
+                  </div>
+                ) : null}
               </div>
             ))}
           </div>
