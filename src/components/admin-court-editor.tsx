@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Camera,
+  ChevronLeft,
+  ChevronRight,
   ImagePlus,
   Pencil,
   Star,
@@ -49,6 +51,8 @@ export function AdminCourtEditor({
   const addGalleryPhotos = useCourtAdmin((s) => s.addGalleryPhotos);
   const replaceGalleryPhoto = useCourtAdmin((s) => s.replaceGalleryPhoto);
   const removeGalleryPhoto = useCourtAdmin((s) => s.removeGalleryPhoto);
+  const moveGalleryPhoto = useCourtAdmin((s) => s.moveGalleryPhoto);
+  const promoteGalleryPhoto = useCourtAdmin((s) => s.promoteGalleryPhoto);
 
   const merged = mergeCourtWithOverride(court, ov);
   const [name, setName] = useState(merged.name);
@@ -273,7 +277,7 @@ export function AdminCourtEditor({
             <p className="mb-1.5 text-xs font-bold text-fg">
               Gallery photos{" "}
               <span className="font-normal text-fg-subtle">
-                · select multiple at once
+                · arrows change order
               </span>
             </p>
             <div className="grid grid-cols-3 gap-2">
@@ -283,24 +287,69 @@ export function AdminCourtEditor({
                   className="relative aspect-square overflow-hidden rounded-lg border border-border bg-bg-subtle"
                 >
                   <img src={src} alt="" className="size-full object-cover" />
-                  <div className="absolute inset-x-0 bottom-0 flex gap-0.5 bg-black/50 p-0.5">
-                    <button
-                      type="button"
-                      className="flex-1 rounded py-0.5 text-[9px] font-bold text-white"
-                      onClick={() => {
-                        replaceIdx.current = i;
-                        replaceLib.current?.click();
-                      }}
-                    >
-                      Replace
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded px-1.5 py-0.5 text-[9px] font-bold text-white"
-                      onClick={() => void removeGalleryPhoto(court.id, i)}
-                    >
-                      ✕
-                    </button>
+                  <span className="absolute top-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-[9px] font-bold tabular-nums text-white">
+                    {i + 1}
+                  </span>
+                  <div className="absolute inset-x-0 bottom-0 flex flex-col gap-0.5 bg-black/55 p-0.5">
+                    <div className="flex gap-0.5">
+                      <button
+                        type="button"
+                        disabled={busy || i === 0}
+                        className="flex flex-1 items-center justify-center rounded py-1 text-white disabled:opacity-30"
+                        aria-label="Move earlier"
+                        onClick={() =>
+                          void moveGalleryPhoto(court.id, i, i - 1).catch((e) =>
+                            setErr(mutationError(e)),
+                          )
+                        }
+                      >
+                        <ChevronLeft className="size-3.5" strokeWidth={2.25} />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy || i === gallery.length - 1}
+                        className="flex flex-1 items-center justify-center rounded py-1 text-white disabled:opacity-30"
+                        aria-label="Move later"
+                        onClick={() =>
+                          void moveGalleryPhoto(court.id, i, i + 1).catch((e) =>
+                            setErr(mutationError(e)),
+                          )
+                        }
+                      >
+                        <ChevronRight className="size-3.5" strokeWidth={2.25} />
+                      </button>
+                    </div>
+                    <div className="flex gap-0.5">
+                      <button
+                        type="button"
+                        disabled={busy}
+                        className="flex-1 rounded py-0.5 text-[9px] font-bold text-white"
+                        onClick={() =>
+                          void promoteGalleryPhoto(court.id, i).catch((e) =>
+                            setErr(mutationError(e)),
+                          )
+                        }
+                      >
+                        Cover
+                      </button>
+                      <button
+                        type="button"
+                        className="flex-1 rounded py-0.5 text-[9px] font-bold text-white"
+                        onClick={() => {
+                          replaceIdx.current = i;
+                          replaceLib.current?.click();
+                        }}
+                      >
+                        Replace
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded px-1.5 py-0.5 text-[9px] font-bold text-white"
+                        onClick={() => void removeGalleryPhoto(court.id, i)}
+                      >
+                        ✕
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}

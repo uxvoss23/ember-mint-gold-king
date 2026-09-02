@@ -35,6 +35,8 @@ interface CourtAdminState {
   addGalleryPhotos: (courtId: string, dataUrls: string[]) => Promise<void>;
   replaceGalleryPhoto: (courtId: string, index: number, dataUrl: string) => Promise<void>;
   removeGalleryPhoto: (courtId: string, index: number) => Promise<void>;
+  moveGalleryPhoto: (courtId: string, fromIndex: number, toIndex: number) => Promise<void>;
+  promoteGalleryPhoto: (courtId: string, index: number) => Promise<void>;
   setGallery: (courtId: string, gallery: string[]) => Promise<void>;
   clearOverride: (courtId: string) => Promise<void>;
 }
@@ -81,6 +83,17 @@ export const useCourtAdmin = create<CourtAdminState>()((set, get) => ({
   removeGalleryPhoto: async (courtId, index) => {
     const { removeCourtGalleryPhotoFn } = await import("@/lib/courts/court-admin-fns");
     applyOverrides(await removeCourtGalleryPhotoFn({ data: { courtId, index } }));
+  },
+  moveGalleryPhoto: async (courtId, fromIndex, toIndex) => {
+    if (fromIndex === toIndex) return;
+    const { reorderCourtGalleryFn } = await import("@/lib/courts/court-admin-fns");
+    applyOverrides(
+      await reorderCourtGalleryFn({ data: { courtId, fromIndex, toIndex } }),
+    );
+  },
+  promoteGalleryPhoto: async (courtId, index) => {
+    const { promoteCourtGalleryPhotoFn } = await import("@/lib/courts/court-admin-fns");
+    applyOverrides(await promoteCourtGalleryPhotoFn({ data: { courtId, index } }));
   },
   setGallery: async () => {
     /* unused — gallery is edited per photo */

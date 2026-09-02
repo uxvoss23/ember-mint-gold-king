@@ -281,3 +281,72 @@ export const removeCourtGalleryPhotoFn = createServerFn({ method: "POST" })
     );
     return loadAll(sql);
   });
+
+export const reorderCourtGalleryFn = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((raw: unknown) =>
+    z
+      .object({
+        courtId: z.string().min(1).max(80),
+        fromIndex: z.number().int().min(0).max(20),
+        toIndex: z.number().int().min(0).max(20),
+      })
+      .parse(raw),
+  )
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    await requireModerator(sql, context.userId);
+    const rows = await sql.query<{ gallery: unknown }>(
+      `select gallery from court_override where court_id = $1`,
+      [data.courtId],
+    );
+    const gallery = Array.isArray(rows[0]?.gallery)
+      ? [...(rows[0]!.gallery as string[])]
+      : [];
+    const from = data.fromIndex;
+    const to = data.toIndex;
+    if (from < 0 || from >= gallery.length || to < 0 || to >= gallery.length) {
+      throw new Error("Photo not found.");
+    }
+    if (from !== to) {
+      const [shot] = gallery.splice(from, 1);
+      gallery.splice(to, 0, shot!);
+    }
+    await sql.query(
+      `update court_override set gallery = $2::jsonb, updated_at = now(), updated_by = $3 where court_id = $1`,
+      [data.courtId, JSON.stringify(gallery), context.userId],
+    );
+    return loadAll(sql);
+  });
+
+export const promoteCourtGalleryPhotoFn = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((raw: unknown) =>
+    z
+      .object({
+        courtId: z.string().min(1).max(80),
+        index: z.number().int().min(0).max(20),
+      })
+      .parse(raw),
+  )
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    await requireModerator(sql, context.userId);
+    const rows = await sql.query<{ gallery: unknown; preview_url: string | null }>(
+      `select gallery, preview_url from court_override where court_id = $1`,
+      [data.courtId],
+    );
+    const row = rows[0];
+    const gallery = Array.isArray(row?.gallery) ? [...(row!.gallery as string[])] : [];
+    if (data.index < 0 || data.index >= gallery.length) throw new Error("Photo not found.");
+    const shot = gallery[data.index]!;
+    gallery.splice(data.index, 1);
+    if (row?.preview_url) gallery.unshift(row.preview_url);
+    await sql.query(
+      `update court_override
+          set preview_url = $2, gallery = $3::jsonb, updated_at = now(), updated_by = $4
+        where court_id = $1`,
+      [data.courtId, shot, JSON.stringify(gallery), context.userId],
+    );
+    return loadAll(sql);
+  });
