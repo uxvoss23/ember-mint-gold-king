@@ -43,6 +43,27 @@ type OverrideRow = {
   updated_at: string;
 };
 
+async function ensureSchema(sql: Sql) {
+  await sql.query(`
+    create table if not exists court_override (
+      court_id text primary key,
+      name text,
+      address text,
+      neighborhood text,
+      notes text,
+      surface text,
+      hoops int,
+      amenities jsonb,
+      lights_hours text,
+      hours text,
+      preview_url text,
+      gallery jsonb not null default '[]'::jsonb,
+      updated_at timestamptz not null default now(),
+      updated_by text
+    )
+  `);
+}
+
 async function requireModerator(sql: Sql, userId: string) {
   const users = await sql.query<{ email: string | null }>(
     `select email from "user" where id = $1`,
@@ -77,6 +98,7 @@ function toOverride(row: OverrideRow): CourtAdminOverride {
 }
 
 async function loadAll(sql: Sql): Promise<Record<string, CourtAdminOverride>> {
+  await ensureSchema(sql);
   const rows = await sql.query<OverrideRow>(`select * from court_override`);
   const out: Record<string, CourtAdminOverride> = {};
   for (const row of rows) out[row.court_id] = toOverride(row);
@@ -84,6 +106,7 @@ async function loadAll(sql: Sql): Promise<Record<string, CourtAdminOverride>> {
 }
 
 async function ensureRow(sql: Sql, courtId: string, userId: string) {
+  await ensureSchema(sql);
   await sql.query(
     `insert into court_override (court_id, updated_by) values ($1, $2)
      on conflict (court_id) do nothing`,
@@ -120,6 +143,7 @@ export const upsertCourtFieldsFn = createServerFn({ method: "POST" })
   )
   .handler(async ({ context, data }) => {
     const sql = await getSql();
+    await ensureSchema(sql);
     await requireModerator(sql, context.userId);
     const f: CourtFieldOverride = data.fields;
     await sql.query(
