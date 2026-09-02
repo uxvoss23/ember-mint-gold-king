@@ -40,4 +40,8 @@ Additive SQL in `migrations/`, applied in name order.
 
 ## Logging
 
-Server logs are JSON lines from `appLog` (`src/lib/log.ts`). Events: `auth.*`, `game.*`, `courts.*`. Emails, tokens, cookies, photos, and raw GPS are stripped.
+Server logs are JSON lines from `appLog` (`src/lib/log.ts`). Events: `auth.*`, `game.*`, `courts.*`, `profile.*`. Emails, tokens, cookies, photos, and raw GPS are stripped.
+
+## Repo hygiene
+
+`.gitignore` excludes `artifacts/`, `screenshots/`, `attachments/`, `.vercel/output/`, and `.env`. Do not commit those.

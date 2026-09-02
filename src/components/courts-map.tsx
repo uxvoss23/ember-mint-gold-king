@@ -165,6 +165,45 @@ export function CourtsMap({
 
   useEffect(() => {
     const map = mapRef.current;
+    const el = containerRef.current;
+    if (!map || !ready || !el) return;
+    const pause = () => {
+      try {
+        map.stop();
+      } catch {
+        /* map already gone */
+      }
+    };
+    const resume = () => {
+      try {
+        map.resize();
+        map.triggerRepaint();
+      } catch {
+        /* map already gone */
+      }
+    };
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry) return;
+        if (entry.isIntersecting && entry.intersectionRatio > 0.05) resume();
+        else pause();
+      },
+      { threshold: [0, 0.05, 0.2] },
+    );
+    io.observe(el);
+    const onVis = () => {
+      if (document.hidden) pause();
+      else resume();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      io.disconnect();
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [ready]);
+
+  useEffect(() => {
+    const map = mapRef.current;
     if (!map || !ready) return;
     const center = map.getCenter();
     const zoom = map.getZoom();

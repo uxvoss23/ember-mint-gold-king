@@ -16,6 +16,11 @@ import {
 } from "lucide-react";
 import { CourtAboutSheet } from "@/components/compete/court-about-sheet";
 import { CreateGameStepBar } from "@/components/compete/create-game-step-bar";
+import {
+  CreateWhenPicker,
+  parseLocalDateTime,
+  toLocalDateTimeValue,
+} from "@/components/compete/create-when-picker";
 import { HoopNowFlow } from "@/components/compete/hoop-now-flow";
 import { PlayerBrowseFilters } from "@/components/compete/player-browse-filters";
 import { MatchRemindersCard } from "@/components/compete/match-reminders-card";
@@ -4087,104 +4092,3 @@ function InviteSheet({
   );
 }
 
-
-function pad2(n: number) { return String(n).padStart(2, "0"); }
-function toLocalDateTimeValue(d: Date) {
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-}
-function parseLocalDateTime(value: string): Date {
-  const [datePart, timePart = "12:00"] = value.split("T");
-  const [y, mo, da] = datePart.split("-").map(Number);
-  const [h, mi] = timePart.split(":").map(Number);
-  return new Date(y, (mo || 1) - 1, da || 1, h || 0, mi || 0, 0, 0);
-}
-function sameCalendarDay(a: Date, b: Date) {
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-}
-const TIME_SLOTS: { h: number; m: number; label: string }[] = (() => {
-  const out: { h: number; m: number; label: string }[] = [];
-  for (let h = 6; h <= 22; h++) for (const m of [0, 30]) {
-    if (h === 22 && m === 30) continue;
-    const d = new Date(); d.setHours(h, m, 0, 0);
-    out.push({ h, m, label: d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) });
-  }
-  return out;
-})();
-
-function CreateWhenPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const [dayDraft, setDayDraft] = useState<Date | null>(null);
-  const hasValue = Boolean(value);
-  const selected = hasValue ? parseLocalDateTime(value) : null;
-  const activeDay = selected ?? dayDraft;
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const days = useMemo(() => Array.from({ length: 14 }, (_, i) => { const d = new Date(today); d.setDate(today.getDate() + i); return d; }), [today.getTime()]);
-  const setDay = (day: Date) => {
-    if (selected) {
-      const next = new Date(day);
-      next.setHours(selected.getHours(), selected.getMinutes(), 0, 0);
-      onChange(toLocalDateTimeValue(next));
-    } else {
-      const d = new Date(day); d.setHours(0, 0, 0, 0); setDayDraft(d);
-    }
-  };
-  const setTime = (h: number, m: number) => {
-    const base = activeDay ?? new Date();
-    const next = new Date(base);
-    next.setHours(h, m, 0, 0);
-    onChange(toLocalDateTimeValue(next));
-    setDayDraft(null);
-    setOpen(false);
-  };
-  const dayShort = selected == null ? null : sameCalendarDay(selected, new Date()) ? "Today" : selected.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
-  const timeShort = selected == null ? null : selected.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-  return (
-    <div className="space-y-2">
-      <button type="button" onClick={() => setOpen((v) => !v)} className="flex w-full items-center gap-2 rounded-xl border border-border bg-bg px-3 py-2.5 text-left" aria-expanded={open}>
-        <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold tracking-wide text-fg-subtle uppercase">Tip-off</p>
-          {hasValue && dayShort && timeShort ? (
-            <p className="truncate text-sm font-semibold tabular-nums text-fg">{dayShort}<span className="mx-1.5 text-fg-subtle">·</span>{timeShort}</p>
-          ) : (
-            <p className="text-sm font-medium text-fg-muted">Choose day & time</p>
-          )}
-        </div>
-        <ChevronRight className={cn("size-4 shrink-0 text-fg-subtle transition-transform", open && "rotate-90")} />
-      </button>
-      {open ? (
-        <div className="space-y-2.5 rounded-xl border border-border bg-bg p-2">
-          <div className="-mx-0.5 flex gap-1 overflow-x-auto px-0.5 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {days.map((d) => {
-              const isSel = activeDay ? sameCalendarDay(d, activeDay) : false;
-              const isToday = sameCalendarDay(d, new Date());
-              return (
-                <button key={d.toISOString()} type="button" onClick={() => setDay(d)}
-                  className={cn("flex h-12 w-11 shrink-0 flex-col items-center justify-center rounded-xl border", isSel ? "border-court bg-court text-white" : "border-border bg-bg-elevated text-fg")}>
-                  <span className={cn("text-[8px] font-bold uppercase leading-none", isSel ? "text-white/80" : "text-fg-subtle")}>{isToday ? "Now" : d.toLocaleDateString(undefined, { weekday: "short" })}</span>
-                  <span className="mt-0.5 text-sm font-bold tabular-nums leading-none">{d.getDate()}</span>
-                </button>
-              );
-            })}
-          </div>
-          <div className="grid max-h-28 grid-cols-4 gap-1 overflow-y-auto pr-0.5">
-            {TIME_SLOTS.filter((slot) => {
-              const day = activeDay ?? new Date();
-              if (!sameCalendarDay(day, new Date())) return true;
-              const now = new Date();
-              return slot.h * 60 + slot.m > now.getHours() * 60 + now.getMinutes();
-            }).map((slot) => {
-              const active = selected != null && selected.getHours() === slot.h && selected.getMinutes() === slot.m;
-              return (
-                <button key={`${slot.h}-${slot.m}`} type="button" onClick={() => setTime(slot.h, slot.m)}
-                  className={cn("h-8 rounded-lg border text-[11px] font-semibold tabular-nums", active ? "border-fg bg-fg text-bg" : "border-border bg-bg-elevated text-fg-muted")}>
-                  {slot.label}
-                </button>
-              );
-            })}
-          </div>
-          {!hasValue ? <p className="text-center text-[10px] text-fg-subtle">Pick a day, then a time</p> : null}
-        </div>
-      ) : null}
-    </div>
-  );
-}

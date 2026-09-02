@@ -251,7 +251,7 @@ export function ImageCarousel({
                 style={{ width: `${100 / count}%` }}
               >
                 <img
-                  src={src}
+                  src={Math.abs(i - index) <= 1 ? src : undefined}
                   alt={i === 0 ? alt : ""}
                   draggable={false}
                   className="pointer-events-none block h-full w-full select-none object-cover object-center"

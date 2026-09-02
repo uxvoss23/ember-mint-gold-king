@@ -1,4 +1,20 @@
 node_modules/
 .tanstack/
 .vercel/
+.vercel/output/
 .node_modules.lock
+.env
+.env.*
+!.env.example
+
+# Local QA / generated — never ship with production source
+artifacts/
+screenshots/
+attachments/
+tmp/
+*.log
+/tmp/
+
+# OS / editor
+.DS_Store
+Thumbs.db
