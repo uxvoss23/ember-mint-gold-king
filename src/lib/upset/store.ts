@@ -746,11 +746,32 @@ export function applyServerSnapshot(snap: {
   setState((s) => ({
     ...s,
     players: snap.players,
-    matches: snap.matches,
+    matches: mergeOptimisticChat(s.matches, snap.matches),
     meId: snap.meId || s.meId,
     friendIds: snap.friendIds ?? s.friendIds,
     dmThreads: snap.dmThreads ?? s.dmThreads,
   }));
+}
+
+function mergeOptimisticChat(prev: Match[], next: Match[]): Match[] {
+  if (!prev.length) return next;
+  const prevById = new Map(prev.map((m) => [m.id, m]));
+  return next.map((m) => {
+    const old = prevById.get(m.id);
+    if (!old?.chat?.length) return m;
+    const serverIds = new Set(m.chat.map((c) => c.id));
+    const extras = old.chat.filter((c) => {
+      if (serverIds.has(c.id)) return false;
+      if (!c.id.startsWith("mc-")) return false;
+      const age = Date.now() - new Date(c.at).getTime();
+      if (age > 20_000) return false;
+      return !m.chat.some(
+        (n) => n.authorId === c.authorId && n.text === c.text,
+      );
+    });
+    if (!extras.length) return m;
+    return { ...m, chat: [...m.chat, ...extras] };
+  });
 }
 
 export function applyFriendsAndDms(snap: {

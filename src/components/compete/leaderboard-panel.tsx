@@ -4,6 +4,7 @@ import { PlayerAvatar } from "@/components/compete/player-avatar";
 import { displayRating } from "@/lib/rating/engine";
 import type { Player } from "@/lib/upset/types";
 import { cn } from "@/lib/utils";
+import { rankMove } from "@/lib/upset/city-rank";
 
 type MainTab = "rankings" | "stats";
 type RankingSub = "alltime" | "weekly" | "hottest";
@@ -252,8 +253,8 @@ export function LeaderboardPanel({
             const cityRank = currentRankById.get(p.id) ?? place;
             const move =
               main === "rankings" && rankSub === "alltime"
-                ? p.rankLastWeek - cityRank
-                : 0;
+                ? rankMove(p.rankLastWeek, cityRank)
+                : null;
             const weeklyGain = p.rating - p.ratingLastWeek;
             const isMe = p.id === meId;
 
@@ -317,7 +318,7 @@ export function LeaderboardPanel({
                     ) : (
                       <>
                         {p.wins}–{p.losses}
-                        {main === "rankings" && rankSub === "alltime" ? (
+                        {main === "rankings" && rankSub === "alltime" && move != null ? (
                           <span className="ml-1.5 inline-flex align-middle">
                             <MoveDelta delta={move} />
                           </span>

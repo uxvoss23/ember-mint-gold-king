@@ -61,5 +61,22 @@ export function useCompetitiveSync() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPending, user?.id, refresh]);
 
+  useEffect(() => {
+    if (isDemoMode() || isPending || !user) return;
+    const tick = () => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      void refresh();
+    };
+    const id = window.setInterval(tick, 4000);
+    const onVis = () => {
+      if (!document.hidden) tick();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [isPending, refresh, user?.id]);
+
   return { status, error, refresh, demo: isDemoMode() };
 }

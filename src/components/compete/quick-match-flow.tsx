@@ -41,7 +41,8 @@ import { ScoreConfirmCard } from "@/components/compete/score-confirm-card";
 import { CheckInBar } from "@/components/compete/check-in-bar";
 import type { MatchFormat } from "@/lib/upset/types";
 import { applyFriendsAndDms, formatLocalWhen, useUpsetStore } from "@/lib/upset/store";
-import { matchActionsForPlayer } from "@/lib/upset/match-actions";
+import { matchActionsForPlayer, incomingInvitesFor } from "@/lib/upset/match-actions";
+import { mutationError, refreshCompetitiveSnapshot, refreshCompetitiveSnapshotSoon } from "@/lib/game/client-actions";
 import type { Match, Player, PlayerReview } from "@/lib/upset/types";
 import { cn, formatHeightInches } from "@/lib/utils";
 import { useVisualKeyboard } from "@/hooks/use-visual-keyboard";
@@ -49,7 +50,6 @@ import { DEFAULT_BROWSE_FILTERS, loadBrowseFilters, persistBrowseFilters, clearP
 import { isDemoMode, isMatchModeEnabled } from "@/lib/config";
 import { GUEST_PLAYER_ID } from "@/lib/game/guest";
 import { useRequireAuth } from "@/lib/game/use-require-auth";
-import { mutationError, refreshCompetitiveSnapshot } from "@/lib/game/client-actions";
 import { addFriendFn } from "@/lib/game/dm-fns";
 import {
   approveGameChangeFn,
@@ -616,19 +616,23 @@ export function QuickMatchFlow({
     [matches, me.id],
   );
   const incomingInvites = useMemo(
-    () =>
-      matches.filter(
-        (m) =>
-          m.status === "open" &&
-          !!m.inviteOnly &&
-          m.hostId !== me.id &&
-          (m.guestInviteIds ?? []).includes(me.id),
-      ),
+    () => incomingInvitesFor(matches, me.id),
     [matches, me.id],
   );
   const needsYou = useMemo(() => matchActionsForPlayer(matches, me), [matches, me]);
   const needsYouActive = useMemo(() => needsYou.filter((a) => a.kind !== "waiting_confirm"), [needsYou]);
   const waitingOnThem = useMemo(() => needsYou.filter((a) => a.kind === "waiting_confirm"), [needsYou]);
+  const playAlerts = incomingInvites.length + needsYouActive.length;
+  const wasPlayActive = useRef(false);
+  useEffect(() => {
+    const justOpened = active && !wasPlayActive.current;
+    wasPlayActive.current = active;
+    if (!justOpened || playAlerts === 0) return;
+    if (view === "create" || view === "game" || view === "hoop_now") return;
+    setExploreLane("open");
+    setOpenDeskTab("scheduled");
+    setView("find");
+  }, [active, playAlerts, view]);
 
   const inviteCandidates = useMemo(() => {
     const now = Date.now();
@@ -900,13 +904,13 @@ export function QuickMatchFlow({
 
   const sendMatchChat = async (gameId: string, text: string) => {
     if (!requireAuth("message")) return;
-    if (isDemoMode()) {
-      store.postMatchChat(gameId, text);
-      return;
-    }
+    const body = text.trim();
+    if (!body) return;
+    store.postMatchChat(gameId, text);
+    if (isDemoMode()) return;
     try {
-      await sendGameMessageFn({ data: { gameId, text } });
-      await refreshCompetitiveSnapshot();
+      await sendGameMessageFn({ data: { gameId, text: body } });
+      refreshCompetitiveSnapshotSoon();
     } catch (err) {
       setStatusMsg(mutationError(err));
     }
@@ -2559,6 +2563,31 @@ export function QuickMatchFlow({
         </div>
 
         <div className="space-y-2">
+          {playAlerts > 0 ? (
+            <button
+              type="button"
+              onClick={() => {
+                setExploreLane("open");
+                setOpenDeskTab("scheduled");
+                setView("find");
+              }}
+              className="relative flex w-full items-center justify-between overflow-hidden rounded-2xl border border-court/40 bg-court/12 px-3.5 py-3 text-left"
+            >
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold tracking-wide text-court uppercase">
+                  Needs you
+                </p>
+                <p className="text-sm font-semibold text-fg">My Games</p>
+                <p className="text-[11px] text-fg-muted">
+                  {incomingInvites.length
+                    ? `${incomingInvites.length} invite${incomingInvites.length === 1 ? "" : "s"}`
+                    : `${playAlerts} update${playAlerts === 1 ? "" : "s"}`}
+                  {" · "}open this tab
+                </p>
+              </div>
+              <span className="size-2.5 shrink-0 rounded-full bg-court" />
+            </button>
+          ) : null}
           {primary.map((tile) => (
             <button
               key={tile.id}
@@ -2856,6 +2885,12 @@ export function QuickMatchFlow({
                 >
                   {tab.label}
                 </span>
+                {tab.id === "scheduled" && playAlerts > 0 && !on ? (
+                  <span
+                    className="absolute top-1.5 right-2 size-2 rounded-full bg-court ring-2 ring-bg-elevated"
+                    aria-label={`${playAlerts} need attention`}
+                  />
+                ) : null}
                 <span
                   className={cn(
                     "text-[11px] font-medium tabular-nums leading-tight",

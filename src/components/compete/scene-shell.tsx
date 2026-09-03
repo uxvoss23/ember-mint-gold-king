@@ -36,6 +36,7 @@ import { useCompetitiveSync } from "@/lib/game/use-competitive-sync";
 import { useRequireAuth } from "@/lib/game/use-require-auth";
 import { displayRating } from "@/lib/rating/engine";
 import { formatLocalWhen, useUpsetStore } from "@/lib/upset/store";
+import { playAttentionCount } from "@/lib/upset/match-actions";
 import type { Match, Player } from "@/lib/upset/types";
 import { cn } from "@/lib/utils";
 import { useTabBarGate } from "@/lib/ui/tab-bar-gate";
@@ -114,6 +115,8 @@ export function SceneShell({
     if (home === "leaderboard") setBoardVisited(true);
     if (home === "you") setYouVisited(true);
   }, [home]);
+
+  const playBadge = playAttentionCount(store.matches, store.me);
 
   const goHome = useCallback((id: SceneHome) => {
     startTransition(() => setHome(id));
@@ -428,12 +431,22 @@ export function SceneShell({
               type="button"
               onClick={() => goHome(t.id)}
               className={cn(
-                "flex min-w-0 flex-1 flex-col items-center gap-0 rounded-xl px-0.5 py-1.5 text-[9px] font-semibold leading-tight",
+                "relative flex min-w-0 flex-1 flex-col items-center gap-0 rounded-xl px-0.5 py-1.5 text-[9px] font-semibold leading-tight",
                 home === t.id ? "bg-bg-soft text-fg" : "text-fg-muted",
               )}
-              aria-label={t.label}
+              aria-label={
+                t.id === "games" && playBadge > 0 && home !== "games"
+                  ? `Play, ${playBadge} waiting`
+                  : t.label
+              }
               aria-current={home === t.id ? "page" : undefined}
             >
+              {t.id === "games" && playBadge > 0 && home !== "games" ? (
+                <span
+                  className="absolute top-1 right-[22%] size-2 rounded-full bg-court ring-2 ring-bg-elevated"
+                  aria-hidden
+                />
+              ) : null}
               <t.icon
                 className={cn("size-3.5", home === t.id && t.id === "courts" && "text-court")}
                 strokeWidth={1.75}

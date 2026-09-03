@@ -3,6 +3,8 @@
  * Run: node --experimental-strip-types --no-warnings src/lib/game/game.test.ts
  */
 import { RATING_FLOOR, rateSeries } from "../rating/engine.ts";
+import { incomingInvitesFor } from "../upset/match-actions.ts";
+import type { Match } from "../upset/types.ts";
 import {
   canAccessGameChat,
   canApplyScoreSubmission,
@@ -105,6 +107,18 @@ function run(): string[] {
   );
   assert(!isBlockedPair("a", "c", [{ actorId: "b", targetId: "a" }]), "unrelated not blocked");
   logs.push("block pair ok");
+
+  const inviteMatch = {
+    id: "g1",
+    hostId: "h",
+    status: "open",
+    opponentId: undefined,
+    guestInviteIds: ["you"],
+    inviteOnly: false,
+  } as unknown as Match;
+  assert(incomingInvitesFor([inviteMatch], "you").length === 1, "public invite still counts");
+  assert(incomingInvitesFor([inviteMatch], "h").length === 0, "host is not invitee");
+  logs.push("invites ok");
 
   const stale = canApplyScoreSubmission({
     status: "played_pending",

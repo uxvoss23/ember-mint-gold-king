@@ -86,3 +86,21 @@ export function actionCountForPlayer(matches: Match[], me: Player) {
     (a) => a.kind !== "waiting_confirm",
   ).length;
 }
+
+/** Open invites sent to you that you have not joined yet. */
+export function incomingInvitesFor(matches: Match[], meId: string): Match[] {
+  if (!meId) return [];
+  return matches.filter(
+    (m) =>
+      m.hostId !== meId &&
+      m.status === "open" &&
+      !m.opponentId &&
+      (m.guestInviteIds ?? []).includes(meId),
+  );
+}
+
+/** Play-tab attention: invites + score/check-in actions that need you. */
+export function playAttentionCount(matches: Match[], me: Player): number {
+  if (!me.id) return 0;
+  return incomingInvitesFor(matches, me.id).length + actionCountForPlayer(matches, me);
+}

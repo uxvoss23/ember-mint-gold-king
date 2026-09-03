@@ -34,3 +34,17 @@ export function isKingRank(rank: number | null | undefined) {
 export function isEliteRank(rank: number | null | undefined) {
   return rank != null && rank >= 1 && rank <= 10;
 }
+
+/**
+ * Spots gained (positive) or lost (negative).
+ * No last-week snapshot (0) is not a drop — hide the arrow.
+ */
+export function rankMove(
+  rankLastWeek: number | undefined,
+  cityRank: number,
+): number | null {
+  if (rankLastWeek == null || rankLastWeek < 1) return null;
+  if (cityRank < 1) return null;
+  return rankLastWeek - cityRank;
+}
+
