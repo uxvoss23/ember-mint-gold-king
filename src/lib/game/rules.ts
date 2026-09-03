@@ -118,9 +118,12 @@ export function canAccessGameChat(input: {
   hostId: string;
   opponentId?: string | null;
   actorId: string | null | undefined;
+  inviteeIds?: readonly string[];
 }): boolean {
   if (!input.actorId) return false;
-  return input.actorId === input.hostId || input.actorId === input.opponentId;
+  if (input.actorId === input.hostId || input.actorId === input.opponentId) return true;
+  if (input.opponentId) return false;
+  return (input.inviteeIds ?? []).includes(input.actorId);
 }
 
 export function isBlockedPair(

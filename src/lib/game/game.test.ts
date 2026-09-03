@@ -96,8 +96,26 @@ function run(): string[] {
     "guest cannot chat",
   );
   assert(
-    !canAccessGameChat({ hostId: "h", opponentId: null, actorId: "invitee" }),
-    "invitee cannot read chat before accept",
+    !canAccessGameChat({ hostId: "h", opponentId: "o", actorId: "invitee" }),
+    "filled game: leftover invitee cannot chat",
+  );
+  assert(
+    canAccessGameChat({
+      hostId: "h",
+      opponentId: null,
+      actorId: "invitee",
+      inviteeIds: ["invitee"],
+    }),
+    "invitee can chat before accept",
+  );
+  assert(
+    !canAccessGameChat({
+      hostId: "h",
+      opponentId: null,
+      actorId: "stranger",
+      inviteeIds: ["invitee"],
+    }),
+    "uninvited cannot chat",
   );
   logs.push("chat privacy ok");
 

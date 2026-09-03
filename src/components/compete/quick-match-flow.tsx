@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { CourtAboutSheet } from "@/components/compete/court-about-sheet";
+import { InviteReviewSheet } from "@/components/compete/invite-review-sheet";
 import { CreateGameStepBar } from "@/components/compete/create-game-step-bar";
 import {
   CreateWhenPicker,
@@ -57,6 +58,7 @@ import {
   confirmScoreFn,
   disputeScoreFn,
   invitePlayerToGameFn,
+  declineInviteFn,
   proposeGameChangeFn,
   sendGameMessageFn,
   submitScoreFn,
@@ -316,6 +318,7 @@ export function QuickMatchFlow({
   const createGridRef = useRef<HTMLDivElement>(null);
   const [keyboardInset, setKeyboardInset] = useState(0);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
+  const [reviewInviteId, setReviewInviteId] = useState<string | null>(null);
   const [actionExpandId, setActionExpandId] = useState<string | null>(null);
   const [waitingExpandId, setWaitingExpandId] = useState<string | null>(null);
   const [editingWaitId, setEditingWaitId] = useState<string | null>(null);
@@ -933,6 +936,36 @@ export function QuickMatchFlow({
         isSelected={createCourtId === courtInfoId}
         userLat={origin.lat}
         userLon={origin.lon}
+      />
+    ) : null;
+
+  const reviewInvite = reviewInviteId
+    ? matches.find((m) => m.id === reviewInviteId) ?? null
+    : null;
+  const inviteReviewSheet =
+    reviewInvite ? (
+      <InviteReviewSheet
+        match={reviewInvite}
+        host={playerById.get(reviewInvite.hostId)}
+        me={me}
+        court={courts.find((c) => c.id === reviewInvite.courtId) ?? null}
+        onClose={() => setReviewInviteId(null)}
+        onSendChat={(text) => void sendMatchChat(reviewInvite.id, text)}
+        onOpenPlayer={onOpenPlayer}
+        onDecline={async () => {
+          if (isDemoMode()) {
+            store.declinePrivateInvite(reviewInvite.id);
+          } else {
+            await declineInviteFn({ data: { gameId: reviewInvite.id } });
+            refreshCompetitiveSnapshotSoon();
+          }
+          setReviewInviteId(null);
+          setStatusMsg("Invite declined.");
+        }}
+        onAccept={async (bringingBall) => {
+          await joinGame(reviewInvite.id, bringingBall);
+          setReviewInviteId(null);
+        }}
       />
     ) : null;
 
@@ -2654,6 +2687,7 @@ export function QuickMatchFlow({
         ) : null}
       </div>
       {createPane}
+      {inviteReviewSheet}
       </>
     );
   }
@@ -2801,6 +2835,7 @@ export function QuickMatchFlow({
   const laneSub = "Join · show up · or manage your posts";
 
   return (
+    <>
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
     <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain px-4 pt-2 pb-6 touch-pan-y [-webkit-overflow-scrolling:touch]">
       {statusMsg ? (
@@ -3149,9 +3184,11 @@ export function QuickMatchFlow({
                     const { day, time } = whenParts(m.preferredAt);
                     const gameType = m.format === "horse" ? "HORSE" : "1v1";
                     return (
-                      <div
+                      <button
                         key={m.id}
-                        className="rounded-2xl border border-court/35 bg-bg-elevated px-3 py-3"
+                        type="button"
+                        onClick={() => setReviewInviteId(m.id)}
+                        className="w-full rounded-2xl border border-court/35 bg-bg-elevated px-3 py-3 text-left"
                       >
                         <div className="flex items-start gap-3">
                           {host ? (
@@ -3172,40 +3209,17 @@ export function QuickMatchFlow({
                               {m.courtName}
                             </p>
                             <p className="mt-0.5 text-[12px] text-fg-muted">
-                              {day} · {time} · {gameType} · Private
+                              {day} · {time} · {gameType}
+                              {host
+                                ? ` · ${host.wins}–${host.losses}`
+                                : ""}
+                            </p>
+                            <p className="mt-1.5 text-[12px] font-semibold text-court">
+                              Review invite
                             </p>
                           </div>
                         </div>
-                        <div className="mt-3 grid grid-cols-2 gap-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              store.declinePrivateInvite(m.id);
-                              setStatusMsg("Invite declined.");
-                            }}
-                            className="rounded-full border border-border py-2 text-[12px] font-semibold text-fg"
-                          >
-                            Decline
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const r = store.tryAcceptRace(m.id);
-                              if (r === "ok") {
-                                setJustLandedMatchId(m.id);
-                                setStatusMsg("Game locked. It’s on your schedule.");
-                              } else if (r === "filled") {
-                                setStatusMsg("That game just filled.");
-                              } else {
-                                setStatusMsg("This invite is no longer valid.");
-                              }
-                            }}
-                            className="rounded-full bg-court py-2 text-[12px] font-semibold text-white"
-                          >
-                            Accept
-                          </button>
-                        </div>
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
@@ -3488,6 +3502,8 @@ export function QuickMatchFlow({
       ) : null}
     </div>
     </div>
+    {inviteReviewSheet}
+    </>
   );
 }
 

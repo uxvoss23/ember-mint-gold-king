@@ -132,13 +132,18 @@ async function loadMessages(sql: Sql, gameIds: string[]): Promise<Map<string, Re
 
 async function hydrateMatches(sql: Sql, games: GameRow[], meId: string | null): Promise<Match[]> {
   const ids = games.map((g) => g.id);
+  const invites = await loadInvites(sql, ids);
   const chatIds = meId
-    ? games.filter((g) => g.host_id === meId || g.opponent_id === meId).map((g) => g.id)
+    ? games
+        .filter(
+          (g) =>
+            g.host_id === meId ||
+            g.opponent_id === meId ||
+            (invites.get(g.id) ?? []).includes(meId),
+        )
+        .map((g) => g.id)
     : [];
-  const [invites, chat] = await Promise.all([
-    loadInvites(sql, ids),
-    loadMessages(sql, chatIds),
-  ]);
+  const chat = await loadMessages(sql, chatIds);
   return games.map((g) =>
     rowToMatch(g, { invites: invites.get(g.id) ?? [], chat: chat.get(g.id) ?? [] }),
   );
@@ -500,11 +505,16 @@ export const sendGameMessageFn = createServerFn({ method: "POST" })
     const games = await sql.query<GameRow>("select * from game where id = $1", [data.gameId]);
     const game = games[0];
     if (!game) throw new Error("Game not found.");
+    const inviteRows = await sql.query<{ player_id: string }>(
+      `select player_id from game_invite where game_id = $1`,
+      [data.gameId],
+    );
     if (
       !canAccessGameChat({
         hostId: game.host_id,
         opponentId: game.opponent_id,
         actorId: me.id,
+        inviteeIds: inviteRows.map((r) => r.player_id),
       })
     ) {
       throw new Error("You can’t message this game.");
@@ -1095,6 +1105,26 @@ export const invitePlayerToGameFn = createServerFn({ method: "POST" })
       [data.gameId, data.playerId],
     );
     await addSystemMessage(sql, data.gameId, `${me.name} invited ${target.name}.`);
+    return { ok: true as const };
+  });
+
+export const declineInviteFn = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((raw: unknown) => z.object({ gameId: z.string() }).parse(raw))
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    const me = await requirePlayer(sql, context.userId);
+    const games = await sql.query<GameRow>(`select * from game where id = $1`, [data.gameId]);
+    const game = games[0];
+    if (!game) throw new Error("Game not found.");
+    if (game.status !== "open") throw new Error("This invite is no longer open.");
+    const gone = await sql.query(
+      `delete from game_invite where game_id = $1 and player_id = $2 returning player_id`,
+      [data.gameId, me.id],
+    );
+    if (!gone.length) throw new Error("You’re not invited to this game.");
+    await addSystemMessage(sql, data.gameId, `${me.name} declined the invite.`);
+    appLog("game.invite_decline", { gameId: data.gameId, playerId: me.id });
     return { ok: true as const };
   });
 
