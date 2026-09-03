@@ -4,6 +4,15 @@ import { ensureMyPlayer, loadCompetitiveSnapshot } from "@/lib/game/fns";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { applyServerSnapshot, useUpsetStore } from "@/lib/upset/store";
 
+let liveFast = 0;
+let inFlight = false;
+
+/** Chat / invite review wants quicker polls. Nested callers stack. */
+export function setLiveSyncFast(on: boolean) {
+  liveFast += on ? 1 : -1;
+  if (liveFast < 0) liveFast = 0;
+}
+
 export function useCompetitiveSync() {
   const { user, isPending } = useCurrentUserState();
   const store = useUpsetStore();
@@ -18,6 +27,8 @@ export function useCompetitiveSync() {
       setStatus("ready");
       return;
     }
+    if (inFlight) return;
+    inFlight = true;
     if (!readyOnce.current) setStatus("loading");
     try {
       const snap = await loadCompetitiveSnapshot();
@@ -26,8 +37,12 @@ export function useCompetitiveSync() {
       readyOnce.current = true;
       setStatus("ready");
     } catch (err) {
-      setStatus("error");
-      setError(err instanceof Error ? err.message : "Couldn’t load games.");
+      if (!readyOnce.current) {
+        setStatus("error");
+        setError(err instanceof Error ? err.message : "Couldn’t load games.");
+      }
+    } finally {
+      inFlight = false;
     }
   }, []);
 
@@ -63,17 +78,22 @@ export function useCompetitiveSync() {
 
   useEffect(() => {
     if (isDemoMode() || isPending || !user) return;
-    const tick = () => {
-      if (typeof document !== "undefined" && document.hidden) return;
-      void refresh();
+    let timer: number | null = null;
+    const arm = () => {
+      if (timer) window.clearTimeout(timer);
+      const wait = liveFast > 0 ? 2800 : 10000;
+      timer = window.setTimeout(() => {
+        if (!document.hidden) void refresh();
+        arm();
+      }, wait);
     };
-    const id = window.setInterval(tick, 4000);
+    arm();
     const onVis = () => {
-      if (!document.hidden) tick();
+      if (!document.hidden) void refresh();
     };
     document.addEventListener("visibilitychange", onVis);
     return () => {
-      window.clearInterval(id);
+      if (timer) window.clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVis);
     };
   }, [isPending, refresh, user?.id]);

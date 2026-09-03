@@ -44,6 +44,7 @@ import type { MatchFormat } from "@/lib/upset/types";
 import { applyFriendsAndDms, formatLocalWhen, useUpsetStore } from "@/lib/upset/store";
 import { matchActionsForPlayer, incomingInvitesFor } from "@/lib/upset/match-actions";
 import { mutationError, refreshCompetitiveSnapshot, refreshCompetitiveSnapshotSoon } from "@/lib/game/client-actions";
+import { setLiveSyncFast } from "@/lib/game/use-competitive-sync";
 import type { Match, Player, PlayerReview } from "@/lib/upset/types";
 import { cn, formatHeightInches } from "@/lib/utils";
 import { useVisualKeyboard } from "@/hooks/use-visual-keyboard";
@@ -636,6 +637,12 @@ export function QuickMatchFlow({
     setOpenDeskTab("scheduled");
     setView("find");
   }, [active, playAlerts, view]);
+
+  useEffect(() => {
+    const on = (view === "game" && gameTab === "chat") || !!reviewInviteId;
+    setLiveSyncFast(on);
+    return () => setLiveSyncFast(false);
+  }, [view, gameTab, reviewInviteId]);
 
   const inviteCandidates = useMemo(() => {
     const now = Date.now();

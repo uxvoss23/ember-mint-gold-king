@@ -31,7 +31,7 @@ import {
   joinGameFn,
 } from "@/lib/game/fns";
 import { GUEST_PLAYER_ID } from "@/lib/game/guest";
-import { mutationError, refreshCompetitiveSnapshot } from "@/lib/game/client-actions";
+import { mutationError, refreshCompetitiveSnapshot, refreshCompetitiveSnapshotSoon } from "@/lib/game/client-actions";
 import { useCompetitiveSync } from "@/lib/game/use-competitive-sync";
 import { useRequireAuth } from "@/lib/game/use-require-auth";
 import { displayRating } from "@/lib/rating/engine";
@@ -282,7 +282,7 @@ export function SceneShell({
                     inviteOnly: !!inviteOnly,
                   },
                 });
-                await refreshCompetitiveSnapshot();
+                refreshCompetitiveSnapshotSoon();
                 setRaceMsg(
                   inviteOnly
                     ? `Private match posted · ${guestInviteIds?.length ?? 0} invite${(guestInviteIds?.length ?? 0) === 1 ? "" : "s"}.`
@@ -311,7 +311,7 @@ export function SceneShell({
                     bringingBall: opts?.bringingBall ?? false,
                   },
                 });
-                await refreshCompetitiveSnapshot();
+                refreshCompetitiveSnapshotSoon();
                 if (!r.ok) {
                   setRaceMsg(
                     r.reason === "invite_only"

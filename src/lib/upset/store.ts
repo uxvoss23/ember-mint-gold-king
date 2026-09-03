@@ -735,6 +735,31 @@ function setState(updater: (s: UpsetState) => UpsetState) {
   persist();
 }
 
+function snapshotKey(s: {
+  players: Player[];
+  matches: Match[];
+  meId: string;
+  friendIds?: string[];
+  dmThreads?: DirectThread[];
+}): string {
+  let k = `${s.meId}|${(s.friendIds ?? []).join(",")}|`;
+  for (const p of s.players) {
+    k += `${p.id}:${p.rating}:${p.wins}:${p.losses}:${p.streak}:${p.availability};`;
+  }
+  k += "#";
+  for (const m of s.matches) {
+    const last = m.chat[m.chat.length - 1];
+    k += `${m.id}:${m.status}:${m.opponentId ?? ""}:${(m.guestInviteIds ?? []).join(".")}:${m.chat.length}:${last?.id ?? ""}:${m.scoreEnteredBy ?? ""}:${m.scoreConfirmedBy ?? ""};`;
+  }
+  k += "#";
+  for (const t of s.dmThreads ?? []) {
+    k += `${t.id}:${t.messages.length}:${t.updatedAt};`;
+  }
+  return k;
+}
+
+let lastSnapshotKey = "";
+
 /** Production path: replace local cache with server records. Demo never calls this. */
 export function applyServerSnapshot(snap: {
   players: Player[];
@@ -743,13 +768,21 @@ export function applyServerSnapshot(snap: {
   friendIds?: string[];
   dmThreads?: DirectThread[];
 }) {
+  const matches = mergeOptimisticChat(state.matches, snap.matches);
+  const next = {
+    players: snap.players,
+    matches,
+    meId: snap.meId || state.meId,
+    friendIds: snap.friendIds ?? state.friendIds,
+    dmThreads: snap.dmThreads ?? state.dmThreads,
+  };
+  const key = snapshotKey(next);
+  if (key === lastSnapshotKey) return;
+  lastSnapshotKey = key;
   setState((s) => ({
     ...s,
-    players: snap.players,
-    matches: mergeOptimisticChat(s.matches, snap.matches),
-    meId: snap.meId || s.meId,
-    friendIds: snap.friendIds ?? s.friendIds,
-    dmThreads: snap.dmThreads ?? s.dmThreads,
+    ...next,
+    meId: next.meId || s.meId,
   }));
 }
 

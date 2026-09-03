@@ -170,18 +170,22 @@ async function loadVisibleGames(sql: Sql, meId: string | null): Promise<GameRow[
   if (meId) {
     return sql.query<GameRow>(
       `select * from game
-       where status <> 'cancelled'
-          or cancelled_at > now() - interval '7 days'
+       where status in ('open','matched','scheduled','played_pending','disputed')
+          or (
+            (host_id = $1 or opponent_id = $1)
+            and coalesce(updated_at, created_at) > now() - interval '14 days'
+          )
        order by created_at desc
-       limit 200`,
+       limit 80`,
+      [meId],
     );
   }
   return sql.query<GameRow>(
     `select * from game
      where invite_only = false
-       and status not in ('cancelled')
+       and status in ('open','matched','scheduled')
      order by created_at desc
-     limit 200`,
+     limit 60`,
   );
 }
 

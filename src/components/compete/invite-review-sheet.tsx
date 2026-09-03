@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { PlayerAvatar } from "@/components/compete/player-avatar";
+import { setLiveSyncFast } from "@/lib/game/use-competitive-sync";
 import { cityRankOf } from "@/lib/upset/city-rank";
 import { courtImagesFor } from "@/lib/courts/images";
 import type { Court } from "@/lib/courts/types";
@@ -61,6 +62,11 @@ export function InviteReviewSheet({
   const chat = match.chat ?? [];
   const rank = host ? cityRankOf(host.id) : null;
   const format = match.format === "horse" ? "HORSE" : "1v1";
+
+  useEffect(() => {
+    setLiveSyncFast(true);
+    return () => setLiveSyncFast(false);
+  }, []);
 
   useEffect(() => {
     const el = listRef.current;
