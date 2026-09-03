@@ -81,7 +81,7 @@ export function useCompetitiveSync() {
     let timer: number | null = null;
     const arm = () => {
       if (timer) window.clearTimeout(timer);
-      const wait = liveFast > 0 ? 2800 : 10000;
+      const wait = liveFast > 0 ? 1800 : 3500;
       timer = window.setTimeout(() => {
         if (!document.hidden) void refresh();
         arm();
