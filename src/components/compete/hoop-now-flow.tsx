@@ -38,6 +38,7 @@ import {
   swipeMatchFn,
 } from "@/lib/game/match-mode-fns";
 import { haversineMi } from "@/lib/maps/midpoint-courts";
+import { compareMatchCloseness } from "@/lib/upset/match-closeness";
 import { rankSmartMeetCourts } from "@/lib/maps/smart-meet-courts";
 import { displayRating } from "@/lib/rating/engine";
 import { cityRankOf, ensureCityRanks } from "@/lib/upset/city-rank";
@@ -310,6 +311,9 @@ export function HoopNowFlow({
   }, [store.matches, me.id]);
 
   const deck = useMemo(() => {
+    const inbound = new Set(hoop.inboundLikeIds ?? []);
+    const milesOf = (p: Player) =>
+      haversineMi(youGeo, playerGeo(p, courts));
     return players
       .filter((p) => {
         if (p.id === me.id) return false;
@@ -317,17 +321,22 @@ export function HoopNowFlow({
         if (hoop.passedIds.includes(p.id)) return false;
         if (matchedIds.has(p.id)) return false;
         if (bookedIds.has(p.id)) return false;
-        const geo = playerGeo(p, courts);
-        const miles = haversineMi(youGeo, geo);
-        return playerMatchesBrowseFilters(p, browseFilters, miles);
+        return playerMatchesBrowseFilters(p, browseFilters, milesOf(p));
       })
-      .sort((a, b) => b.rating - a.rating);
+      .sort((a, b) =>
+        compareMatchCloseness(me, a, b, {
+          inboundIds: inbound,
+          milesA: milesOf(a),
+          milesB: milesOf(b),
+        }),
+      );
   }, [
     players,
-    me.id,
+    me,
     hoop,
     hoop.passedIds,
     hoop.playerIds,
+    hoop.inboundLikeIds,
     matchedIds,
     bookedIds,
     courts,
