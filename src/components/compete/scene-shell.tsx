@@ -467,7 +467,12 @@ export function SceneShell({
             onClick={() => setNeedProfile(false)}
             aria-label="Dismiss"
           />
-          <div className="relative z-10 mb-0 w-full max-w-lg rounded-t-3xl border border-border bg-bg-elevated p-5 shadow-soft sm:mb-0 sm:rounded-3xl">
+          <div
+            className="relative z-10 mb-0 w-full max-w-lg rounded-t-3xl border border-border bg-bg-elevated p-5 shadow-soft sm:mb-0 sm:rounded-3xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="profile-complete-title"
+          >
             <button
               type="button"
               onClick={() => setNeedProfile(false)}

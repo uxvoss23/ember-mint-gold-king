@@ -163,6 +163,14 @@ async function createPgliteSql(): Promise<Sql> {
   globalRef.__pgliteMigrateChain__ = pass;
   await pass;
 
+  if (process.env.VITE_AUTH_ENABLED === "false") {
+    await pg.query(
+      `insert into "user" (id, name, email, "emailVerified")
+       values ('dev-user', 'Dev User', 'dev@example.com', true)
+       on conflict (id) do nothing`,
+    );
+  }
+
   return toSql(async <T>(text: string, params: unknown[]) => {
     const result = await pg.query<T>(text, params);
     return result.rows;
@@ -180,10 +188,10 @@ async function createSql(): Promise<Sql> {
   }
   if (!databaseUrl) {
     // Production deploys (Vercel) must not silently use ephemeral PGLite.
-    if (process.env.VERCEL) {
+    if (process.env.VERCEL && process.env.ALLOW_PGLITE !== "true") {
       throw new Error(
         "DATABASE_URL is required in production. Refusing to start with an " +
-          "ephemeral in-memory database.",
+          "ephemeral in-memory database. Isolated CI/preview may set ALLOW_PGLITE=true.",
       );
     }
     console.warn(

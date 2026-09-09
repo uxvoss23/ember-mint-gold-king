@@ -15,11 +15,10 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --max-warnings 50",
     "format": "prettier --write .",
-    "test": "node --experimental-strip-types --no-warnings src/lib/game/game.test.ts && node --experimental-strip-types --no-warnings src/lib/auth/return-to.test.ts && node --experimental-strip-types --no-warnings src/lib/auth/admin.test.ts && node --experimental-strip-types --no-warnings src/lib/game/checkin.test.ts && node --experimental-strip-types --no-warnings src/lib/game/profile.test.ts && node --experimental-strip-types --no-warnings src/lib/courts/service-area.test.ts && node --experimental-strip-types --no-warnings src/lib/log.test.ts && node --experimental-strip-types --no-warnings src/lib/rating/engine.test.ts && node --experimental-strip-types --no-warnings src/lib/upset/match-closeness.test.ts && node scripts/test-migrations.mjs && node scripts/test-two-player-loop.mjs",
+    "test": "node --experimental-strip-types --no-warnings src/lib/game/game.test.ts && node --experimental-strip-types --no-warnings src/lib/game/series.test.ts && node --experimental-strip-types --no-warnings src/lib/game/privacy.test.ts && node --experimental-strip-types --no-warnings src/lib/game/rate-limit.test.ts && node --experimental-strip-types --no-warnings src/lib/auth/return-to.test.ts && node --experimental-strip-types --no-warnings src/lib/auth/admin.test.ts && node --experimental-strip-types --no-warnings src/lib/game/checkin.test.ts && node --experimental-strip-types --no-warnings src/lib/game/profile.test.ts && node --experimental-strip-types --no-warnings src/lib/courts/service-area.test.ts && node --experimental-strip-types --no-warnings src/lib/log.test.ts && node --experimental-strip-types --no-warnings src/lib/rating/engine.test.ts && node --experimental-strip-types --no-warnings src/lib/upset/match-closeness.test.ts && node scripts/test-migrations.mjs && node scripts/test-two-player-loop.mjs",
     "test:smoke": "node scripts/browser-smoke.mjs",
     "test:e2e": "node scripts/e2e-acceptance.mjs",
     "ci": "npm run typecheck && npm run lint && npm test && npm run build"
-
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.3",
@@ -32,7 +31,7 @@
     "clsx": "^2.1.1",
     "kysely": "^0.28.5",
     "lucide-react": "^0.510.0",
-    "maplibre-gl": "^6.1.0",
+    "maplibre-gl": "^6.4.1",
     "pg": "^8.16.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

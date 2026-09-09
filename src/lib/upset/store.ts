@@ -4,6 +4,7 @@ import { displayRating, rateSeries } from "@/lib/rating/engine";
 import { isDemoMode } from "@/lib/config";
 import { GUEST_PLAYER } from "@/lib/game/guest";
 import { toPublicPlayer } from "@/lib/game/profile";
+import { RATED_RULES_COPY, validateScores } from "@/lib/game/rules";
 import { ensureCityRanks } from "@/lib/upset/city-rank";
 import { SEED_PLAYERS } from "@/lib/upset/seed-players";
 import type {
@@ -1022,7 +1023,7 @@ export function useUpsetStore() {
             authorName: "Upset City",
             text: `Quick Match posted. ${
               inviteOnly ? "Private match — invite only." : "Public match — anyone can join."
-            } Just for fun · rating only.${ballLine ? ` ${ballLine}` : ""}${
+            } ${RATED_RULES_COPY}${ballLine ? ` ${ballLine}` : ""}${
               invites.length
                 ? ` · ${invites.length} invite${invites.length === 1 ? "" : "s"} sent.`
                 : ""
@@ -1460,6 +1461,7 @@ export function useUpsetStore() {
   );
 
   const enterScore = useCallback((matchId: string, scores: MatchGame[]) => {
+    if (validateScores(scores)) return;
     setState((s) => {
       const me = s.players.find((p) => p.id === s.meId);
       return {

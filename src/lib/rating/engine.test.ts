@@ -47,7 +47,7 @@ export function runRatingSelfTest(): string[] {
     { rating: 1800, gamesPlayed: 40 },
     { rating: 1400, gamesPlayed: 40 },
     [
-      { a: 11, b: 10 },
+      { a: 12, b: 10 },
       { a: 10, b: 12 },
       { a: 12, b: 10 },
     ],

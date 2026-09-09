@@ -42,7 +42,7 @@ import {
   GROK_ISSUER_DEFAULT,
   PREVIEW_ALLOWED_HOSTS,
   PREVIEW_CLIENT_ID,
-  PREVIEW_CLIENT_SECRET,
+  previewClientSecret,
 } from "./preview";
 
 // Kick (and share) PGLite bootstrap as soon as the auth server module loads.
@@ -77,7 +77,13 @@ const authDisabled = env("VITE_AUTH_ENABLED") === "false";
 // for any `*.grok-sandbox.com` callback (see `./preview`).
 const grokIssuer = env("GROK_AUTH_ISSUER") ?? GROK_ISSUER_DEFAULT;
 const grokClientId = env("GROK_AUTH_CLIENT_ID") ?? PREVIEW_CLIENT_ID;
-const grokClientSecret = env("GROK_AUTH_CLIENT_SECRET") ?? PREVIEW_CLIENT_SECRET;
+const grokClientSecret = env("GROK_AUTH_CLIENT_SECRET") ?? previewClientSecret();
+
+if (!authDisabled && !grokClientSecret) {
+  console.warn(
+    "[auth] GROK_AUTH_CLIENT_SECRET / GROK_PREVIEW_CLIENT_SECRET is not set. Google/X sign-in is disabled until the owner injects a rotated secret. Email/password still works if enabled.",
+  );
+}
 
 /** True when federated sign-in is active (real auth is enforced). */
 export const authConfigured =

@@ -68,6 +68,7 @@ import {
   submitScoreFn,
 } from "@/lib/game/fns";
 import { useTabBarGate } from "@/lib/ui/tab-bar-gate";
+import { RATED_RULES_COPY } from "@/lib/game/rules";
 
 type View = "explore" | "find" | "game" | "create" | "hoop_now" | "alerts_setup";
 type ExploreLane = "open" | "tonight" | "rated";
@@ -2083,9 +2084,8 @@ export function QuickMatchFlow({
           <p className="text-sm font-semibold text-fg">
             {selected.format === "horse"
               ? "HORSE · outdoor · clean calls"
-              : "Best of 3 · games to 11 · make it take it"}
+              : RATED_RULES_COPY}
           </p>
-          <p className="text-[11px] text-fg-muted">Just for fun · rating only</p>
           {"address" in court && court.address ? (
             <a href={mapsHref} target="_blank" rel="noopener noreferrer" className="flex items-start gap-1 text-sm text-fg-muted">
               <MapPin className="mt-0.5 size-3.5 shrink-0 opacity-70" />

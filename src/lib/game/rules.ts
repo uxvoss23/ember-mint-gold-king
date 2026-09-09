@@ -186,10 +186,123 @@ export function hostWonSeries(scores: SeriesGameScore[]): boolean {
     if (g.a > g.b) aWins += 1;
     else if (g.b > g.a) bWins += 1;
   }
-  if (aWins !== bWins) return aWins > bWins;
-  const aPts = scores.reduce((n, g) => n + g.a, 0);
-  const bPts = scores.reduce((n, g) => n + g.b, 0);
-  return aPts >= bPts;
+  return aWins > bWins;
+}
+
+/** Official copy. Use everywhere. */
+export const RATED_RULES_COPY =
+  "Best of 3 · games to 11 · win by 2 · make it take it · rated.";
+
+const MAX_REASONABLE_SCORE = 50;
+
+function isScoreNumber(n: unknown): n is number {
+  return typeof n === "number" && Number.isInteger(n) && Number.isFinite(n);
+}
+
+/** One game to 11, win by 2. After 10–10, first to lead by exactly two. */
+export function validateGameScore(a: unknown, b: unknown, gameIndex = 1): string | null {
+  const label = `Game ${gameIndex}`;
+  if (a == null || b == null || a === "" || b === "") {
+    return `${label} scores are missing.`;
+  }
+  if (typeof a === "number" && !Number.isInteger(a) && Number.isFinite(a)) {
+    return `${label} scores must be whole numbers.`;
+  }
+  if (typeof b === "number" && !Number.isInteger(b) && Number.isFinite(b)) {
+    return `${label} scores must be whole numbers.`;
+  }
+  if (!isScoreNumber(a) || !isScoreNumber(b)) {
+    return `${label} scores must be whole numbers.`;
+  }
+  if (a < 0 || b < 0) return `${label} scores cannot be negative.`;
+  if (a > MAX_REASONABLE_SCORE || b > MAX_REASONABLE_SCORE) {
+    return `${label} scores look too large.`;
+  }
+  if (a === b) return `${label} cannot end in a tie.`;
+  const hi = Math.max(a, b);
+  const lo = Math.min(a, b);
+  const margin = hi - lo;
+  if (hi < 11) {
+    return `${label} is played to 11.`;
+  }
+  if (hi === 11) {
+    if (lo >= 10) {
+      return `${label}: at 10–10, play continues until one player leads by two.`;
+    }
+    return null;
+  }
+  // hi >= 12: deuce — loser reached 10, winner leads by exactly 2
+  if (lo < 10) {
+    return `${label}: once a game goes past 11, both players must have reached 10.`;
+  }
+  if (margin !== 2) {
+    return `${label}: after 10–10, the winner must lead by exactly two.`;
+  }
+  return null;
+}
+
+function gameWins(scores: SeriesGameScore[]): { aWins: number; bWins: number } {
+  let aWins = 0;
+  let bWins = 0;
+  for (const g of scores) {
+    if (g.a > g.b) aWins += 1;
+    else if (g.b > g.a) bWins += 1;
+  }
+  return { aWins, bWins };
+}
+
+/**
+ * Authoritative rated-series validator. Best of 3, to 11, win by 2.
+ * Returns a user-facing error or null when the series is complete and legal.
+ */
+export function validateScores(scores: unknown): string | null {
+  if (!Array.isArray(scores) || scores.length === 0) {
+    return "Enter the game scores.";
+  }
+  if (scores.length > 3) {
+    return "A series is best of three — at most three games.";
+  }
+
+  const games: SeriesGameScore[] = [];
+  for (let i = 0; i < scores.length; i++) {
+    const raw = scores[i];
+    if (!raw || typeof raw !== "object") {
+      return `Game ${i + 1} scores are missing.`;
+    }
+    const rec = raw as { a?: unknown; b?: unknown };
+    const err = validateGameScore(rec.a, rec.b, i + 1);
+    if (err) return err;
+    games.push({ a: rec.a as number, b: rec.b as number });
+    const { aWins, bWins } = gameWins(games);
+    if (i < scores.length - 1 && (aWins === 2 || bWins === 2)) {
+      return "No game may be entered after the series is already decided.";
+    }
+  }
+
+  const { aWins, bWins } = gameWins(games);
+  if (aWins < 2 && bWins < 2) {
+    if (games.length === 1) {
+      return "A series is won by taking two games.";
+    }
+    if (games.length === 2) {
+      return "The first two games were split — enter Game 3.";
+    }
+    return "A series is won by taking two games.";
+  }
+  if ((aWins === 2 && bWins === 0) || (bWins === 2 && aWins === 0)) {
+    if (games.length !== 2) return "A sweep is exactly two games.";
+  }
+  if ((aWins === 2 && bWins === 1) || (bWins === 2 && aWins === 1)) {
+    if (games.length !== 3) return "A split series is exactly three games.";
+  }
+  return null;
+}
+
+/** Host is score `a`. Never trust a client-supplied winner. */
+export function seriesHostWon(scores: SeriesGameScore[]): boolean {
+  const invalid = validateScores(scores);
+  if (invalid) throw new Error(invalid);
+  return hostWonSeries(scores);
 }
 
 export function applyConfirmedResult(input: {
@@ -197,6 +310,8 @@ export function applyConfirmedResult(input: {
   opp: { rating: number; gamesPlayed: number; wins: number; losses: number; streak: number; pointsScored: number; pointsAllowed: number; weeklyWins: number; weeklyLosses: number };
   scores: SeriesGameScore[];
 }) {
+  const invalid = validateScores(input.scores);
+  if (invalid) throw new Error(invalid);
   const result = rateSeries(
     { rating: input.host.rating, gamesPlayed: input.host.gamesPlayed },
     { rating: input.opp.rating, gamesPlayed: input.opp.gamesPlayed },
@@ -232,8 +347,6 @@ export function applyConfirmedResult(input: {
     hostWon: won,
   };
 }
-
-/** Deterministic ladder order. Rank is derived, never stored as source of truth. */
 export function compareLadder(
   a: { rating: number; gamesPlayed: number; wins: number; id: string },
   b: { rating: number; gamesPlayed: number; wins: number; id: string },
@@ -244,14 +357,4 @@ export function compareLadder(
     b.wins - a.wins ||
     a.id.localeCompare(b.id)
   );
-}
-
-export function validateScores(scores: SeriesGameScore[]): string | null {
-  if (!scores.length || scores.length > 3) return "Enter 1–3 game scores.";
-  for (const g of scores) {
-    if (!Number.isInteger(g.a) || !Number.isInteger(g.b)) return "Scores must be whole numbers.";
-    if (g.a < 0 || g.b < 0 || g.a > 99 || g.b > 99) return "Scores look invalid.";
-    if (g.a === g.b) return "Games cannot end in a tie.";
-  }
-  return null;
 }

@@ -20,13 +20,16 @@ import type { DirectThread, Match, MatchGame, Player } from "@/lib/upset/types";
 import { appLog } from "@/lib/log";
 import {
   isProfileComplete,
+  isUnderagePlayer,
   parseProfileFields,
   PROFILE_INCOMPLETE_MESSAGE,
   toPublicPlayer,
+  UNDERAGE_PLAY_MESSAGE,
 } from "@/lib/game/profile";
 import { loadFriendsAndDms } from "@/lib/game/dm-fns";
+import { consumeRateLimit } from "@/lib/game/rate-limit";
 
-const scoreSchema = z.object({ a: z.number().int().min(0).max(99), b: z.number().int().min(0).max(99) });
+const scoreSchema = z.object({ a: z.number().int().min(0).max(50), b: z.number().int().min(0).max(50) });
 
 type Snapshot = {
   players: Player[];
@@ -69,7 +72,11 @@ async function requirePlayer(sql: Sql, userId: string): Promise<PlayerRow> {
 }
 
 function assertProfileComplete(row: PlayerRow) {
-  if (!isProfileComplete(rowToPlayer(row))) {
+  const player = rowToPlayer(row);
+  if (isUnderagePlayer(player)) {
+    throw new Error(UNDERAGE_PLAY_MESSAGE);
+  }
+  if (!isProfileComplete(player)) {
     throw new Error(PROFILE_INCOMPLETE_MESSAGE);
   }
 }
@@ -303,6 +310,33 @@ export const completeProfileFn = createServerFn({ method: "POST" })
     return rowToPlayer(rows[0] ?? me);
   });
 
+export const updatePrivacyFn = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((raw: unknown) =>
+    z
+      .object({
+        dmPrivacy: z.enum(["everyone", "played", "nobody"]),
+        hideFromCatalog: z.boolean(),
+        openToChallenges: z.boolean(),
+      })
+      .parse(raw),
+  )
+  .handler(async ({ context, data }): Promise<Player> => {
+    const sql = await getSql();
+    const me = await requirePlayer(sql, context.userId);
+    const rows = await sql.query<PlayerRow>(
+      `update player set
+         dm_privacy = $2,
+         hide_from_catalog = $3,
+         open_to_challenges = $4,
+         updated_at = now()
+       where id = $1
+       returning *`,
+      [me.id, data.dmPrivacy, data.hideFromCatalog, data.openToChallenges],
+    );
+    return rowToPlayer(rows[0] ?? me);
+  });
+
 export const createGameFn = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((raw: unknown) =>
@@ -333,6 +367,7 @@ export const createGameFn = createServerFn({ method: "POST" })
     const sql = await getSql();
     const me = await requirePlayer(sql, context.userId);
     assertProfileComplete(me);
+    await consumeRateLimit(sql, "createGame", me.id);
     const id = newId("g");
     const invites = data.guestInviteIds.filter((x) => x && x !== me.id);
     await sql.query(
@@ -506,6 +541,7 @@ export const sendGameMessageFn = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const me = await requirePlayer(sql, context.userId);
+    await consumeRateLimit(sql, "chat", me.id);
     const games = await sql.query<GameRow>("select * from game where id = $1", [data.gameId]);
     const game = games[0];
     if (!game) throw new Error("Game not found.");
@@ -794,6 +830,7 @@ export const challengePlayerFn = createServerFn({ method: "POST" })
     const sql = await getSql();
     const me = await requirePlayer(sql, context.userId);
     assertProfileComplete(me);
+    await consumeRateLimit(sql, "challenge", me.id);
     if (data.targetId === me.id) throw new Error("You can’t challenge yourself.");
     const target = await loadPlayer(sql, data.targetId);
     if (!target) throw new Error("Player not found.");

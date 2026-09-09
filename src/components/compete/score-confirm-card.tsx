@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Match, MatchGame, Player } from "@/lib/upset/types";
 import { cn } from "@/lib/utils";
+import { RATED_RULES_COPY, validateScores } from "@/lib/game/rules";
 
 /**
  * Dual-confirm scores — rating only locks after opponent confirms.
@@ -177,8 +178,7 @@ export function ScoreConfirmCard({
           Enter final score
         </p>
         <p className="mt-0.5 text-[11px] text-fg-muted">
-          {hostLabel} (left) · {oppLabel} (right). Leave blank until you know the
-          result.
+          {hostLabel} (left) · {oppLabel} (right). {RATED_RULES_COPY}
         </p>
       </div>
       <div className="flex items-center gap-2 px-0.5 text-[10px] font-semibold text-fg-subtle">
@@ -235,9 +235,9 @@ export function ScoreConfirmCard({
             }
             scores.push({ a: p3a, b: p3b });
           }
-          const bad = scores.some((g) => g.a === g.b);
-          if (bad) {
-            setErr("Games can’t be ties — fix scores.");
+          const invalid = validateScores(scores);
+          if (invalid) {
+            setErr(invalid);
             return;
           }
           setErr(null);
@@ -266,16 +266,24 @@ function ScoreRow({
   setB?: (n: string) => void;
   readOnly?: boolean;
 }) {
+  const hostName = `${label}, host score`;
+  const oppName = `${label}, opponent score`;
   return (
     <div className="flex items-center gap-2">
       <span className="w-14 text-[11px] font-medium text-fg-muted">{label}</span>
       {readOnly ? (
         <>
-          <div className="flex h-10 w-full items-center justify-center rounded-xl border border-border bg-bg-subtle text-sm font-bold tabular-nums text-fg">
+          <div
+            className="flex h-10 w-full items-center justify-center rounded-xl border border-border bg-bg-subtle text-sm font-bold tabular-nums text-fg"
+            aria-label={hostName}
+          >
             {a}
           </div>
           <span className="text-xs text-fg-subtle">–</span>
-          <div className="flex h-10 w-full items-center justify-center rounded-xl border border-border bg-bg-subtle text-sm font-bold tabular-nums text-fg">
+          <div
+            className="flex h-10 w-full items-center justify-center rounded-xl border border-border bg-bg-subtle text-sm font-bold tabular-nums text-fg"
+            aria-label={oppName}
+          >
             {b}
           </div>
         </>
@@ -284,10 +292,11 @@ function ScoreRow({
           <input
             type="number"
             min={0}
-            max={99}
+            max={50}
             inputMode="numeric"
             placeholder="—"
             value={a}
+            aria-label={hostName}
             onChange={(e) => setA?.(e.target.value)}
             className={cn(
               "h-10 w-full rounded-xl border border-border bg-bg px-2 text-center text-sm font-semibold tabular-nums placeholder:text-fg-subtle",
@@ -297,10 +306,11 @@ function ScoreRow({
           <input
             type="number"
             min={0}
-            max={99}
+            max={50}
             inputMode="numeric"
             placeholder="—"
             value={b}
+            aria-label={oppName}
             onChange={(e) => setB?.(e.target.value)}
             className="h-10 w-full rounded-xl border border-border bg-bg px-2 text-center text-sm font-semibold tabular-nums placeholder:text-fg-subtle"
           />

@@ -4,9 +4,11 @@
  */
 import {
   isProfileComplete,
+  isUnderagePlayer,
   parseProfileFields,
   toPublicPlayer,
   PROFILE_PRIVACY_NOTE,
+  UNDERAGE_PLAY_MESSAGE,
 } from "./profile.ts";
 import type { Player } from "../upset/types.ts";
 
@@ -68,6 +70,32 @@ function run(): string[] {
     ethnicity: "White",
   });
   assert(!badAge.ok, "age 12 rejected");
+  const age16 = parseProfileFields({
+    age: 16,
+    weightLb: 180,
+    gender: "man",
+    ethnicity: "White",
+  });
+  assert(!age16.ok, "age 16 rejected");
+  assert(
+    !age16.ok && age16.reason === UNDERAGE_PLAY_MESSAGE,
+    "age 16 uses eligibility copy",
+  );
+  const age17 = parseProfileFields({
+    age: 17,
+    weightLb: 180,
+    gender: "man",
+    ethnicity: "White",
+  });
+  assert(age17.ok, "age 17 accepted");
+  assert(
+    isUnderagePlayer(player({ age: 16, weightLb: 180, gender: "man", ethnicity: "White" })),
+    "stored age 16 is ineligible without rewriting age",
+  );
+  assert(
+    !isUnderagePlayer(player({ age: 17, weightLb: 180, gender: "man", ethnicity: "White" })),
+    "age 17 is eligible",
+  );
   const badWeight = parseProfileFields({
     age: 24,
     weightLb: 40,

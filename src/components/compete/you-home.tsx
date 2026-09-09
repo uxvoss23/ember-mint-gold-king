@@ -7,7 +7,7 @@ import { displayRating } from "@/lib/rating/engine";
 import { applyFriendsAndDms, formatLocalWhen, useUpsetStore } from "@/lib/upset/store";
 import type { DirectThread, Match, Player } from "@/lib/upset/types";
 import { cn } from "@/lib/utils";
-import { isProfileComplete } from "@/lib/game/profile";
+import { isProfileComplete, isUnderagePlayer, UNDERAGE_PLAY_MESSAGE } from "@/lib/game/profile";
 import { sendDmFn } from "@/lib/game/dm-fns";
 import { mutationError } from "@/lib/game/client-actions";
 
@@ -86,7 +86,12 @@ export function YouHome({
         </div>
       </button>
 
-      {signedIn && !isProfileComplete(me) ? (
+      {signedIn && isUnderagePlayer(me) ? (
+        <div className="w-full rounded-2xl border border-border bg-bg-elevated px-4 py-3 text-left">
+          <p className="text-sm font-semibold text-fg">Not eligible to play yet</p>
+          <p className="mt-0.5 text-xs text-fg-muted">{UNDERAGE_PLAY_MESSAGE}</p>
+        </div>
+      ) : signedIn && !isProfileComplete(me) ? (
         <button
           type="button"
           onClick={onOpenProfile}

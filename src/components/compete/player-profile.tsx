@@ -3,17 +3,18 @@ import { Flag, MessageSquare, Swords, X } from "lucide-react";
 import { PlayerAvatar } from "@/components/compete/player-avatar";
 import { namedAustinCourts } from "@/lib/courts/catalog";
 import { displayRating } from "@/lib/rating/engine";
-import { applyFriendsAndDms, formatLocalWhen, useUpsetStore } from "@/lib/upset/store";
+import { applyFriendsAndDms, formatLocalWhen, upsertPlayer, useUpsetStore } from "@/lib/upset/store";
 import type { Player } from "@/lib/upset/types";
-import { formatHeightInches } from "@/lib/utils";
+import { cn, formatHeightInches } from "@/lib/utils";
 import { isDemoMode } from "@/lib/config";
-import { challengePlayerFn, blockPlayerFn, reportPlayerFn } from "@/lib/game/fns";
+import { challengePlayerFn, blockPlayerFn, reportPlayerFn, updatePrivacyFn } from "@/lib/game/fns";
 import { addFriendFn, removeFriendFn, sendDmFn } from "@/lib/game/dm-fns";
 import { GUEST_PLAYER_ID } from "@/lib/game/guest";
 import { mutationError, refreshCompetitiveSnapshot } from "@/lib/game/client-actions";
 import { useRequireAuth } from "@/lib/game/use-require-auth";
 import { ProfileCompleteForm } from "@/components/compete/profile-complete-form";
 import { isProfileComplete, PROFILE_PRIVACY_NOTE } from "@/lib/game/profile";
+import { DM_PRIVACY_OPTIONS, type DmPrivacy } from "@/lib/game/privacy";
 
 export function PlayerProfile({
   player,
@@ -239,6 +240,8 @@ export function PlayerProfile({
           </p>
         ) : null}
 
+        {isMe ? <PrivacyAndDiscovery me={live} /> : null}
+
         {player.bio && (
           <p className="mt-4 text-sm leading-relaxed text-fg-muted">{player.bio}</p>
         )}
@@ -348,5 +351,113 @@ export function PlayerProfile({
         )}
       </div>
     </div>
+  );
+}
+
+function PrivacyAndDiscovery({ me }: { me: Player }) {
+  const [dmPrivacy, setDmPrivacy] = useState<DmPrivacy>(me.dmPrivacy);
+  const [hideFromCatalog, setHideFromCatalog] = useState(me.hideFromCatalog);
+  const [openToChallenges, setOpenToChallenges] = useState(me.openToChallenges);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+
+  const save = async (next: {
+    dmPrivacy: DmPrivacy;
+    hideFromCatalog: boolean;
+    openToChallenges: boolean;
+  }) => {
+    setBusy(true);
+    setNote(null);
+    try {
+      const saved = await updatePrivacyFn({ data: next });
+      upsertPlayer(saved);
+      setNote("Saved.");
+    } catch (err) {
+      setNote(mutationError(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="mt-5 space-y-3 rounded-2xl border border-border bg-bg-subtle p-4">
+      <div>
+        <h4 className="text-sm font-semibold text-fg">Privacy and discovery</h4>
+        <p className="mt-0.5 text-[11px] text-fg-muted">
+          Only you can change these. Other players never see your age, gender, or ethnicity.
+        </p>
+      </div>
+      <div>
+        <p className="text-[10px] font-bold tracking-wide text-fg-subtle uppercase">
+          Direct messages
+        </p>
+        <div className="mt-1.5 flex flex-col gap-1.5">
+          {DM_PRIVACY_OPTIONS.map((opt) => (
+            <button
+              key={opt.id}
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                setDmPrivacy(opt.id);
+                void save({
+                  dmPrivacy: opt.id,
+                  hideFromCatalog,
+                  openToChallenges,
+                });
+              }}
+              className={cn(
+                "rounded-xl border px-3 py-2 text-left",
+                dmPrivacy === opt.id
+                  ? "border-court bg-court/10"
+                  : "border-border bg-bg",
+              )}
+            >
+              <span className="block text-[13px] font-semibold text-fg">{opt.label}</span>
+              <span className="block text-[11px] text-fg-muted">{opt.hint}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      <label className="flex items-start gap-2.5 text-[13px] text-fg">
+        <input
+          type="checkbox"
+          checked={!hideFromCatalog}
+          disabled={busy}
+          onChange={(e) => {
+            const next = !e.target.checked;
+            setHideFromCatalog(next);
+            void save({ dmPrivacy, hideFromCatalog: next, openToChallenges });
+          }}
+        />
+        <span>
+          Show me in player discovery
+          <span className="mt-0.5 block text-[11px] text-fg-muted">
+            Off hides you from the catalog and Match Mode.
+          </span>
+        </span>
+      </label>
+      <label className="flex items-start gap-2.5 text-[13px] text-fg">
+        <input
+          type="checkbox"
+          checked={openToChallenges}
+          disabled={busy}
+          onChange={(e) => {
+            setOpenToChallenges(e.target.checked);
+            void save({
+              dmPrivacy,
+              hideFromCatalog,
+              openToChallenges: e.target.checked,
+            });
+          }}
+        />
+        <span>
+          Open to challenges
+          <span className="mt-0.5 block text-[11px] text-fg-muted">
+            Off blocks new direct challenges. Existing games stay.
+          </span>
+        </span>
+      </label>
+      {note ? <p className="text-[11px] text-fg-muted">{note}</p> : null}
+    </section>
   );
 }

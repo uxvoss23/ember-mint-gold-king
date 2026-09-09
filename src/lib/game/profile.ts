@@ -30,6 +30,22 @@ export type ProfileParse =
 const ETHNICITY = new Set<string>(ETHNICITY_OPTIONS);
 const GENDER = new Set<string>(PROFILE_GENDERS);
 
+export const MIN_PLAYER_AGE = 17;
+export const MAX_PLAYER_AGE = 80;
+
+export const UNDERAGE_PLAY_MESSAGE =
+  "Upset City is for players 17 and older. This account can’t post or join games.";
+
+export function isEligibleAge(age: unknown): boolean {
+  return typeof age === "number" && Number.isInteger(age) && age >= MIN_PLAYER_AGE && age <= MAX_PLAYER_AGE;
+}
+
+export function isUnderagePlayer(
+  p: Pick<Player, "age">,
+): boolean {
+  return typeof p.age === "number" && Number.isInteger(p.age) && p.age < MIN_PLAYER_AGE;
+}
+
 export function parseProfileFields(raw: {
   age?: unknown;
   weightLb?: unknown;
@@ -37,8 +53,11 @@ export function parseProfileFields(raw: {
   ethnicity?: unknown;
 }): ProfileParse {
   const age = typeof raw.age === "number" ? raw.age : Number(raw.age);
-  if (!Number.isInteger(age) || age < 13 || age > 80) {
-    return { ok: false, reason: "Age must be 13–80." };
+  if (!Number.isInteger(age) || age < MIN_PLAYER_AGE || age > MAX_PLAYER_AGE) {
+    if (Number.isInteger(age) && age < MIN_PLAYER_AGE) {
+      return { ok: false, reason: UNDERAGE_PLAY_MESSAGE };
+    }
+    return { ok: false, reason: `Age must be ${MIN_PLAYER_AGE}–${MAX_PLAYER_AGE}.` };
   }
   const weightLb =
     typeof raw.weightLb === "number" ? raw.weightLb : Number(raw.weightLb);
@@ -91,7 +110,7 @@ export function toPublicPlayer(p: Player): Player {
 }
 
 export const PROFILE_INCOMPLETE_MESSAGE =
-  "Finish your profile (age, weight, gender, ethnicity) to play.";
+  "Finish your profile (age, weight, gender, ethnicity) to play. You must be 17 or older.";
 
 /** Short in-app privacy copy. Not a legal policy. */
 export const PROFILE_PRIVACY_NOTE =

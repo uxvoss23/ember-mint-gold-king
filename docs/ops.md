@@ -34,6 +34,9 @@ Additive SQL in `migrations/`, applied in name order.
 | `0010_court_search_cache.sql` | Durable Overpass cache |
 | `0011_moderator_role.sql` | `player.role` moderator |
 | `0012_match_mode.sql` | Match Mode availability + likes |
+| `0013_rate_limit.sql` | Application rate-limit counters |
+
+Federated OAuth secrets live in `GROK_AUTH_CLIENT_SECRET` (or `GROK_PREVIEW_CLIENT_SECRET`). They are never committed. If unset, Google/X is disabled. Rotate any previously leaked preview secret as an owner action.
 
 - Production: `npm run db:migrate` (also runs at the end of `npm run build`).
 - Preview: PGLite applies the same files on startup (`src/lib/db.ts`).

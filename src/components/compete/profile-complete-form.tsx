@@ -45,17 +45,20 @@ export function ProfileCompleteForm({
 
   return (
     <div className="space-y-3">
-      <p className="text-sm font-semibold text-fg">Finish your profile</p>
+      <p id="profile-complete-title" className="text-sm font-semibold text-fg">Finish your profile</p>
       <p className="text-xs text-fg-muted">
-        Age, weight, gender, and ethnicity are required to post or join a 1v1.
+        Age 17+, weight, gender, and ethnicity are required to post or join a 1v1.
       </p>
       <p className="text-[11px] leading-relaxed text-fg-subtle">
         {PROFILE_PRIVACY_NOTE}
       </p>
       <label className="block">
-        <span className="text-[10px] font-bold tracking-wide text-fg-subtle uppercase">Age</span>
+        <span className="text-[10px] font-bold tracking-wide text-fg-subtle uppercase">Age (17+)</span>
         <input
           inputMode="numeric"
+          min={17}
+          max={80}
+          aria-label="Age, 17 or older"
           value={age}
           onChange={(e) => setAge(e.target.value.replace(/\D/g, "").slice(0, 2))}
           className="mt-1 h-11 w-full rounded-xl border border-border bg-bg-subtle px-3 text-sm text-fg outline-none"

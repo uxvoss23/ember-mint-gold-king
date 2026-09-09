@@ -4,6 +4,8 @@ import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql, type Sql } from "@/lib/db";
 import { newId } from "@/lib/game/map";
 import type { DirectThread } from "@/lib/upset/types";
+import { canMessagePlayer, type DmPrivacy } from "@/lib/game/privacy";
+import { consumeRateLimit } from "@/lib/game/rate-limit";
 
 async function requireNamedPlayer(sql: Sql, userId: string) {
   const rows = await sql.query<{ id: string; name: string }>(
@@ -160,6 +162,17 @@ export const removeFriendFn = createServerFn({ method: "POST" })
     return loadFriendsAndDms(sql, me.id);
   });
 
+async function playedTogether(sql: Sql, a: string, b: string): Promise<boolean> {
+  const rows = await sql.query(
+    `select 1 from game
+      where status = 'confirmed'
+        and ((host_id = $1 and opponent_id = $2) or (host_id = $2 and opponent_id = $1))
+      limit 1`,
+    [a, b],
+  );
+  return rows.length > 0;
+}
+
 export const sendDmFn = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((raw: unknown) =>
@@ -174,10 +187,22 @@ export const sendDmFn = createServerFn({ method: "POST" })
     const sql = await getSql();
     await ensureSchema(sql);
     const me = await requireNamedPlayer(sql, context.userId);
+    await consumeRateLimit(sql, "dm", me.id);
     if (data.targetId === me.id) throw new Error("You can’t message yourself.");
     if (await isBlocked(sql, me.id, data.targetId)) throw new Error("You can’t message that player.");
-    const exists = await sql.query(`select 1 from player where id = $1`, [data.targetId]);
-    if (!exists[0]) throw new Error("Player not found.");
+    const target = await sql.query<{ id: string; dm_privacy: string }>(
+      `select id, dm_privacy from player where id = $1`,
+      [data.targetId],
+    );
+    if (!target[0]) throw new Error("Player not found.");
+    const gate = canMessagePlayer({
+      senderId: me.id,
+      recipientId: data.targetId,
+      recipientPrivacy: (target[0].dm_privacy || "everyone") as DmPrivacy,
+      blocked: false,
+      playedTogether: await playedTogether(sql, me.id, data.targetId),
+    });
+    if (!gate.ok) throw new Error(gate.reason);
     const [a, b] = pair(me.id, data.targetId);
     const existing = await sql.query<{ id: string }>(
       `select id from dm_thread where player_a_id = $1 and player_b_id = $2`,

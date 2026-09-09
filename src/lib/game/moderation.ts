@@ -131,7 +131,7 @@ export const resolveDisputeScoreFn = createServerFn({ method: "POST" })
     z
       .object({
         disputeId: z.string(),
-        scores: z.array(z.object({ a: z.number().int().min(0).max(99), b: z.number().int().min(0).max(99) })).min(1).max(3),
+        scores: z.array(z.object({ a: z.number().int().min(0).max(50), b: z.number().int().min(0).max(50) })).min(1).max(3),
       })
       .parse(raw),
   )
