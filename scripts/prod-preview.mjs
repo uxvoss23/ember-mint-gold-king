@@ -36,6 +36,16 @@ const env = {
   NITRO_PORT: String(port),
 };
 
+const hasDatabaseUrl = Boolean((env.DATABASE_URL || "").trim());
+const productionRuntime =
+  env.NODE_ENV === "production" || Boolean(env.VERCEL && env.VERCEL !== "0");
+if (!hasDatabaseUrl && productionRuntime && env.ALLOW_PGLITE !== "true") {
+  console.error(
+    "[prod-preview] DATABASE_URL is required in production. Refusing to start with an ephemeral in-memory database. Isolated CI/preview may set ALLOW_PGLITE=true.",
+  );
+  process.exit(1);
+}
+
 // WASM/data files are not part of the JS bundle — copy them next to it.
 spawnSync(process.execPath, [resolve(root, "scripts/copy-pglite-assets.mjs")], {
   stdio: "inherit",
@@ -80,7 +90,7 @@ if (nodeServer) {
       ],
       {
         stdio: "inherit",
-        env: { ...env, ALLOW_PGLITE: process.env.ALLOW_PGLITE || "true" },
+        env,
         cwd: resolve(root, ".vercel/output/functions/__server.func"),
       },
     ),

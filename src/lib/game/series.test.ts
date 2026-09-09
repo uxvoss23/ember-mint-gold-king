@@ -36,6 +36,13 @@ function run() {
   );
   ok([{ a: 11, b: 9 }, { a: 11, b: 0 }], "11–9 valid");
   bad([{ a: 11, b: 10 }, { a: 11, b: 5 }], "11–10 invalid");
+  bad(
+    [
+      { a: 1, b: 0 },
+      { a: 1, b: 0 },
+    ],
+    "1–0, 1–0 rejected — not played to 11",
+  );
   ok(
     [
       { a: 12, b: 10 },

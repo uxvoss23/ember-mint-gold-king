@@ -6,12 +6,12 @@ Canonical env list: `env.example` (keep `.env.example` identical if you keep a l
 
 | Variable | Where | Default | Notes |
 |---|---|---|---|
-| `DATABASE_URL` | server | unset | Required on Vercel. Unset → PGLite in preview/dev only. |
+| `DATABASE_URL` | server | unset | Required in production (`NODE_ENV=production` or `VERCEL`). Unset in `vite dev` → PGLite. |
+| `ALLOW_PGLITE` | server | unset | Must be exactly `true` to use PGLite when running a production-mode preview (`npm run preview`). CI sets this deliberately. |
 | `VITE_AUTH_ENABLED` | client | on | `"false"` disables sign-in (dev user). Refuse this against a real DB. |
 | `VITE_DEMO_MODE` | client | off | `"true"` allows labeled seed/demo data. |
 | `VITE_MATCH_MODE` | client | on | `"false"` hides Match Mode. Likes persist on the server. |
 | `VITE_PUBLIC_HOSTNAME` | inject | — | Set on publish. Do not invent a local `.env` for it. |
-| `ALLOW_PGLITE` | server | unset | Emergency local production-mode preview only. |
 | `MODERATOR_EMAILS` | server | unset | Extra emails granted `player.role = moderator` on first admin action. |
 
 Admin court editing uses `player.role = moderator` (migration `0011_moderator_role.sql`). Bootstrap emails: `seanvoss23@gmail.com` plus `MODERATOR_EMAILS`. Enforced in `requireModerator` (`src/lib/auth/moderator.server.ts`). Regular accounts never see the pencil. Role is omitted from public player payloads.

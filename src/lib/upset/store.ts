@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import { namedAustinCourts } from "@/lib/courts/catalog";
 import { displayRating, rateSeries } from "@/lib/rating/engine";
 import { isDemoMode } from "@/lib/config";
-import { GUEST_PLAYER } from "@/lib/game/guest";
+import { GUEST_PLAYER, isGuestPlayerId } from "@/lib/game/guest";
 import { toPublicPlayer } from "@/lib/game/profile";
 import { RATED_RULES_COPY, validateScores } from "@/lib/game/rules";
 import { ensureCityRanks } from "@/lib/upset/city-rank";
@@ -770,10 +770,18 @@ export function applyServerSnapshot(snap: {
   dmThreads?: DirectThread[];
 }) {
   const matches = mergeOptimisticChat(state.matches, snap.matches);
+  const incomingMe = snap.meId ?? "";
+  const meId =
+    incomingMe || (isGuestPlayerId(state.meId) || !state.meId ? "" : state.meId);
+  let players = snap.players;
+  if (meId && !players.some((p) => p.id === meId)) {
+    const mine = state.players.find((p) => p.id === meId);
+    if (mine) players = [mine, ...players];
+  }
   const next = {
-    players: snap.players,
+    players,
     matches,
-    meId: snap.meId || state.meId,
+    meId,
     friendIds: snap.friendIds ?? state.friendIds,
     dmThreads: snap.dmThreads ?? state.dmThreads,
   };
@@ -783,7 +791,7 @@ export function applyServerSnapshot(snap: {
   setState((s) => ({
     ...s,
     ...next,
-    meId: next.meId || s.meId,
+    meId: next.meId,
   }));
 }
 
@@ -827,12 +835,36 @@ export function upsertPlayer(player: Player) {
       i >= 0
         ? s.players.map((p, idx) => (idx === i ? { ...p, ...player } : p))
         : [player, ...s.players];
+    const own =
+      !s.meId || isGuestPlayerId(s.meId) || s.meId === player.id
+        ? player.id
+        : s.meId;
     return {
       ...s,
       players,
-      meId: s.meId || player.id,
+      meId: own,
     };
   });
+}
+
+/** Bind the competitive `me` to the signed-in player immediately. */
+export function adoptAuthenticatedPlayer(player: Player) {
+  lastSnapshotKey = "";
+  setState((s) => {
+    const i = s.players.findIndex((p) => p.id === player.id);
+    const withoutGuest = s.players.filter((p) => !isGuestPlayerId(p.id) && p.id !== player.id);
+    const players =
+      i >= 0
+        ? s.players.map((p, idx) => (idx === i ? { ...p, ...player } : p))
+        : [player, ...withoutGuest];
+    return { ...s, players, meId: player.id };
+  });
+}
+
+/** After sign-out: drop local competitive identity so Me cannot stay signed-in. */
+export function clearAuthenticatedPlayer() {
+  lastSnapshotKey = "";
+  setState(() => emptyState());
 }
 
 function getSnap() {
@@ -866,10 +898,12 @@ export function useUpsetStore() {
     getSnap,
   );
 
-  // hydrate after first paint so buttons aren't blocked by JSON.parse
+  // Demo only: hydrate seed data after first paint. Production is server-backed
+  // — never replace an adopted session with empty local state.
   useEffect(() => {
     if (hydrated) return;
     hydrated = true;
+    if (!isDemoMode()) return;
     const run = () => {
       try {
         const loaded = load();

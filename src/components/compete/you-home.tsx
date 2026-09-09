@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Crown, MessageSquare } from "lucide-react";
 import { PlayerAvatar } from "@/components/compete/player-avatar";
-import { GUEST_PLAYER_ID } from "@/lib/game/guest";
 import { cityRankOf } from "@/lib/upset/city-rank";
 import { displayRating } from "@/lib/rating/engine";
 import { applyFriendsAndDms, formatLocalWhen, useUpsetStore } from "@/lib/upset/store";
@@ -14,6 +13,7 @@ import { mutationError } from "@/lib/game/client-actions";
 export function YouHome({
   me,
   signedIn,
+  accountName,
   matches,
   players,
   onOpenProfile,
@@ -22,17 +22,19 @@ export function YouHome({
 }: {
   me: Player;
   signedIn: boolean;
+  accountName?: string;
   matches: Match[];
   players: Player[];
   onOpenProfile: () => void;
   onOpenMatch: (id: string) => void;
   onGoPlay: () => void;
 }) {
-  if (!signedIn || me.id === GUEST_PLAYER_ID) return null;
+  if (!signedIn) return null;
 
   const rank = cityRankOf(me.id);
   const isKing = rank === 1;
   const playerById = (id: string) => players.find((p) => p.id === id);
+  const displayName = accountName?.trim() || me.name;
 
   const mine = matches.filter(
     (m) => m.hostId === me.id || m.opponentId === me.id,
@@ -66,11 +68,12 @@ export function YouHome({
         type="button"
         onClick={onOpenProfile}
         className="flex w-full items-center gap-3 rounded-2xl border border-border bg-bg-elevated p-4 text-left"
+        aria-label={`Profile and privacy, ${displayName}`}
       >
         <PlayerAvatar player={me} size="lg" showElite />
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-1.5 truncate text-base font-semibold text-fg">
-            {me.name}
+            {displayName}
             {isKing ? <Crown className="size-4 shrink-0 text-gold" /> : null}
           </p>
           <p className="mt-0.5 text-sm tabular-nums text-fg-muted">
@@ -104,6 +107,17 @@ export function YouHome({
           </p>
         </button>
       ) : null}
+
+      <button
+        type="button"
+        onClick={onOpenProfile}
+        className="w-full rounded-2xl border border-border bg-bg-elevated px-4 py-3 text-left"
+      >
+        <p className="text-sm font-semibold text-fg">Profile and privacy</p>
+        <p className="mt-0.5 text-xs text-fg-muted">
+          Age, DMs, discovery. Other players never see your age, gender, or ethnicity.
+        </p>
+      </button>
 
       <div className="grid grid-cols-3 gap-2">
         {(
@@ -161,6 +175,11 @@ export function YouHome({
                   <button
                     type="button"
                     onClick={() => onOpenMatch(m.id)}
+                    aria-label={
+                      opp
+                        ? `${label} vs ${opp.name}`
+                        : `${label}, waiting for opponent`
+                    }
                     className="flex w-full items-center justify-between gap-2 rounded-xl border border-border bg-bg px-3 py-2 text-left"
                   >
                     <div className="min-w-0">

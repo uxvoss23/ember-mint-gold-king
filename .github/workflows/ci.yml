@@ -26,6 +26,7 @@ jobs:
           BROWSER_SMOKE_TIMEOUT_MS: "60000"
           HOST: 127.0.0.1
           PORT: "8080"
+          ALLOW_PGLITE: "true"
         run: |
           npm run preview &
           preview_pid=$!

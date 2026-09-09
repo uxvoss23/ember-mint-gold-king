@@ -44,6 +44,7 @@ import {
   PREVIEW_CLIENT_ID,
   previewClientSecret,
 } from "./preview";
+import { resolveAuthProviders } from "./auth-mode";
 
 // Kick (and share) PGLite bootstrap as soon as the auth server module loads.
 void ensureDbReady();
@@ -68,10 +69,6 @@ const env = (key: string): string | undefined => {
   return value ? value : undefined;
 };
 
-// Explicit off-switch. The deployer sets `VITE_AUTH_ENABLED=true` when it
-// provisions auth; set it to "false" to force auth off everywhere (dev user).
-const authDisabled = env("VITE_AUTH_ENABLED") === "false";
-
 // Broker federation creds: the deployer injects a per-app client when deployed;
 // otherwise fall back to the shared live-preview client, which the broker accepts
 // for any `*.grok-sandbox.com` callback (see `./preview`).
@@ -79,15 +76,22 @@ const grokIssuer = env("GROK_AUTH_ISSUER") ?? GROK_ISSUER_DEFAULT;
 const grokClientId = env("GROK_AUTH_CLIENT_ID") ?? PREVIEW_CLIENT_ID;
 const grokClientSecret = env("GROK_AUTH_CLIENT_SECRET") ?? previewClientSecret();
 
-if (!authDisabled && !grokClientSecret) {
+const authSurface = resolveAuthProviders({
+  VITE_AUTH_ENABLED: process.env.VITE_AUTH_ENABLED,
+  GROK_AUTH_CLIENT_SECRET: grokClientSecret,
+});
+
+if (authSurface.sessions && !authSurface.oauth) {
   console.warn(
     "[auth] GROK_AUTH_CLIENT_SECRET / GROK_PREVIEW_CLIENT_SECRET is not set. Google/X sign-in is disabled until the owner injects a rotated secret. Email/password still works if enabled.",
   );
 }
 
-/** True when federated sign-in is active (real auth is enforced). */
-export const authConfigured =
-  !authDisabled && Boolean(grokClientId && grokClientSecret);
+/** True when Better Auth sessions are live (email/password and/or OAuth). */
+export const authConfigured = authSurface.sessions;
+
+/** True when Google/X federation has a client secret. Independent of email. */
+export const oauthConfigured = authSurface.oauth;
 
 // This app's own Better Auth origin. When deployed the deployer injects the
 // public URL. In the sandbox live preview there's no fixed URL (each preview gets
@@ -153,7 +157,7 @@ export const SESSION_TOKEN_COOKIE = "__Host-grok-auth.session_token";
 
 // Built separately so the `betterAuth({...})` call stays easy to edit without
 // breaking brackets (models often trip on the conditional plugin spread).
-const grokOAuthPlugin = authConfigured
+const grokOAuthPlugin = oauthConfigured
   ? genericOAuth({
       config: GROK_PROVIDERS.map(({ providerId, idp }) => ({
         providerId,

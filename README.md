@@ -45,12 +45,12 @@ npm run test:e2e
 
 ```bash
 npm run build
-npm run preview
+ALLOW_PGLITE=true npm run preview
 # starts the Node production server from .output (or the Vercel artifact)
 # HOST=0.0.0.0 PORT=8080
 ```
 
-Production without `DATABASE_URL` fails closed (unless `ALLOW_PGLITE=true` for isolated CI).
+Production (`NODE_ENV=production` or `VERCEL`) without `DATABASE_URL` fails closed unless `ALLOW_PGLITE=true`.
 
 ## Security / privacy owner actions
 

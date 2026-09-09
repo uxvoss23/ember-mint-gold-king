@@ -2,10 +2,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { isDemoMode } from "@/lib/config";
 import { ensureMyPlayer, loadCompetitiveSnapshot } from "@/lib/game/fns";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import { applyServerSnapshot, useUpsetStore } from "@/lib/upset/store";
+import {
+  adoptAuthenticatedPlayer,
+  applyServerSnapshot,
+  clearAuthenticatedPlayer,
+  useUpsetStore,
+} from "@/lib/upset/store";
 
 let liveFast = 0;
-let inFlight = false;
+let inFlight: Promise<void> | null = null;
+let queued = false;
 
 /** Chat / invite review wants quicker polls. Nested callers stack. */
 export function setLiveSyncFast(on: boolean) {
@@ -21,29 +27,41 @@ export function useCompetitiveSync() {
   );
   const [error, setError] = useState<string | null>(null);
   const readyOnce = useRef(isDemoMode());
+  const lastUserId = useRef<string | null | undefined>(undefined);
 
   const refresh = useCallback(async () => {
     if (isDemoMode()) {
       setStatus("ready");
       return;
     }
-    if (inFlight) return;
-    inFlight = true;
-    if (!readyOnce.current) setStatus("loading");
-    try {
-      const snap = await loadCompetitiveSnapshot();
-      applyServerSnapshot(snap);
-      setError(null);
-      readyOnce.current = true;
-      setStatus("ready");
-    } catch (err) {
-      if (!readyOnce.current) {
-        setStatus("error");
-        setError(err instanceof Error ? err.message : "Couldn’t load games.");
-      }
-    } finally {
-      inFlight = false;
+    if (inFlight) {
+      queued = true;
+      await inFlight;
+      return;
     }
+    if (!readyOnce.current) setStatus("loading");
+    const run = (async () => {
+      try {
+        const snap = await loadCompetitiveSnapshot();
+        applyServerSnapshot(snap);
+        setError(null);
+        readyOnce.current = true;
+        setStatus("ready");
+      } catch (err) {
+        if (!readyOnce.current) {
+          setStatus("error");
+          setError(err instanceof Error ? err.message : "Couldn’t load games.");
+        }
+      } finally {
+        inFlight = null;
+        if (queued) {
+          queued = false;
+          await refresh();
+        }
+      }
+    })();
+    inFlight = run;
+    await run;
   }, []);
 
   useEffect(() => {
@@ -52,16 +70,22 @@ export function useCompetitiveSync() {
       if (user) store.syncAuthIdentity(user);
       return;
     }
+    const userId = user?.id ?? null;
+    if (lastUserId.current !== undefined && lastUserId.current !== userId && !userId) {
+      clearAuthenticatedPlayer();
+    }
+    lastUserId.current = userId;
     let cancelled = false;
     void (async () => {
       try {
         if (user) {
-          await ensureMyPlayer({
+          const player = await ensureMyPlayer({
             data: {
               name: user.displayName ?? undefined,
               image: user.profileImageUrl ?? undefined,
             },
           });
+          if (!cancelled) adoptAuthenticatedPlayer(player);
         }
         if (!cancelled) await refresh();
       } catch (err) {

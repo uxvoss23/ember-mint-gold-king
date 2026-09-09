@@ -1,3 +1,5 @@
+import { PRODUCTION_DB_REQUIRED_MESSAGE, resolveDbBackend } from "./db-mode";
+
 /** Which database backend is active. */
 export type DbSource = "neon" | "pglite";
 
@@ -9,10 +11,9 @@ const databaseUrl =
   rawDatabaseUrl && rawDatabaseUrl.trim() ? rawDatabaseUrl : undefined;
 
 /**
- * Active backend: real **Neon** when `DATABASE_URL` is set (deployed / configured
- * sandbox), otherwise a local embedded **PGLite** (Postgres compiled to WASM) so
- * the app has a working database even with nothing configured — the live preview
- * included. Swap in Neon later by just setting `DATABASE_URL`; no code changes.
+ * Active backend: real **Neon** when `DATABASE_URL` is set, otherwise PGLite
+ * (dev / explicit ALLOW_PGLITE preview). Production without a URL refuses to
+ * start — see resolveDbBackend.
  */
 export const dbSource: DbSource = databaseUrl ? "neon" : "pglite";
 
@@ -187,12 +188,15 @@ async function createSql(): Promise<Sql> {
     );
   }
   if (!databaseUrl) {
-    // Production deploys (Vercel) must not silently use ephemeral PGLite.
-    if (process.env.VERCEL && process.env.ALLOW_PGLITE !== "true") {
-      throw new Error(
-        "DATABASE_URL is required in production. Refusing to start with an " +
-          "ephemeral in-memory database. Isolated CI/preview may set ALLOW_PGLITE=true.",
-      );
+    const decision = resolveDbBackend({
+      DATABASE_URL: process.env.DATABASE_URL,
+      NODE_ENV: process.env.NODE_ENV,
+      VERCEL: process.env.VERCEL,
+      ALLOW_PGLITE: process.env.ALLOW_PGLITE,
+    });
+    if (decision === "refuse") {
+      console.error(`[db] ${PRODUCTION_DB_REQUIRED_MESSAGE}`);
+      process.exit(1);
     }
     console.warn(
       "[db] DATABASE_URL is not set — using ephemeral PGLite (development/preview only). This is not production data.",
@@ -298,6 +302,12 @@ if (typeof window === "undefined" && dbSource === "pglite") {
   globalBoot.__pgBootstrapPromise__ ??= ensureDbReady().catch((err) => {
     globalBoot.__pgBootstrapPromise__ = undefined;
     console.error("[db] PGLite bootstrap failed:", err);
+    if (
+      err instanceof Error &&
+      err.message.includes("DATABASE_URL is required in production")
+    ) {
+      process.exit(1);
+    }
     throw err;
   });
 }

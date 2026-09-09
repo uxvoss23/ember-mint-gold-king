@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Flag, MessageSquare, Swords, X } from "lucide-react";
 import { PlayerAvatar } from "@/components/compete/player-avatar";
 import { namedAustinCourts } from "@/lib/courts/catalog";
@@ -15,6 +15,7 @@ import { useRequireAuth } from "@/lib/game/use-require-auth";
 import { ProfileCompleteForm } from "@/components/compete/profile-complete-form";
 import { isProfileComplete, PROFILE_PRIVACY_NOTE } from "@/lib/game/profile";
 import { DM_PRIVACY_OPTIONS, type DmPrivacy } from "@/lib/game/privacy";
+import { useDialogFocus } from "@/hooks/use-dialog-focus";
 
 export function PlayerProfile({
   player,
@@ -31,6 +32,9 @@ export function PlayerProfile({
   const isMe = live.id === store.me.id && store.me.id !== GUEST_PLAYER_ID;
   const [msg, setMsg] = useState("");
   const [status, setStatus] = useState<string | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const close = useCallback(() => onClose(), [onClose]);
+  useDialogFocus(panelRef, close);
   const courts = useMemo(() => namedAustinCourts(), []);
   const home = courts.find((c) => c.id === player.homeCourtId);
 
@@ -171,14 +175,21 @@ export function PlayerProfile({
       <button
         type="button"
         className="absolute inset-0 bg-bg/70 backdrop-blur-sm"
-        onClick={onClose}
+        onClick={close}
         aria-label="Dismiss"
       />
-      <div className="slide-up relative z-10 max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-border bg-bg-elevated p-5 shadow-soft sm:rounded-3xl">
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="player-profile-title"
+        className="slide-up relative z-10 max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-border bg-bg-elevated p-5 shadow-soft sm:rounded-3xl"
+      >
         <button
           type="button"
-          onClick={onClose}
+          onClick={close}
           className="absolute top-4 right-4 flex size-9 items-center justify-center rounded-full border border-border text-fg-muted"
+          aria-label="Close"
         >
           <X className="size-4" />
         </button>
@@ -186,7 +197,7 @@ export function PlayerProfile({
         <div className="flex items-center gap-4">
           <PlayerAvatar player={player} size="xl" />
           <div className="min-w-0">
-            <h3 className="font-display text-xl font-semibold text-fg">
+            <h3 id="player-profile-title" className="font-display text-xl font-semibold text-fg">
               {player.name}
               {isMe ? " (you)" : ""}
             </h3>
@@ -411,6 +422,7 @@ function PrivacyAndDiscovery({ me }: { me: Player }) {
                   ? "border-court bg-court/10"
                   : "border-border bg-bg",
               )}
+              aria-pressed={dmPrivacy === opt.id}
             >
               <span className="block text-[13px] font-semibold text-fg">{opt.label}</span>
               <span className="block text-[11px] text-fg-muted">{opt.hint}</span>

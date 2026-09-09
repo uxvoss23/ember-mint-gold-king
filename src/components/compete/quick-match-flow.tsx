@@ -53,7 +53,7 @@ import { cn, formatHeightInches } from "@/lib/utils";
 import { useVisualKeyboard } from "@/hooks/use-visual-keyboard";
 import { DEFAULT_BROWSE_FILTERS, loadBrowseFilters, persistBrowseFilters, clearPersistedBrowseFilters, playerMatchesBrowseFilters, type BrowseFilters } from "@/lib/upset/browse-filters";
 import { isDemoMode, isMatchModeEnabled } from "@/lib/config";
-import { GUEST_PLAYER_ID } from "@/lib/game/guest";
+import { GUEST_PLAYER_ID, isGuestPlayerId } from "@/lib/game/guest";
 import { useRequireAuth } from "@/lib/game/use-require-auth";
 import { addFriendFn } from "@/lib/game/dm-fns";
 import {
@@ -344,7 +344,8 @@ export function QuickMatchFlow({
   const [addressHits, setAddressHits] = useState<GeoHit[]>([]);
   const [addressSearching, setAddressSearching] = useState(false);
 
-  // Deep-link from Media: open listing details
+  // Deep-link from Me / Upcoming: open the game sheet. Must win over the
+  // "Play just became active with alerts → scheduled desk" effect below.
   useEffect(() => {
     if (!focusMatchId) return;
     const exists =
@@ -356,6 +357,7 @@ export function QuickMatchFlow({
     }
     setSelectedId(focusMatchId);
     setView("game");
+    setGameTab("details");
     setGameReturn(gameBackTo === "you" ? "you" : "find");
     onFocusMatchConsumed?.();
   }, [focusMatchId, matches, store.matches, onFocusMatchConsumed, gameBackTo]);
@@ -638,11 +640,12 @@ export function QuickMatchFlow({
     const justOpened = active && !wasPlayActive.current;
     wasPlayActive.current = active;
     if (!justOpened || playAlerts === 0) return;
+    if (focusMatchId) return;
     if (view === "create" || view === "game" || view === "hoop_now") return;
     setExploreLane("open");
     setOpenDeskTab("scheduled");
     setView("find");
-  }, [active, playAlerts, view]);
+  }, [active, playAlerts, view, focusMatchId]);
 
   useEffect(() => {
     const on = (view === "game" && gameTab === "chat") || !!reviewInviteId;
@@ -800,6 +803,7 @@ export function QuickMatchFlow({
   }, [view, selectedId]);
 
   const startCreate = () => {
+    if (!requireAuth("create")) return;
     setCreateCourtId("");
     setCreateCourtLocked(false);
     setCreateWhen("");
@@ -817,15 +821,16 @@ export function QuickMatchFlow({
   };
 
   useEffect(() => {
+    if (!active) return;
     try {
       if (sessionStorage.getItem("uc-open-create") !== "1") return;
-      if (me.id === GUEST_PLAYER_ID) return;
+      if (isGuestPlayerId(me.id)) return;
       sessionStorage.removeItem("uc-open-create");
       startCreate();
     } catch {
       /* ignore */
     }
-  }, [me.id]);
+  }, [me.id, active]);
 
   const submitCreate = async () => {
     if (!requireAuth("create")) return;
@@ -1003,6 +1008,7 @@ export function QuickMatchFlow({
         filteredCourts = filteredCourts.filter((c) => c.miles <= createRadiusMi + 0.05);
       }
     }
+    if (filteredCourts.length === 0) filteredCourts = [...courtOptions];
     filteredCourts.sort((a, b) => {
       if (wantHighest) {
         const aUc = RECOMMENDED_COURT_IDS.has(a.id) ? 1 : 0;
@@ -1275,6 +1281,7 @@ export function QuickMatchFlow({
                       type="button"
                       onClick={() => setCreateCourtId(c.id)}
                       className="w-full text-left"
+                      aria-label={`Select ${c.name}`}
                     >
                       <div className="relative aspect-[5/4] bg-bg-subtle">
                         {thumb ? (
@@ -2035,6 +2042,63 @@ export function QuickMatchFlow({
         ) : (
         <>
 
+        {selected.status === "played_pending" || selected.status === "disputed" ? (
+        <ScoreConfirmCard
+          match={selected}
+          me={me}
+          host={host}
+          opp={opp}
+          onEnterScore={async (scores) => {
+            if (!requireAuth("score")) return;
+            if (isDemoMode()) {
+              store.enterScore(selected.id, scores);
+              return;
+            }
+            try {
+              await submitScoreFn({
+                data: {
+                  gameId: selected.id,
+                  scores,
+                  submissionId:
+                    typeof crypto !== "undefined" && crypto.randomUUID
+                      ? crypto.randomUUID()
+                      : `sc_${Date.now()}`,
+                },
+              });
+              await refreshCompetitiveSnapshot();
+            } catch (err) {
+              setStatusMsg(mutationError(err));
+            }
+          }}
+          onConfirm={async () => {
+            if (!requireAuth("score")) return;
+            if (isDemoMode()) {
+              store.confirmScore(selected.id, false);
+              return;
+            }
+            try {
+              await confirmScoreFn({ data: { gameId: selected.id } });
+              await refreshCompetitiveSnapshot();
+            } catch (err) {
+              setStatusMsg(mutationError(err));
+            }
+          }}
+          onDispute={async () => {
+            if (!requireAuth("dispute")) return;
+            if (isDemoMode()) {
+              store.confirmScore(selected.id, true);
+              return;
+            }
+            try {
+              await disputeScoreFn({ data: { gameId: selected.id } });
+              await refreshCompetitiveSnapshot();
+            } catch (err) {
+              setStatusMsg(mutationError(err));
+            }
+          }}
+        />
+        ) : null}
+
         <div className="overflow-hidden rounded-2xl border border-border shadow-card">
           <div className="relative">
             <ImageCarousel images={images} alt={court.name} className="aspect-[16/9] w-full" priority />
@@ -2282,6 +2346,7 @@ export function QuickMatchFlow({
 
         <CheckInBar match={selected} meId={me.id} />
 
+        {selected.status === "played_pending" || selected.status === "disputed" ? null : (
         <ScoreConfirmCard
           match={selected}
           me={me}
@@ -2336,6 +2401,7 @@ export function QuickMatchFlow({
             }
           }}
         />
+        )}
 
         <button
           type="button"
@@ -3314,6 +3380,15 @@ export function QuickMatchFlow({
                       key={m.id}
                       type="button"
                       onClick={() => openGame(m.id)}
+                      aria-label={
+                        needsConfirm
+                          ? `Confirm score vs ${oppP?.name ?? "opponent"}`
+                          : waitingThem
+                            ? `Waiting on them vs ${oppP?.name ?? "opponent"}`
+                            : disputed
+                              ? `Re-submit score vs ${oppP?.name ?? "opponent"}`
+                              : `Open scheduled game at ${m.courtName}`
+                      }
                       className={cn(
                         "flex w-full items-center gap-3 rounded-[1.15rem] border px-3 py-3 text-left transition active:scale-[0.995]",
                         justLanded

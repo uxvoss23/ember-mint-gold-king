@@ -1,4 +1,4 @@
-import { lazy, Suspense, startTransition, useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, startTransition, useCallback, useEffect, useRef, useState } from "react";
 import {
   MapPinned,
   Trophy,
@@ -30,18 +30,17 @@ import {
   createGameFn,
   joinGameFn,
 } from "@/lib/game/fns";
-import { GUEST_PLAYER_ID } from "@/lib/game/guest";
 import { mutationError, refreshCompetitiveSnapshot, refreshCompetitiveSnapshotSoon } from "@/lib/game/client-actions";
 import { useCompetitiveSync } from "@/lib/game/use-competitive-sync";
 import { useRequireAuth } from "@/lib/game/use-require-auth";
-import { displayRating } from "@/lib/rating/engine";
-import { formatLocalWhen, useUpsetStore } from "@/lib/upset/store";
+import { formatLocalWhen, useUpsetStore, clearAuthenticatedPlayer } from "@/lib/upset/store";
 import { playAttentionCount } from "@/lib/upset/match-actions";
 import type { Match, Player } from "@/lib/upset/types";
 import { cn } from "@/lib/utils";
 import { useTabBarGate } from "@/lib/ui/tab-bar-gate";
 import { useHydrateCourtSocial } from "@/lib/courts/social";
 import { useHydrateCourtAdmin } from "@/lib/courts/admin-overrides";
+import { useDialogFocus } from "@/hooks/use-dialog-focus";
 
 type SceneHome = "leaderboard" | "games" | "you" | "courts";
 
@@ -80,8 +79,8 @@ export function SceneShell({
   const store = useUpsetStore();
   const sync = useCompetitiveSync();
   const requireAuth = useRequireAuth();
-  const { user } = useCurrentUserState();
-  const signedIn = !!user && store.me.id !== GUEST_PLAYER_ID;
+  const { user, isPending } = useCurrentUserState();
+  const signedIn = !!user;
   const tabsHidden = useTabBarGate((s) => s.hidden);
   useHydrateCourtSocial();
   useHydrateCourtAdmin();
@@ -101,6 +100,8 @@ export function SceneShell({
   const [needProfile, setNeedProfile] = useState(false);
   const [gameBackTo, setGameBackTo] = useState<"you" | null>(null);
 
+  const consumeFocusMatch = useCallback(() => setFocusMatchId(null), []);
+
   const requirePlay = (action: string) => {
     if (!requireAuth(action)) return false;
     if (signedIn && !isProfileComplete(store.me)) {
@@ -115,6 +116,17 @@ export function SceneShell({
     if (home === "leaderboard") setBoardVisited(true);
     if (home === "you") setYouVisited(true);
   }, [home]);
+
+  useEffect(() => {
+    if (!signedIn) return;
+    try {
+      if (sessionStorage.getItem("uc-open-create") === "1") {
+        setHome("games");
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [signedIn, user?.id]);
 
   const playBadge = playAttentionCount(store.matches, store.me);
 
@@ -156,13 +168,15 @@ export function SceneShell({
               setSelectedPlayer(store.me);
             }}
             className="flex items-center gap-2 rounded-full border border-border bg-bg-elevated py-1 pr-3 pl-1"
-            aria-label="Your profile"
+            aria-label={signedIn ? "Your profile" : "Guest"}
           >
-            {signedIn ? (
+            {isPending ? (
+              <span className="px-2 text-xs font-semibold text-fg-muted">…</span>
+            ) : signedIn ? (
               <>
                 <PlayerAvatar player={store.me} size="sm" />
                 <span className="text-sm font-semibold tabular-nums text-fg">
-                  {displayRating(store.me.rating)}
+                  {user.displayName?.split(" ")[0] ?? store.me.name}
                 </span>
               </>
             ) : (
@@ -329,7 +343,7 @@ export function SceneShell({
             }}
             onOpenPlayer={setSelectedPlayer}
             focusMatchId={focusMatchId}
-            onFocusMatchConsumed={() => setFocusMatchId(null)}
+            onFocusMatchConsumed={consumeFocusMatch}
             presetCourt={presetCourt}
             onPresetCourtConsumed={() => setPresetCourt(null)}
             active={home === "games"}
@@ -460,33 +474,10 @@ export function SceneShell({
       ) : null}
 
       {needProfile && signedIn && !isProfileComplete(store.me) ? (
-        <div className="fixed inset-0 z-[70] flex items-end justify-center sm:items-center">
-          <button
-            type="button"
-            className="absolute inset-0 bg-bg/70 backdrop-blur-sm"
-            onClick={() => setNeedProfile(false)}
-            aria-label="Dismiss"
-          />
-          <div
-            className="relative z-10 mb-0 w-full max-w-lg rounded-t-3xl border border-border bg-bg-elevated p-5 shadow-soft sm:mb-0 sm:rounded-3xl"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="profile-complete-title"
-          >
-            <button
-              type="button"
-              onClick={() => setNeedProfile(false)}
-              className="absolute top-4 right-4 flex size-9 items-center justify-center rounded-full border border-border text-fg-muted"
-              aria-label="Close"
-            >
-              <X className="size-4" />
-            </button>
-            <ProfileCompleteForm
-              me={store.me}
-              onDone={() => setNeedProfile(false)}
-            />
-          </div>
-        </div>
+        <ProfileCompleteDialog
+          me={store.me}
+          onClose={() => setNeedProfile(false)}
+        />
       ) : null}
 
       {selectedPlayer && (
@@ -525,6 +516,45 @@ export function SceneShell({
   );
 }
 
+function ProfileCompleteDialog({
+  me,
+  onClose,
+}: {
+  me: Player;
+  onClose: () => void;
+}) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const close = useCallback(() => onClose(), [onClose]);
+  useDialogFocus(panelRef, close);
+  return (
+    <div className="fixed inset-0 z-[70] flex items-end justify-center sm:items-center">
+      <button
+        type="button"
+        className="absolute inset-0 bg-bg/70 backdrop-blur-sm"
+        onClick={close}
+        aria-label="Dismiss"
+      />
+      <div
+        ref={panelRef}
+        className="relative z-10 mb-0 w-full max-w-lg rounded-t-3xl border border-border bg-bg-elevated p-5 shadow-soft sm:mb-0 sm:rounded-3xl"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="profile-complete-title"
+      >
+        <button
+          type="button"
+          onClick={close}
+          className="absolute top-4 right-4 flex size-9 items-center justify-center rounded-full border border-border text-fg-muted"
+          aria-label="Close"
+        >
+          <X className="size-4" />
+        </button>
+        <ProfileCompleteForm me={me} onDone={close} />
+      </div>
+    </div>
+  );
+}
+
 function YouSection({
   me,
   signedIn,
@@ -552,6 +582,7 @@ function YouSection({
         <YouHome
           me={me}
           signedIn={signedIn}
+          accountName={user?.displayName ?? me.name}
           matches={matches}
           players={players}
           onOpenProfile={onOpenProfile}
@@ -592,6 +623,7 @@ function YouSection({
                 onClick={() => {
                   void (async () => {
                     await signOut();
+                    clearAuthenticatedPlayer();
                     await navigate({
                       to: "/login",
                       search: { signedout: true },

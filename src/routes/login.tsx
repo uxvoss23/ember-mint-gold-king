@@ -9,6 +9,7 @@ import {
   needsOAuthPopup,
   signIn,
 } from "@/lib/auth/client";
+import { getAuthProvidersFn } from "@/lib/auth/status-fn";
 import { safeReturnTo } from "@/lib/auth/return-to";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { consumeAuthIntent, peekAuthIntent } from "@/lib/game/guest";
@@ -38,6 +39,7 @@ function Login() {
   const [busy, setBusy] = useState(false);
   const [oauthBusy, setOauthBusy] = useState<string | null>(null);
   const [showWindowFallback, setShowWindowFallback] = useState(false);
+  const [oauthLive, setOauthLive] = useState(false);
   const popupEnv = typeof window !== "undefined" && needsOAuthPopup();
   const ios = typeof window !== "undefined" && isLikelyIosSafari();
 
@@ -59,6 +61,18 @@ function Login() {
     if (!isPending && user) goAfterAuth();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPending, user?.id, signedout]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getAuthProvidersFn().then((s) => {
+      if (!cancelled) setOauthLive(s.oauth);
+    }).catch(() => {
+      if (!cancelled) setOauthLive(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const onEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -139,12 +153,14 @@ function Login() {
         <p className="mt-2 max-w-sm text-sm leading-relaxed text-fg-muted">
           {reason
             ? authReasonCopy(reason)
-            : "Google, X, or email + password. An account is required to post games, chat, and confirm scores."}
+            : oauthLive
+              ? "Google, X, or email + password. An account is required to post games, chat, and confirm scores."
+              : "Use email and password. An account is required to post games, chat, and confirm scores."}
         </p>
 
+        {authEnabled && oauthLive ? (
         <div className="mt-8 space-y-3">
-          {authEnabled ? (
-            GROK_PROVIDERS.map((p) => (
+          {GROK_PROVIDERS.map((p) => (
               <button
                 key={p.providerId}
                 type="button"
@@ -156,13 +172,17 @@ function Login() {
                   ? `Waiting for ${p.label}…`
                   : `Continue with ${p.label}`}
               </button>
-            ))
-          ) : (
-            <p className="text-sm text-fg-muted">Sign-in is disabled.</p>
-          )}
+            ))}
         </div>
+        ) : authEnabled ? (
+          <p className="mt-8 text-sm text-fg-muted">
+            Google and X sign-in aren’t configured on this server. Use email below.
+          </p>
+        ) : (
+          <p className="mt-8 text-sm text-fg-muted">Sign-in is disabled.</p>
+        )}
 
-        {showWindowFallback || (popupEnv && ios) ? (
+        {oauthLive && (showWindowFallback || (popupEnv && ios)) ? (
           <div className="mt-3 space-y-2">
             <button
               type="button"
