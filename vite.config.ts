@@ -139,7 +139,18 @@ export default defineConfig(({ command }) => ({
     grokPwaPlugin(),
     tailwindcss(),
     tanstackStart(),
-    ...(command === "build" ? [nitro({ preset: "vercel" })] : []),
+    ...(command === "build"
+      ? [
+          nitro({
+            // Vercel injects VERCEL=1 and gets the serverless output.
+            // Local/CI builds a Node server so `npm run preview` can start
+            // the same artifact. Override with NITRO_PRESET if needed.
+            preset:
+              process.env.NITRO_PRESET ||
+              (process.env.VERCEL ? "vercel" : "node-server"),
+          }),
+        ]
+      : []),
     viteReact(),
   ],
 }));

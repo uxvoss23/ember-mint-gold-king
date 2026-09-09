@@ -45,7 +45,9 @@ npm run test:e2e
 
 ```bash
 npm run build
-npm run preview -- --host 0.0.0.0 --port 8080
+npm run preview
+# starts the Node production server from .output (or the Vercel artifact)
+# HOST=0.0.0.0 PORT=8080
 ```
 
 Production without `DATABASE_URL` fails closed (unless `ALLOW_PGLITE=true` for isolated CI).

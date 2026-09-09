@@ -52,5 +52,17 @@ Server logs are JSON lines from `appLog` (`src/lib/log.ts`). Events: `auth.*`, `
 
 ## CI
 
-GitHub Actions (`.github/workflows/ci.yml`) runs typecheck, lint (`src`, max 50 warnings), unit tests, migrations, production build, preview smoke, and Playwright acceptance (`npm run test:e2e`).
+GitHub Actions (`.github/workflows/ci.yml`) runs typecheck, lint (`src`, max 50 warnings), unit tests, migrations, production build, then `npm run preview` against **that artifact** (not `vite dev`). `scripts/wait-http.mjs` waits for HTTP 200 before Playwright.
+
+Local production:
+
+```
+npm run build
+npm run preview          # node .output/server/index.mjs on 0.0.0.0:8080
+node scripts/wait-http.mjs http://127.0.0.1:8080/
+```
+
+`npm run build` copies PGLite’s `pglite.wasm` / `pglite.data` / `initdb.wasm` next to the bundled server module (needed for local/CI PGLite; Neon production does not use them). Do not use `vite preview` for the production app.
+
+Vercel builds with `VERCEL=1` and still emit `.vercel/output`.
 

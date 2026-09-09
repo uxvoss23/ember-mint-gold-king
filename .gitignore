@@ -2,6 +2,7 @@ node_modules/
 .tanstack/
 .vercel/
 .vercel/output/
+.output/
 .node_modules.lock
 .env
 .env.*

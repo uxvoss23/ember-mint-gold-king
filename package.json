@@ -8,10 +8,11 @@
   },
   "scripts": {
     "dev": "vite dev --host 0.0.0.0 --port 8080",
-    "build": "vite build && npm run db:migrate",
+    "build": "vite build && node scripts/copy-pglite-assets.mjs && npm run db:migrate",
     "db:migrate": "node scripts/migrate.mjs",
     "build:dev": "vite build --mode development",
-    "preview": "vite preview --host 0.0.0.0 --port 8080",
+    "preview": "node scripts/prod-preview.mjs",
+    "preview:wait": "node scripts/wait-http.mjs http://127.0.0.1:8080/",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --max-warnings 50",
     "format": "prettier --write .",

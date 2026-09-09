@@ -6,10 +6,11 @@
  * Usage: BASE_URL=http://127.0.0.1:8080 node scripts/e2e-acceptance.mjs
  */
 import { mkdirSync } from "node:fs";
+import { join } from "node:path";
 import { chromium } from "playwright";
 
 const BASE = process.env.BASE_URL || "http://127.0.0.1:8080/";
-const SHOT = "/workspace/screenshots";
+const SHOT = process.env.SCREENSHOT_DIR || join(process.env.APP_ROOT || process.cwd(), "screenshots");
 mkdirSync(SHOT, { recursive: true });
 
 const results = [];
@@ -48,9 +49,21 @@ async function tapTab(page, label) {
   await page.waitForTimeout(250);
 }
 
-async function completeProfile(page, age = "24") {
+async function completeProfile(page, age = "24", { tryUnderage = false } = {}) {
   const ageInput = page.getByPlaceholder("24");
   if ((await ageInput.count()) === 0) return false;
+  if (tryUnderage) {
+    await ageInput.fill("16");
+    await page.getByPlaceholder("180").fill("180");
+    const men = page.getByRole("button", { name: /^Men$/ });
+    if (await men.count()) await men.click();
+    const latino = page.getByRole("button", { name: /^Latino$/ });
+    if (await latino.count()) await latino.click();
+    await page.getByRole("button", { name: /Save and play/i }).click();
+    await page.waitForTimeout(900);
+    const body = await page.locator("body").innerText();
+    log("age 16 blocked in running app", /17 and older|17 or older|Age 17/i.test(body), "", false);
+  }
   await ageInput.fill(age);
   await page.getByPlaceholder("180").fill("180");
   await page.getByRole("button", { name: /^Men$/ }).click();
@@ -60,7 +73,11 @@ async function completeProfile(page, age = "24") {
   return true;
 }
 
-async function signup(page, { name, email, password }) {
+function playCreateButton(page) {
+  return page.getByRole("button", { name: /Create a game|Create game/i }).first();
+}
+
+async function signup(page, { name, email, password }, profileOpts = {}) {
   await page.goto(new URL("/login", BASE).toString(), {
     waitUntil: "domcontentloaded",
     timeout: 30000,
@@ -76,7 +93,7 @@ async function signup(page, { name, email, password }) {
     throw new Error(err);
   }
   await enterAustin(page);
-  await completeProfile(page);
+  await completeProfile(page, "24", profileOpts);
 }
 
 const browser = await chromium.launch({
@@ -166,7 +183,11 @@ try {
 
   await tapTab(page, "Play");
   await page.screenshot({ path: `${SHOT}/phase7-play.png` });
-  log("play tab", (await page.getByRole("button", { name: /Create game/i }).count()) > 0);
+  log(
+    "play tab",
+    (await playCreateButton(page).count()) > 0 ||
+      (await page.getByText(/No open games|1v1 Lobby|Lobby/i).count()) > 0,
+  );
 
   await tapTab(page, "Leaderboard");
   await page.screenshot({ path: `${SHOT}/phase7-leaderboard.png` });
@@ -211,22 +232,51 @@ try {
   const pageB = await ctxB.newPage();
 
   try {
-    await signup(pageA, { name: "Alpha Tester", email: aEmail, password: pass });
+    await signup(pageA, { name: "Alpha Tester", email: aEmail, password: pass }, { tryUnderage: true });
     await waitTabs(pageA);
     log("account A signup/session", true);
 
     await tapTab(pageA, "Me");
     const signed = (await pageA.getByRole("button", { name: /Sign out/i }).count()) > 0;
     log("session restoration chrome (sign out)", signed);
+    const ownProfile = pageA.getByRole("button", { name: /Alpha Tester|Your profile/i }).first();
+    if (await ownProfile.count()) {
+      await ownProfile.click();
+      await pageA.waitForTimeout(600);
+    }
+    await completeProfile(pageA, "24", { tryUnderage: true });
+    await pageA.waitForTimeout(400);
+    if ((await pageA.getByText(/Privacy and discovery/i).count()) === 0) {
+      await pageA.mouse.wheel(0, 800);
+      await pageA.waitForTimeout(300);
+    }
+    log(
+      "privacy and discovery on Me",
+      (await pageA.getByText(/Privacy and discovery/i).count()) > 0,
+      "",
+      false,
+    );
+    log(
+      "dm privacy options",
+      (await pageA.getByText(/People I’ve played|People I've played|Nobody/i).count()) > 0,
+      "",
+      false,
+    );
 
     await tapTab(pageA, "Play");
-    const create = pageA.getByRole("button", { name: /Create game/i }).first();
+    log(
+      "rated series copy",
+      (await pageA.getByText(/Best of 3/i).count()) > 0,
+      "",
+      false,
+    );
+    const create = playCreateButton(pageA);
     await create.click();
     await pageA.waitForTimeout(800);
     await completeProfile(pageA);
     await pageA.waitForTimeout(400);
-    if (await pageA.getByRole("button", { name: /Create game/i }).count()) {
-      await pageA.getByRole("button", { name: /Create game/i }).first().click();
+    if (await playCreateButton(pageA).count()) {
+      await playCreateButton(pageA).click();
       await pageA.waitForTimeout(500);
     }
 

@@ -24,16 +24,12 @@ jobs:
       - name: Preview smoke + acceptance
         env:
           BROWSER_SMOKE_TIMEOUT_MS: "60000"
+          HOST: 127.0.0.1
+          PORT: "8080"
         run: |
-          npm run preview -- --host 127.0.0.1 --port 8080 &
+          npm run preview &
           preview_pid=$!
           trap 'kill $preview_pid 2>/dev/null || true' EXIT
-          for i in $(seq 1 40); do
-            if curl -sf http://127.0.0.1:8080/ >/dev/null; then
-              break
-            fi
-            sleep 1
-          done
-          curl -sf http://127.0.0.1:8080/ >/dev/null
+          node scripts/wait-http.mjs http://127.0.0.1:8080/
           npm run test:smoke
           npm run test:e2e
