@@ -197,6 +197,7 @@ export function PlayerBrowseFilters({
   onSavedChange,
   onReset,
   iconOnly = false,
+  pill = false,
 }: {
   value: BrowseFilters;
   onChange: (next: BrowseFilters) => void;
@@ -206,6 +207,8 @@ export function PlayerBrowseFilters({
   onReset?: () => void;
   /** Header icon trigger — no full-width Filters bar */
   iconOnly?: boolean;
+  /** Compact rounded pill (lobby) */
+  pill?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const active = browseFilterActiveCount(value);
@@ -218,6 +221,7 @@ export function PlayerBrowseFilters({
       className={cn(
         "relative overflow-visible",
         !iconOnly &&
+          !pill &&
           "rounded-2xl border border-white/[0.06] bg-bg-elevated/90 shadow-[0_1px_0_rgba(255,255,255,0.04)_inset]",
         className,
       )}
@@ -233,6 +237,21 @@ export function PlayerBrowseFilters({
           <SlidersHorizontal className="size-4 text-fg" strokeWidth={1.75} />
           {active > 0 ? (
             <span className="absolute -top-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full bg-court text-[9px] font-bold text-white">
+              {active}
+            </span>
+          ) : null}
+        </button>
+      ) : pill ? (
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={() => setOpen((o) => !o)}
+          className="inline-flex h-10 items-center gap-2 rounded-full border border-border bg-bg-elevated px-3.5 text-[13px] font-semibold text-fg"
+        >
+          <SlidersHorizontal className="size-3.5" strokeWidth={1.75} />
+          Filters
+          {active > 0 ? (
+            <span className="flex size-5 items-center justify-center rounded-full bg-court text-[10px] font-bold text-white">
               {active}
             </span>
           ) : null}

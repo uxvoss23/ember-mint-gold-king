@@ -2,6 +2,7 @@ import { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useR
 import {
   Bell,
   Calendar,
+  ChevronDown,
   ChevronRight,
   Clock,
   Info,
@@ -11,8 +12,10 @@ import {
   Send,
   Plus,
   Search,
+  User,
   UserPlus,
   X,
+  Zap,
 } from "lucide-react";
 import { CourtAboutSheet } from "@/components/compete/court-about-sheet";
 import { InviteReviewSheet } from "@/components/compete/invite-review-sheet";
@@ -174,7 +177,7 @@ export function QuickMatchFlow({
   const store = useUpsetStore();
   const requireAuth = useRequireAuth();
   const setTabsHidden = useTabBarGate((s) => s.setHidden);
-  const [view, setView] = useState<View>("explore");
+  const [view, setView] = useState<View>("find");
   const [createStep, setCreateStep] = useState<1 | 2 | 3>(1);
   const [postingCreate, setPostingCreate] = useState(false);
   const [createHeld, setCreateHeld] = useState(false);
@@ -187,7 +190,8 @@ export function QuickMatchFlow({
   const goExplore = useCallback(() => {
     startTransition(() => {
       setExploreLane(null);
-      setView("explore");
+      setOpenDeskTab("open");
+      setView("find");
     });
   }, []);
 
@@ -255,6 +259,7 @@ export function QuickMatchFlow({
   const [lobbySort, setLobbySort] = useState<
     "recent" | "recommended" | "rating_desc" | "nearest" | null
   >("recent");
+  const [lobbySortOpen, setLobbySortOpen] = useState(false);
   const [browseFilters, setBrowseFilters] = useState<BrowseFilters>(() => loadBrowseFilters().filters);
   const [browseFiltersSaved, setBrowseFiltersSaved] = useState(() => loadBrowseFilters().saved);
 
@@ -379,7 +384,7 @@ export function QuickMatchFlow({
 
   useEffect(() => {
     if (view === "hoop_now" && !isMatchModeEnabled()) {
-      setView("explore");
+      setView("find");
     }
   }, [view]);
 
@@ -978,7 +983,7 @@ export function QuickMatchFlow({
 
   // CREATE — keep the pane mounted after first visit so Back/Explore doesn’t rebuild the map
   let createPane: ReactNode = null;
-  if (view === "create" || (createHeld && view === "explore")) {
+  if (view === "create" || (createHeld && (view === "explore" || view === "find"))) {
     const hoods = Array.from(
       new Set(courtOptions.map((c) => c.neighborhood).filter((n): n is string => !!n && n.length > 0)),
     ).sort();
@@ -2832,19 +2837,21 @@ export function QuickMatchFlow({
     );
   }
 
-  // FIND — Open / Scheduled / Waiting desk
-  const laneTitle =
-    exploreLane === "tonight"
-      ? "Run tonight"
-      : exploreLane === "rated"
-        ? "Rated 1v1"
-        : "1v1 Lobby";
-  const laneSub = "Join · show up · or manage your posts";
+  // FIND — Lobby / My Games (Play home)
+  const sortOptions = [
+    { id: "recent" as const, label: "Most recent" },
+    { id: "recommended" as const, label: "Recommended" },
+    { id: "rating_desc" as const, label: "Rating high → low" },
+    { id: "nearest" as const, label: "Nearest" },
+  ];
+  const sortLabel =
+    sortOptions.find((s) => s.id === (lobbySort ?? "recent"))?.label ?? "Most recent";
+  const placeLabel = userLocationLabel?.trim() || "Austin, TX";
 
   return (
     <>
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-    <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain px-4 pt-2 pb-6 touch-pan-y [-webkit-overflow-scrolling:touch]">
+    <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 pt-2 pb-6 touch-pan-y [-webkit-overflow-scrolling:touch]">
       {statusMsg ? (
         <p className="rounded-lg bg-court/15 px-3 py-2 text-xs font-medium text-court">
           {statusMsg}
@@ -2854,159 +2861,190 @@ export function QuickMatchFlow({
         </p>
       ) : null}
 
-      <div className="flex items-center justify-between gap-2">
-        <div className="min-w-0">
-          <button
-            type="button"
-            onClick={goExplore}
-            className="relative z-30 min-h-11 -ml-1 px-1 text-left text-[11px] font-semibold text-fg-muted pointer-events-auto"
-          >
-            ← Explore
-          </button>
-          <h3 className="font-display text-lg font-semibold text-fg">{laneTitle}</h3>
-          <p className="text-[11px] text-fg-muted">{laneSub}</p>
-        </div>
+      <div className="flex items-center justify-between gap-3">
+        <p className="min-w-0 truncate text-[17px] font-semibold tracking-tight">
+          <span className="text-court">Upset City</span>
+          <span className="text-fg-muted"> · {placeLabel}</span>
+        </p>
         <button
           type="button"
-          onClick={startCreate}
-          className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full bg-court px-2.5 text-white"
-          aria-label="Create game"
+          onClick={() => {
+            if (!requireAuth("profile")) return;
+            onOpenPlayer?.(me);
+          }}
+          className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-bg-elevated"
+          aria-label="Your profile"
         >
-          <Plus className="size-3.5" strokeWidth={2.5} />
-          <span className="text-[11px] font-semibold">Create game</span>
+          {me.id !== GUEST_PLAYER_ID ? (
+            <PlayerAvatar player={me} size="sm" showRank={false} className="!size-9" />
+          ) : (
+            <User className="size-4 text-fg-muted" />
+          )}
         </button>
       </div>
 
-      {/* Lobby · My Games */}
-      <div className="grid grid-cols-2 rounded-2xl border border-border bg-bg-elevated p-1">
+      <div className="grid grid-cols-2 gap-2">
         {(
           [
             {
               id: "open" as const,
               label: "Lobby",
               count: laneOpenGames.length,
+              unit: "open",
             },
             {
               id: "scheduled" as const,
               label: "My Games",
               count: scheduledDeskGames.length + myHostingOpen.length + incomingInvites.length,
+              unit:
+                scheduledDeskGames.length + myHostingOpen.length + incomingInvites.length === 1
+                  ? "game"
+                  : "games",
             },
           ] as const
-        ).map((tab, i) => {
+        ).map((tab) => {
           const on =
             tab.id === "open"
               ? openDeskTab === "open"
               : openDeskTab === "scheduled" || openDeskTab === "waiting";
-          const unit =
-            tab.id === "open"
-              ? "open"
-              : tab.count === 1
-                ? "game"
-                : "games";
           return (
-            <div key={tab.id} className="flex min-w-0 items-stretch">
-              {i > 0 ? (
-                <div
-                  className="mx-0.5 w-px shrink-0 self-stretch bg-border"
-                  aria-hidden
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setOpenDeskTab(tab.id)}
+              className={cn(
+                "relative rounded-[1.35rem] px-3 py-3.5 text-center transition",
+                on
+                  ? "bg-court text-white shadow-[0_8px_24px_rgba(196,92,38,0.35)]"
+                  : "border border-border bg-bg-elevated text-fg-muted",
+              )}
+            >
+              {tab.id === "scheduled" && playAlerts > 0 && !on ? (
+                <span
+                  className="absolute top-2.5 right-2.5 size-2 rounded-full bg-court ring-2 ring-bg-elevated"
+                  aria-label={`${playAlerts} need attention`}
                 />
               ) : null}
-              <button
-                type="button"
-                onClick={() => setOpenDeskTab(tab.id)}
+              <span className="block text-[15px] font-semibold leading-none">
+                {tab.label}
+              </span>
+              <span
                 className={cn(
-                  "relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-2.5 transition",
-                  on ? "text-fg" : "text-fg-muted",
+                  "mt-1.5 block text-[12px] font-medium tabular-nums",
+                  on ? "text-white/80" : "text-fg-subtle",
                 )}
               >
-                <span
-                  className={cn(
-                    "text-[12px] font-semibold leading-none",
-                    on && "text-fg",
-                  )}
-                >
-                  {tab.label}
-                </span>
-                {tab.id === "scheduled" && playAlerts > 0 && !on ? (
-                  <span
-                    className="absolute top-1.5 right-2 size-2 rounded-full bg-court ring-2 ring-bg-elevated"
-                    aria-label={`${playAlerts} need attention`}
-                  />
-                ) : null}
-                <span
-                  className={cn(
-                    "text-[11px] font-medium tabular-nums leading-tight",
-                    on ? "text-fg-muted" : "text-fg-subtle",
-                  )}
-                >
-                  {tab.count} {unit}
-                </span>
-                {on ? (
-                  <span
-                    className="absolute inset-x-5 -bottom-0.5 h-0.5 rounded-full bg-court"
-                    aria-hidden
-                  />
-                ) : null}
-              </button>
-            </div>
+                {tab.count} {tab.unit}
+              </span>
+            </button>
           );
         })}
       </div>
 
       {/* OPEN — marketplace */}
       {openDeskTab === "open" ? (
-        <div className="space-y-2.5">
-          <PlayerBrowseFilters
-            value={browseFilters}
-            onChange={updateBrowseFilters}
-            saved={browseFiltersSaved}
-            onSavedChange={setBrowseFiltersSavedFlag}
-            onReset={resetBrowseFilters}
-          />
-
-          {/* Quick sort — default most recent */}
-          <div className="flex gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {(
-              [
-                { id: "recent" as const, label: "Most recent" },
-                { id: "recommended" as const, label: "Recommended" },
-                { id: "rating_desc" as const, label: "Rating high → low" },
-                { id: "nearest" as const, label: "Nearest" },
-              ] as const
-            ).map((s) => {
-              const on = lobbySort === s.id;
-              return (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <PlayerBrowseFilters
+                value={browseFilters}
+                onChange={updateBrowseFilters}
+                saved={browseFiltersSaved}
+                onSavedChange={setBrowseFiltersSavedFlag}
+                onReset={resetBrowseFilters}
+                pill
+              />
+              {isMatchModeEnabled() ? (
                 <button
-                  key={s.id}
                   type="button"
-                  onClick={() =>
-                    setLobbySort((prev) => (prev === s.id ? "recent" : s.id))
-                  }
-                  className={cn(
-                    "shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold",
-                    on
-                      ? "bg-court text-white"
-                      : "border border-border bg-bg-elevated text-fg-muted",
-                  )}
+                  onClick={() => setView("hoop_now")}
+                  className="inline-flex h-10 items-center gap-1.5 rounded-full border border-border bg-bg-elevated px-3 text-[13px] font-semibold text-fg"
                 >
-                  {s.label}
+                  <Zap className="size-3.5 text-court" />
+                  Match
                 </button>
-              );
-            })}
+              ) : null}
+            </div>
+            <div className="relative shrink-0">
+              <button
+                type="button"
+                onClick={() => setLobbySortOpen((o) => !o)}
+                className="inline-flex h-10 items-center gap-1 rounded-full border border-border bg-bg-elevated px-3 text-[13px] font-semibold text-fg"
+              >
+                {sortLabel}
+                <ChevronDown
+                  className={cn("size-3.5 text-fg-muted", lobbySortOpen && "rotate-180")}
+                />
+              </button>
+              {lobbySortOpen ? (
+                <>
+                  <button
+                    type="button"
+                    className="fixed inset-0 z-40"
+                    aria-label="Close sort"
+                    onClick={() => setLobbySortOpen(false)}
+                  />
+                  <div className="absolute top-11 right-0 z-50 min-w-[12rem] overflow-hidden rounded-2xl border border-border bg-bg-elevated py-1 shadow-soft">
+                    {sortOptions.map((s) => (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => {
+                          setLobbySort(s.id);
+                          setLobbySortOpen(false);
+                        }}
+                        className={cn(
+                          "flex w-full px-3.5 py-2.5 text-left text-[13px] font-medium",
+                          (lobbySort ?? "recent") === s.id
+                            ? "bg-court/15 text-fg"
+                            : "text-fg-muted",
+                        )}
+                      >
+                        {s.label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : null}
+            </div>
           </div>
 
           {sortedLobbyGames.length === 0 ? (
-            <div className="rounded-2xl border border-border bg-bg-elevated px-4 py-8 text-center">
-              <p className="text-sm font-semibold text-fg">No open games right now</p>
-              <p className="mt-1 text-[12px] text-fg-muted">
+            <div className="flex min-h-[48vh] flex-col items-center justify-center px-4 text-center">
+              <div className="relative mb-5 size-[5.5rem]">
+                <span className="absolute top-1 left-2 h-0.5 w-3.5 -rotate-[28deg] rounded-full bg-court" />
+                <span className="absolute top-1 right-2 h-0.5 w-3.5 rotate-[28deg] rounded-full bg-court" />
+                <span className="absolute bottom-2 left-1.5 h-0.5 w-3.5 rotate-[28deg] rounded-full bg-court" />
+                <span className="absolute right-1.5 bottom-2 h-0.5 w-3.5 -rotate-[28deg] rounded-full bg-court" />
+                <svg
+                  viewBox="0 0 64 64"
+                  className="h-full w-full text-fg-subtle/70"
+                  fill="none"
+                  aria-hidden
+                >
+                  <ellipse cx="32" cy="56" rx="14" ry="3.2" fill="currentColor" opacity="0.22" />
+                  <circle cx="32" cy="30" r="16" stroke="currentColor" strokeWidth="1.7" />
+                  <path d="M32 14v32M16 30h32" stroke="currentColor" strokeWidth="1.5" />
+                  <path
+                    d="M20.2 19.5c6.2 5.2 17.4 5.2 23.6 0M20.2 40.5c6.2-5.2 17.4-5.2 23.6 0"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                  />
+                </svg>
+              </div>
+              <p className="text-[20px] font-semibold tracking-tight text-fg">
+                No open games right now
+              </p>
+              <p className="mt-2 max-w-[16.5rem] text-[14px] leading-snug text-fg-muted">
                 Post a run or check back later. Your own posts live under My Games.
               </p>
               <button
                 type="button"
                 onClick={startCreate}
-                className="mt-3 text-sm font-semibold text-court"
+                className="mt-6 inline-flex h-12 w-full max-w-[17rem] items-center justify-center gap-1.5 rounded-full bg-court text-[15px] font-semibold text-white shadow-[0_10px_28px_rgba(196,92,38,0.38)]"
               >
                 Create a game
+                <span aria-hidden>→</span>
               </button>
             </div>
           ) : (
@@ -3509,6 +3547,7 @@ export function QuickMatchFlow({
       ) : null}
     </div>
     </div>
+    {createPane}
     {inviteReviewSheet}
     </>
   );

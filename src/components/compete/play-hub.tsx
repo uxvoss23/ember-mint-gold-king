@@ -1,12 +1,8 @@
 import { memo, useCallback, useState } from "react";
-import { Link } from "@tanstack/react-router";
 import { QuickMatchFlow } from "@/components/compete/quick-match-flow";
-import { PlayerAvatar } from "@/components/compete/player-avatar";
 import type { Player } from "@/lib/upset/types";
 import type { Court } from "@/lib/courts/types";
 import type { Match } from "@/lib/upset/types";
-import { displayRating } from "@/lib/rating/engine";
-import { GUEST_PLAYER_ID, saveAuthIntent } from "@/lib/game/guest";
 
 interface PlayHubProps {
   me: Player;
@@ -76,36 +72,10 @@ export const PlayHub = memo(function PlayHub({
   return (
     <div
       className={
-        immersive ? "flex min-h-0 flex-1 flex-col overflow-hidden" : "space-y-2.5 pb-2"
+        immersive ? "flex min-h-0 flex-1 flex-col overflow-hidden" : "flex min-h-0 flex-1 flex-col"
       }
     >
-      {!immersive ? (
-        <div className="flex items-center justify-end gap-2">
-          {me.id === GUEST_PLAYER_ID ? (
-            <Link
-              to="/login"
-              onClick={() => saveAuthIntent({ next: "/", action: "profile" })}
-              className="flex shrink-0 items-center rounded-full border border-border bg-bg-elevated px-3 py-1 text-xs font-semibold text-fg"
-            >
-              Sign in
-            </Link>
-          ) : (
-            <button
-              type="button"
-              onClick={onOpenProfile}
-              className="flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-bg-elevated py-0.5 pr-2.5 pl-0.5"
-              aria-label="Your profile"
-            >
-              <PlayerAvatar player={me} size="sm" />
-              <span className="text-xs font-semibold tabular-nums text-fg">
-                {displayRating(me.rating)}
-              </span>
-            </button>
-          )}
-        </div>
-      ) : null}
-
-      <div className={immersive ? "flex min-h-0 flex-1 flex-col overflow-hidden" : undefined}>
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <QuickMatchFlow
         me={me}
         players={players}
