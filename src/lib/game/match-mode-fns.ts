@@ -56,6 +56,28 @@ async function requireNamedPlayer(sql: Sql, userId: string) {
   return row;
 }
 
+async function ensureSchema(sql: Sql) {
+  await sql.query(`
+    create table if not exists match_availability (
+      player_id text primary key,
+      blocked_dates jsonb not null default '[]'::jsonb,
+      time_bands jsonb not null default '[]'::jsonb,
+      travel_radius_miles int not null default 10,
+      note text,
+      updated_at timestamptz not null default now()
+    )
+  `);
+  await sql.query(`
+    create table if not exists match_swipe (
+      actor_id text not null,
+      target_id text not null,
+      direction text not null,
+      created_at timestamptz not null default now(),
+      primary key (actor_id, target_id)
+    )
+  `);
+}
+
 async function isBlocked(sql: Sql, a: string, b: string) {
   const rows = await sql.query(
     `select 1 from player_block
@@ -67,6 +89,7 @@ async function isBlocked(sql: Sql, a: string, b: string) {
 }
 
 async function readSnapshot(sql: Sql, meId: string): Promise<MatchModeSnapshot> {
+  await ensureSchema(sql);
   const [joined, mine, inbound, mutual] = await Promise.all([
     sql.query<{
       player_id: string;
@@ -133,6 +156,7 @@ export const saveMatchAvailabilityFn = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const me = await requireNamedPlayer(sql, context.userId);
+    await ensureSchema(sql);
     await sql.query(
       `insert into match_availability (
          player_id, blocked_dates, time_bands, travel_radius_miles, note, updated_at
@@ -168,6 +192,7 @@ export const swipeMatchFn = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const me = await requireNamedPlayer(sql, context.userId);
+    await ensureSchema(sql);
     if (data.targetId === me.id) throw new Error("You can’t swipe on yourself.");
     const target = await sql.query(
       `select id from player where id = $1 and hide_from_catalog = false`,
@@ -212,6 +237,7 @@ export const rewindMatchSwipeFn = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const me = await requireNamedPlayer(sql, context.userId);
+    await ensureSchema(sql);
     await sql.query(
       `delete from match_swipe where actor_id = $1 and target_id = $2`,
       [me.id, data.targetId],
