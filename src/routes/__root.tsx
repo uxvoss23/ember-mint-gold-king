@@ -2,6 +2,7 @@ import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-r
 import { AuthProvider } from "@/lib/auth/provider";
 import { CreatedWithGrokBanner } from "@/components/created-with-grok-banner";
 import { PREMIUM_BOOT_CSS, PremiumBootHost } from "@/components/premium-boot";
+import { NotFoundPage } from "@/components/not-found";
 import appCss from "../styles.css?url";
 
 const APP_NAME = "Upset City — Where the best hoopers emerge";
@@ -16,6 +17,7 @@ const FONT_HREF =
 const BOOT_SCRIPT = `(function(){document.documentElement.removeAttribute("data-uc-booting");var lines=["Lacing up","Checking the board","Finding a run","Tip-off soon"];var i=0;var s=document.getElementById("uc-boot-status");var t=setInterval(function(){i=(i+1)%lines.length;if(s)s.textContent=lines[i];if(!document.getElementById("uc-premium-boot"))clearInterval(t);},900);})();`;
 
 export const Route = createRootRoute({
+  notFoundComponent: NotFoundPage,
   head: () => ({
     meta: [
       { charSet: "utf-8" },

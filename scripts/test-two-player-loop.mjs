@@ -99,6 +99,35 @@ async function main() {
     `select count(*)::int as n from game_message where game_id = 'g1'`,
   );
   void chatLeak;
+
+  await pg.query(
+    `insert into match_availability (player_id) values ('p_a'), ('p_b')`,
+  );
+  await pg.query(
+    `insert into match_swipe (actor_id, target_id, direction) values ('p_a','p_b','like')`,
+  );
+  const oneWay = await pg.query(
+    `select b.actor_id as player_id
+     from match_swipe a
+     join match_swipe b
+       on b.actor_id = a.target_id and b.target_id = a.actor_id and b.direction = 'like'
+     where a.actor_id = $1 and a.direction = 'like'`,
+    ["p_a"],
+  );
+  if (oneWay.rows.length) throw new Error("one-way like must not match");
+  await pg.query(
+    `insert into match_swipe (actor_id, target_id, direction) values ('p_b','p_a','like')`,
+  );
+  const mutual = await pg.query(
+    `select b.actor_id as player_id
+     from match_swipe a
+     join match_swipe b
+       on b.actor_id = a.target_id and b.target_id = a.actor_id and b.direction = 'like'
+     where a.actor_id = $1 and a.direction = 'like'`,
+    ["p_a"],
+  );
+  if (mutual.rows[0]?.player_id !== "p_b") throw new Error("mutual like should match");
+
   console.log("ALL TWO-PLAYER LOOP DB TESTS PASSED");
 }
 

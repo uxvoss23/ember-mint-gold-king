@@ -9,7 +9,7 @@ Canonical env list: `env.example` (keep `.env.example` identical if you keep a l
 | `DATABASE_URL` | server | unset | Required on Vercel. Unset → PGLite in preview/dev only. |
 | `VITE_AUTH_ENABLED` | client | on | `"false"` disables sign-in (dev user). Refuse this against a real DB. |
 | `VITE_DEMO_MODE` | client | off | `"true"` allows labeled seed/demo data. |
-| `VITE_MATCH_MODE` | client | off | `"true"` shows Match Mode. Keep off until two real accounts work. |
+| `VITE_MATCH_MODE` | client | on | `"false"` hides Match Mode. Likes persist on the server. |
 | `VITE_PUBLIC_HOSTNAME` | inject | — | Set on publish. Do not invent a local `.env` for it. |
 | `ALLOW_PGLITE` | server | unset | Emergency local production-mode preview only. |
 | `MODERATOR_EMAILS` | server | unset | Extra emails granted `player.role = moderator` on first admin action. |
@@ -33,6 +33,7 @@ Additive SQL in `migrations/`, applied in name order.
 | `0009_friends_dm.sql` | Friends / DMs |
 | `0010_court_search_cache.sql` | Durable Overpass cache |
 | `0011_moderator_role.sql` | `player.role` moderator |
+| `0012_match_mode.sql` | Match Mode availability + likes |
 
 - Production: `npm run db:migrate` (also runs at the end of `npm run build`).
 - Preview: PGLite applies the same files on startup (`src/lib/db.ts`).

@@ -4,6 +4,7 @@ import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { nitro } from "nitro/vite";
+import { grokPwaPlugin } from "./scripts/grok-pwa-plugin.mjs";
 
 /**
  * Finish PGLite bootstrap during dev-server setup (before traffic). Vite awaits
@@ -135,6 +136,7 @@ export default defineConfig(({ command }) => ({
     pgliteBootstrapPlugin(),
     // Before tanstackStart so /auth/popup never falls through to the SPA.
     authPopupPlugin(),
+    grokPwaPlugin(),
     tailwindcss(),
     tanstackStart(),
     ...(command === "build" ? [nitro({ preset: "vercel" })] : []),

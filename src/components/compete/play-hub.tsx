@@ -44,7 +44,7 @@ interface PlayHubProps {
 
 /**
  * Play = on-ramps to a locked 1v1:
- * Open games (time/place first). Match Mode stays hidden unless enabled.
+ * Open games (time/place first). Match Mode is on unless disabled.
  */
 export const PlayHub = memo(function PlayHub({
   me,

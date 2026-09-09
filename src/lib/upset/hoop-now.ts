@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { isDemoMode } from "@/lib/config";
+import type { MatchModeSnapshot } from "@/lib/game/match-mode-fns";
 
 function todayKey() {
   const d = new Date();
@@ -29,6 +30,10 @@ const DEMO_LIKES_YOU = new Set([
   "p-riley",
   "p-tess",
 ]);
+
+export function hoopMatchId(a: string, b: string) {
+  return a < b ? `hm-${a}-${b}` : `hm-${b}-${a}`;
+}
 
 export type HoopCourtMode = "meet_middle" | "picks";
 
@@ -304,6 +309,8 @@ type HoopNowState = {
   passedIds: string[];
   /** People you liked (no match yet) */
   likedIds: string[];
+  /** People who already liked you (from the server) */
+  inboundLikeIds: string[];
   matches: HoopMatch[];
   pending: HoopPendingChallenge[];
   /** Soft availability by player — shown on swipe bios */
@@ -405,6 +412,7 @@ export const useHoopNow = create<HoopNowState>()(
       prefsById: {},
       passedIds: [],
       likedIds: [],
+      inboundLikeIds: [],
       matches: [],
       pending: [],
       softAvailability: demoAvailability(),
@@ -417,7 +425,6 @@ export const useHoopNow = create<HoopNowState>()(
             set({
               day: today,
               playerIds: nextIds,
-              passedIds: [],
             });
             return;
           }
@@ -583,13 +590,13 @@ export const useHoopNow = create<HoopNowState>()(
           ? s.passedIds
           : [...s.passedIds, toPlayerId];
 
-        // Mutual only when they already liked you, or labeled demo reciprocal.
+        // Mutual when they already liked you (server snapshot) or labeled demo reciprocal.
         const theyLikeYou =
-          (isDemoMode() && DEMO_LIKES_YOU.has(toPlayerId)) ||
-          false;
+          (s.inboundLikeIds ?? []).includes(toPlayerId) ||
+          (isDemoMode() && DEMO_LIKES_YOU.has(toPlayerId));
         if (theyLikeYou && !alreadyMatched) {
           const match: HoopMatch = {
-            id: `hm-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            id: hoopMatchId(fromPlayerId, toPlayerId),
             playerId: toPlayerId,
             fromPlayerId,
             matchedAt: new Date().toISOString(),
@@ -924,11 +931,14 @@ export const useHoopNow = create<HoopNowState>()(
         return {
           ...s,
           softAvailability: soft,
-          playerIds: [...demoSeedIds()],
-          prefsById: { ...demoPrefs(), ...prefs },
-          passedIds: [],
-          likedIds: [],
-          matches: [],
+          playerIds: isDemoMode()
+            ? [...demoSeedIds()]
+            : stripDemoIds(s.playerIds ?? []),
+          prefsById: isDemoMode() ? { ...demoPrefs(), ...prefs } : prefs,
+          passedIds: s.passedIds ?? [],
+          likedIds: s.likedIds ?? [],
+          inboundLikeIds: s.inboundLikeIds ?? [],
+          matches: s.matches ?? [],
           pending: [],
         };
       },
@@ -936,6 +946,49 @@ export const useHoopNow = create<HoopNowState>()(
     },
   ),
 );
+
+export function applyMatchModeSnapshot(snap: MatchModeSnapshot, meId: string) {
+  useHoopNow.setState((s) => {
+    const inbound = new Set(snap.inboundLikeIds);
+    const matches: HoopMatch[] = snap.mutual.map((m) => {
+      const existing = s.matches.find((x) => x.playerId === m.playerId);
+      if (existing) return existing;
+      return {
+        id: hoopMatchId(meId, m.playerId),
+        playerId: m.playerId,
+        matchedAt: m.matchedAt,
+        status: "new" as const,
+        chat: [
+          {
+            id: `hc-${hoopMatchId(meId, m.playerId)}`,
+            authorId: "system",
+            authorName: "Upset City",
+            text: "It's a match. Chat to lock court & time — both of you need to agree.",
+            at: m.matchedAt,
+            system: true,
+          },
+        ],
+        ballByPlayerId: {},
+      };
+    });
+    const keep = s.matches.filter(
+      (m) =>
+        m.status === "locked" ||
+        m.status === "pending_confirm" ||
+        matches.some((n) => n.playerId === m.playerId),
+    );
+    const byPlayer = new Map<string, HoopMatch>();
+    for (const m of [...keep, ...matches]) byPlayer.set(m.playerId, m);
+    return {
+      playerIds: snap.joinedIds,
+      likedIds: snap.likedIds,
+      passedIds: snap.passedIds,
+      inboundLikeIds: [...inbound],
+      softAvailability: { ...s.softAvailability, ...snap.availability },
+      matches: [...byPlayer.values()],
+    };
+  });
+}
 
 export function hoopNowDayLabel() {
   return new Date().toLocaleDateString(undefined, {

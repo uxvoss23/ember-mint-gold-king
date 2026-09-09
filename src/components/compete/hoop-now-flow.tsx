@@ -29,6 +29,14 @@ import { PlayerBrowseFilters } from "@/components/compete/player-browse-filters"
 import { MatchChat } from "@/components/compete/match-chat";
 import type { Court } from "@/lib/courts/types";
 import { courtImagesFor } from "@/lib/courts/images";
+import { isDemoMode } from "@/lib/config";
+import { GUEST_PLAYER_ID } from "@/lib/game/guest";
+import {
+  loadMatchModeSnapshot,
+  rewindMatchSwipeFn,
+  saveMatchAvailabilityFn,
+  swipeMatchFn,
+} from "@/lib/game/match-mode-fns";
 import { haversineMi } from "@/lib/maps/midpoint-courts";
 import { rankSmartMeetCourts } from "@/lib/maps/smart-meet-courts";
 import { displayRating } from "@/lib/rating/engine";
@@ -40,7 +48,9 @@ import {
 } from "@/lib/upset/browse-filters";
 import {
   DEFAULT_TRAVEL_RADIUS_MI,
+  applyMatchModeSnapshot,
   formatSoftAvailability,
+  hoopMatchId,
   type SoftAvailability,
   useHoopNow,
 } from "@/lib/upset/hoop-now";
@@ -222,7 +232,41 @@ export function HoopNowFlow({
       });
     }
     setPhase((p) => (p === "soft" ? "deck" : p));
-  }, [me.id, hoop]);
+    if (isDemoMode() || me.id === GUEST_PLAYER_ID) return;
+    let cancelled = false;
+    const pull = async () => {
+      try {
+        const snap = await loadMatchModeSnapshot();
+        if (!cancelled) applyMatchModeSnapshot(snap, me.id);
+      } catch {
+        /* signed-out / schema */
+      }
+    };
+    void (async () => {
+      try {
+        const av = hoop.softAvailabilityFor(me.id);
+        const snap = await saveMatchAvailabilityFn({
+          data: {
+            blockedDates: av?.blockedDates ?? [],
+            timeBands: av?.timeBands?.length ? av.timeBands : ["evening"],
+            travelRadiusMiles: av?.travelRadiusMiles ?? DEFAULT_TRAVEL_RADIUS_MI,
+            note: av?.note,
+          },
+        });
+        if (!cancelled) applyMatchModeSnapshot(snap, me.id);
+      } catch {
+        await pull();
+      }
+    })();
+    const id = window.setInterval(() => {
+      if (!document.hidden) void pull();
+    }, 3500);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [me.id]);
 
   useEffect(() => {
     ensureCityRanks(players);
@@ -297,20 +341,32 @@ export function HoopNowFlow({
     (p: Player) => {
       hoop.pass(p.id);
       setLastAction({ id: p.id, kind: "pass" });
+      if (isDemoMode() || me.id === GUEST_PLAYER_ID) return;
+      void swipeMatchFn({ data: { targetId: p.id, direction: "pass" } })
+        .then((r) => applyMatchModeSnapshot(r.snapshot, me.id))
+        .catch(() => {});
     },
-    [hoop],
+    [hoop, me.id],
   );
 
   const onLike = useCallback(
     (p: Player) => {
       const result = hoop.like(me.id, p.id);
       setLastAction({ id: p.id, kind: "like" });
-      if (result.matched) {
+      const celebrate = (matchId: string) => {
         setCelebrationName(p.name.split(" ")[0]);
         setLockOpponent(p);
-        setLockHoopMatchId(result.match.id);
+        setLockHoopMatchId(matchId);
         setPhase("celebration");
-      }
+      };
+      if (result.matched) celebrate(result.match.id);
+      if (isDemoMode() || me.id === GUEST_PLAYER_ID) return;
+      void swipeMatchFn({ data: { targetId: p.id, direction: "like" } })
+        .then((r) => {
+          applyMatchModeSnapshot(r.snapshot, me.id);
+          if (r.matched && !result.matched) celebrate(hoopMatchId(me.id, p.id));
+        })
+        .catch(() => {});
     },
     [hoop, me.id],
   );
@@ -318,8 +374,13 @@ export function HoopNowFlow({
   const onUndo = useCallback(() => {
     if (!lastAction) return;
     hoop.rewind(lastAction.id);
+    const targetId = lastAction.id;
     setLastAction(null);
-  }, [hoop, lastAction]);
+    if (isDemoMode() || me.id === GUEST_PLAYER_ID) return;
+    void rewindMatchSwipeFn({ data: { targetId } })
+      .then((snap) => applyMatchModeSnapshot(snap, me.id))
+      .catch(() => {});
+  }, [hoop, lastAction, me.id]);
 
   const commitSwipe = useCallback(
     (dir: "left" | "right") => {

@@ -8,8 +8,8 @@
  *
  * - VITE_DEMO_MODE=true  → labeled seed/demo data is allowed
  * - VITE_DEMO_MODE unset/false → production: no seeded competitive data
- * - VITE_MATCH_MODE=true → show Match Mode (must be server-backed)
- * - VITE_MATCH_MODE unset/false → Match Mode hidden
+ * - VITE_MATCH_MODE=false → hide Match Mode
+ * - VITE_MATCH_MODE unset/true → Match Mode on (server-backed likes)
  */
 
 function viteFlag(name: string): string | undefined {
@@ -25,11 +25,11 @@ export function isDemoMode(): boolean {
 }
 
 /**
- * Person-first swipe matcher. Off until explicitly enabled.
- * Server functions exist; keep the tile hidden until two real accounts work.
+ * Person-first swipe matcher. On unless explicitly disabled.
+ * Likes, passes, and availability persist on the server.
  */
 export function isMatchModeEnabled(): boolean {
-  return viteFlag("VITE_MATCH_MODE") === "true";
+  return viteFlag("VITE_MATCH_MODE") !== "false";
 }
 
 /** Starting rating for a new real account. */
