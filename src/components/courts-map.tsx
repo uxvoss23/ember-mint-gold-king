@@ -18,6 +18,8 @@ interface CourtsMapProps {
   mapClassName?: string;
   /** Drop outer card chrome (for full-bleed split layouts) */
   bare?: boolean;
+  /** Frame the map around you + the selected court (create flow). */
+  frameSelection?: boolean;
 }
 
 type MapStyle = "satellite" | "street";
@@ -82,6 +84,7 @@ export function CourtsMap({
   variant = "scene",
   mapClassName,
   bare = false,
+  frameSelection = false,
 }: CourtsMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<import("maplibre-gl").Map | null>(null);
@@ -277,11 +280,7 @@ export function CourtsMap({
           </div>
           ${live ? `<span class="uc-hoop-badge">NOW</span>` : ""}
           <div class="uc-pin-hover">${esc(c.name)}${live ? " · Hooping" : ""}</div>
-          ${
-            selected
-              ? `<div class="uc-pin-label">${esc(c.name)}${live ? " · Hooping now" : ""}</div>`
-              : ""
-          }
+          <div class="uc-pin-label">${esc(c.name)}${live ? " · Hooping now" : ""}</div>
         `
           : `
           <div class="uc-pin-face" style="${king && !live ? `background:oklch(0.42 0.08 ${king.hue})` : ""}">
@@ -335,7 +334,7 @@ export function CourtsMap({
         const pin = new maplibregl.Marker({ element: el, anchor: "center" })
           .setLngLat([c.lon, c.lat])
           .addTo(map);
-        pin.getElement().style.zIndex = live ? "6" : "5";
+        pin.getElement().style.zIndex = selected || live ? "7" : "5";
         markersRef.current.push(pin);
       };
 
@@ -394,6 +393,11 @@ export function CourtsMap({
         }
       }
 
+      if (sel && !pinElsRef.current.has(sel)) {
+        const selectedCourt = courts.find((c) => c.id === sel);
+        if (selectedCourt) placePin(selectedCourt);
+      }
+
       // Neighborhood banners — sit ABOVE the northernmost pin, never on it
       if (zoom < 13) {
         const zones = new Map<
@@ -433,7 +437,7 @@ export function CourtsMap({
         }
       }
 
-      if (courts.length > 0 && zoomTick === 0) {
+      if (courts.length > 0 && zoomTick === 0 && !frameSelection) {
         const bounds = new maplibregl.LngLatBounds();
         bounds.extend([location.lon, location.lat]);
         for (const c of courts.slice(0, 40)) bounds.extend([c.lon, c.lat]);
@@ -477,16 +481,52 @@ export function CourtsMap({
     zoomTick,
     variant,
     hoopingKey,
+    frameSelection,
+  ]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready || !frameSelection || !selectedId) return;
+    const court = courts.find((c) => c.id === selectedId);
+    if (!court) return;
+    const reduce =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const west = Math.min(location.lon, court.lon);
+    const south = Math.min(location.lat, court.lat);
+    const east = Math.max(location.lon, court.lon);
+    const north = Math.max(location.lat, court.lat);
+    map.fitBounds(
+      [
+        [west, south],
+        [east, north],
+      ],
+      {
+        padding: { top: 52, bottom: 36, left: 44, right: 44 },
+        maxZoom: 13.2,
+        duration: reduce ? 0 : 250,
+      },
+    );
+  }, [
+    frameSelection,
+    selectedId,
+    ready,
+    location.lat,
+    location.lon,
+    courts,
   ]);
 
   // Instant select highlight without full pin rebuild
   useEffect(() => {
     for (const [id, el] of pinElsRef.current) {
-      if (id === selectedId) {
+      const on = id === selectedId;
+      if (on) {
         el.classList.add("uc-pin-selected");
         el.classList.remove("uc-pin-hovering");
+        el.style.zIndex = "7";
       } else {
         el.classList.remove("uc-pin-selected");
+        if (!el.classList.contains("uc-pin-hooping")) el.style.zIndex = "5";
       }
     }
   }, [selectedId]);

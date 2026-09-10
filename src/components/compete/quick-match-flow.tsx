@@ -93,6 +93,33 @@ function recommendScore(c: { id: string; amenities?: string[]; miles?: number; h
   if (typeof c.miles === "number") s += Math.max(0, 10 - c.miles);
   return s;
 }
+
+/** Closest eligible court when we know where you are; otherwise highest-rated. */
+function defaultCreateCourtId(
+  courts: Array<{ id: string; miles: number }>,
+  hasPreciseLocation: boolean,
+): string | null {
+  if (courts.length === 0) return null;
+  if (hasPreciseLocation) {
+    let best = courts[0]!;
+    for (let i = 1; i < courts.length; i++) {
+      const c = courts[i]!;
+      if (c.miles < best.miles) best = c;
+    }
+    return best.id;
+  }
+  let best = courts[0]!;
+  let bestScore = recommendScore(best);
+  for (let i = 1; i < courts.length; i++) {
+    const c = courts[i]!;
+    const score = recommendScore(c);
+    if (score > bestScore || (score === bestScore && c.miles < best.miles)) {
+      best = c;
+      bestScore = score;
+    }
+  }
+  return best.id;
+}
 interface QuickMatchFlowProps {
   me: Player; players: Player[]; courts: Court[]; matches: Match[];
   userLat?: number; userLon?: number;
@@ -286,6 +313,7 @@ export function QuickMatchFlow({
   };
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [createCourtId, setCreateCourtId] = useState("");
+  const [createCourtTouched, setCreateCourtTouched] = useState(false);
   const [createCourtLocked, setCreateCourtLocked] = useState(false);
   const [createWhen, setCreateWhen] = useState("");
   const [createNotes, setCreateNotes] = useState("");
@@ -459,6 +487,33 @@ export function QuickMatchFlow({
         .slice(0, 40),
     [courts, origin.lat, origin.lon],
   );
+
+  const createFilteredCourts = useMemo(() => {
+    const wantHighest = createSorts.has("highest_rated");
+    const wantShaded = createSorts.has("shaded");
+    const wantNearest = createSorts.has("nearest");
+    let filtered = [...courtOptions];
+    if (createHood !== "all") {
+      filtered = filtered.filter((c) => c.neighborhood === createHood);
+    }
+    if (createSorts.size > 0) {
+      if (wantHighest) filtered = filtered.filter((c) => isRecommendedCourt(c));
+      if (wantShaded) filtered = filtered.filter((c) => isShadedCourt(c));
+      if (wantNearest && hasPreciseLocation) {
+        filtered = filtered.filter((c) => c.miles <= createRadiusMi + 0.05);
+      }
+    }
+    if (filtered.length === 0) filtered = [...courtOptions];
+    filtered.sort((a, b) => {
+      if (wantHighest) {
+        const aUc = RECOMMENDED_COURT_IDS.has(a.id) ? 1 : 0;
+        const bUc = RECOMMENDED_COURT_IDS.has(b.id) ? 1 : 0;
+        if (bUc !== aUc) return bUc - aUc;
+      }
+      return a.miles - b.miles;
+    });
+    return filtered;
+  }, [courtOptions, createHood, createSorts, createRadiusMi, hasPreciseLocation]);
 
   const openGames = useMemo(
     () =>
@@ -745,6 +800,7 @@ export function QuickMatchFlow({
   useEffect(() => {
     if (!presetCourt) return;
     setCreateCourtId(presetCourt.id);
+    setCreateCourtTouched(true);
     setCreateCourtLocked(true);
     setCreateWhen("");
     setCreateNotes("");
@@ -800,6 +856,7 @@ export function QuickMatchFlow({
   const startCreate = () => {
     if (!requireAuth("create")) return;
     setCreateCourtId("");
+    setCreateCourtTouched(false);
     setCreateCourtLocked(false);
     setCreateWhen("");
     setCreateNotes("");
@@ -826,6 +883,29 @@ export function QuickMatchFlow({
       /* ignore */
     }
   }, [me.id, active]);
+
+  const chooseCreateCourt = (id: string) => {
+    setCreateCourtId(id);
+    setCreateCourtTouched(true);
+  };
+
+  useEffect(() => {
+    if (view !== "create" || createStep !== 1 || createCourtLocked) return;
+    const stillValid =
+      !!createCourtId && createFilteredCourts.some((c) => c.id === createCourtId);
+    if (createCourtTouched && stillValid) return;
+    const next = defaultCreateCourtId(createFilteredCourts, hasPreciseLocation);
+    if (!next || next === createCourtId) return;
+    setCreateCourtId(next);
+  }, [
+    view,
+    createStep,
+    createCourtLocked,
+    createCourtTouched,
+    createCourtId,
+    createFilteredCourts,
+    hasPreciseLocation,
+  ]);
 
   const submitCreate = async () => {
     if (!requireAuth("create")) return;
@@ -943,7 +1023,7 @@ export function QuickMatchFlow({
         }
         onClose={() => setCourtInfoId(null)}
         onSelectCourt={(id) => {
-          setCreateCourtId(id);
+          chooseCreateCourt(id);
           setCourtInfoId(null);
         }}
         isSelected={createCourtId === courtInfoId}
@@ -988,30 +1068,7 @@ export function QuickMatchFlow({
     const hoods = Array.from(
       new Set(courtOptions.map((c) => c.neighborhood).filter((n): n is string => !!n && n.length > 0)),
     ).sort();
-    const wantHighest = createSorts.has("highest_rated");
-    const wantShaded = createSorts.has("shaded");
-    const wantNearest = createSorts.has("nearest");
-
-    let filteredCourts = [...courtOptions];
-    if (createHood !== "all") {
-      filteredCourts = filteredCourts.filter((c) => c.neighborhood === createHood);
-    }
-    if (createSorts.size > 0) {
-      if (wantHighest) filteredCourts = filteredCourts.filter((c) => isRecommendedCourt(c));
-      if (wantShaded) filteredCourts = filteredCourts.filter((c) => isShadedCourt(c));
-      if (wantNearest && hasPreciseLocation) {
-        filteredCourts = filteredCourts.filter((c) => c.miles <= createRadiusMi + 0.05);
-      }
-    }
-    if (filteredCourts.length === 0) filteredCourts = [...courtOptions];
-    filteredCourts.sort((a, b) => {
-      if (wantHighest) {
-        const aUc = RECOMMENDED_COURT_IDS.has(a.id) ? 1 : 0;
-        const bUc = RECOMMENDED_COURT_IDS.has(b.id) ? 1 : 0;
-        if (bUc !== aUc) return bUc - aUc;
-      }
-      return a.miles - b.miles;
-    });
+    const filteredCourts = createFilteredCourts;
 
     const selectedCreateCourt = createCourtId
       ? filteredCourts.find((c) => c.id === createCourtId) ??
@@ -1029,6 +1086,12 @@ export function QuickMatchFlow({
     const mapThumb = selectedCreateCourt
       ? courtImagesFor(selectedCreateCourt.id, 1)[0]
       : undefined;
+    const createAutoLabel =
+      selectedCreateCourt && !createCourtTouched
+        ? hasPreciseLocation
+          ? "Closest court"
+          : "Highest rated"
+        : null;
 
     createPane = (
       <div
@@ -1113,6 +1176,7 @@ export function QuickMatchFlow({
                 onClick={() => {
                   setCreateCourtLocked(false);
                   setCreateCourtId("");
+                  setCreateCourtTouched(false);
                 }}
                 className="text-[11px] font-semibold text-fg-subtle underline-offset-2 hover:underline"
               >
@@ -1200,7 +1264,9 @@ export function QuickMatchFlow({
               hasPreciseLocation ? (
                 <div className="flex items-center gap-1.5">
                   <p className="min-w-0 flex-1 truncate text-[10px] text-fg-subtle">
-                    Near <span className="font-semibold text-fg-muted">{nearOrigin?.label ?? userLocationLabel ?? "you"}</span>
+                    <span className="font-semibold text-fg-muted">
+                      {nearOrigin?.label ?? userLocationLabel ?? "Near you"}
+                    </span>
                   </p>
                   <div className="flex max-w-[48%] gap-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     {[1, 3, 5, 8, 10, 15].map((mi) => (
@@ -1274,7 +1340,7 @@ export function QuickMatchFlow({
                   >
                     <button
                       type="button"
-                      onClick={() => setCreateCourtId(c.id)}
+                      onClick={() => chooseCreateCourt(c.id)}
                       className="w-full text-left"
                       aria-label={`Select ${c.name}`}
                     >
@@ -1346,9 +1412,10 @@ export function QuickMatchFlow({
               courts={filteredCourts}
               location={{ lat: origin.lat, lon: origin.lon, label: "You" }}
               selectedId={createCourtId || null}
-              onSelect={(c) => setCreateCourtId(c.id)}
+              onSelect={(c) => chooseCreateCourt(c.id)}
               variant="finder"
               bare
+              frameSelection
               mapClassName="h-full w-full"
             />
           </div>
@@ -1366,7 +1433,7 @@ export function QuickMatchFlow({
                   className="uc-press mt-1.5 w-full overflow-hidden rounded-xl border border-court/35 bg-bg-elevated text-left"
                   aria-label={`About ${selectedCreateCourt.name}`}
                 >
-                  <div className="relative h-[6.75rem] w-full bg-bg-subtle">
+                  <div className="relative h-36 w-full bg-bg-subtle">
                     {mapThumb ? (
                       <img
                         src={mapThumb}
@@ -1374,8 +1441,13 @@ export function QuickMatchFlow({
                         className="h-full w-full object-cover"
                       />
                     ) : null}
-                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent px-3 pb-2 pt-8">
-                      <p className="truncate text-[14px] font-semibold text-white">
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent px-3 pb-2.5 pt-10">
+                      {createAutoLabel ? (
+                        <p className="text-[10px] font-bold tracking-[0.14em] text-court uppercase">
+                          {createAutoLabel}
+                        </p>
+                      ) : null}
+                      <p className="truncate text-[15px] font-semibold text-white">
                         {selectedCreateCourt.name.replace(/\s*Courts?\s*$/i, "") ||
                           selectedCreateCourt.name}
                       </p>
