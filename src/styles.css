@@ -385,6 +385,66 @@
     scroll-padding-bottom: 16px;
   }
 
+  /* Press: quick, no bounce. Sheets: short rise, never cinematic. */
+  .uc-press {
+    transition: transform var(--motion-quick) var(--ease-out-smooth);
+  }
+  .uc-press:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+  .uc-sheet-backdrop {
+    animation: uc-fade-in var(--motion-quick) linear;
+  }
+  .uc-sheet-surface {
+    animation: uc-sheet-up var(--motion-fast) var(--ease-out-smooth);
+  }
+  .uc-preview-slot {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows var(--motion-fast) var(--ease-out-smooth);
+  }
+  .uc-preview-slot-open {
+    grid-template-rows: 1fr;
+  }
+  .uc-preview-slot > * {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  @keyframes uc-sheet-up {
+    from {
+      transform: translate3d(0, 18px, 0);
+      opacity: 0.72;
+    }
+    to {
+      transform: translate3d(0, 0, 0);
+      opacity: 1;
+    }
+  }
+  @keyframes uc-fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .uc-press,
+    .uc-press:active:not(:disabled) {
+      transition: none;
+      transform: none;
+    }
+    .uc-sheet-surface,
+    .uc-sheet-backdrop {
+      animation: none;
+    }
+    .uc-preview-slot {
+      transition: none;
+    }
+  }
+
   /* While boot splash is up: hide any stray tab bar */
   html[data-uc-booting] .app-shell {
     padding-bottom: 0 !important;

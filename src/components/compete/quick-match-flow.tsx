@@ -295,7 +295,7 @@ export function QuickMatchFlow({
   const [createHood, setCreateHood] = useState("all");
   const [createSorts, setCreateSorts] = useState<Set<string>>(() => new Set(["highest_rated", "nearest"]));
   const [createRadiusMi, setCreateRadiusMi] = useState(5);
-  const [createPickMode, setCreatePickMode] = useState<"photos" | "map">("photos");
+  const [createPickMode, setCreatePickMode] = useState<"photos" | "map">("map");
   const [courtInfoId, setCourtInfoId] = useState<string | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteQuery, setInviteQuery] = useState("");
@@ -386,6 +386,10 @@ export function QuickMatchFlow({
   }, [active, view, onImmersiveChange, setTabsHidden]);
 
   useEffect(() => {
+    if (view === "explore") {
+      setView("find");
+      return;
+    }
     if (view === "hoop_now" && !isMatchModeEnabled()) {
       setView("find");
     }
@@ -613,15 +617,6 @@ export function QuickMatchFlow({
       );
     });
   }, [matches, store.matches, me.id]);
-
-  /** Explore “Your upcoming” strip — only future locked, not score-pending clutter */
-  const upcomingGames = useMemo(
-    () =>
-      scheduledDeskGames.filter(
-        (m) => m.status === "matched" || m.status === "scheduled",
-      ),
-    [scheduledDeskGames],
-  );
 
   const myHostingOpen = useMemo(
     () => matches.filter((m) => m.hostId === me.id && m.status === "open"),
@@ -900,11 +895,11 @@ export function QuickMatchFlow({
     setSelectedId(null);
     setGameTab("details");
     if (gameReturn === "you") {
-      setView("explore");
+      setView("find");
       onGameBack?.();
       return;
     }
-    setView(gameReturn);
+    setView(gameReturn === "explore" ? "find" : gameReturn);
   };
 
   const joinGame = async (id: string, bringingBall?: boolean) => {
@@ -1345,6 +1340,7 @@ export function QuickMatchFlow({
             ) : null}
           </>
         ) : (
+          <>
           <div className="relative min-h-0 flex-1 overflow-hidden">
             <CourtsMap
               courts={filteredCourts}
@@ -1355,51 +1351,55 @@ export function QuickMatchFlow({
               bare
               mapClassName="h-full w-full"
             />
-            {selectedCreateCourt ? (
-              <button
-                type="button"
-                onClick={() => setCourtInfoId(selectedCreateCourt.id)}
-                className="absolute bottom-2 left-2 right-12 z-20 flex items-center gap-2.5 rounded-2xl border border-court/40 bg-bg/95 p-2 text-left shadow-soft backdrop-blur-md"
-                aria-label={`About ${selectedCreateCourt.name}`}
-              >
-                <div className="size-14 shrink-0 overflow-hidden rounded-xl bg-bg-subtle">
-                  {mapThumb ? (
-                    <img
-                      src={mapThumb}
-                      alt=""
-                      className="h-full w-full object-cover"
-                    />
-                  ) : null}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13px] font-semibold text-fg">
-                    {selectedCreateCourt.name.replace(/\s*Courts?\s*$/i, "") ||
-                      selectedCreateCourt.name}
-                  </p>
-                  <p className="truncate text-[11px] text-fg-muted">
-                    {selectedCreateCourt.neighborhood ?? "Austin"} ·{" "}
-                    {formatMiles(
-                      "miles" in selectedCreateCourt &&
-                        typeof selectedCreateCourt.miles === "number"
-                          ? selectedCreateCourt.miles
-                          : haversineMi(
-                              origin.lat,
-                              origin.lon,
-                              selectedCreateCourt.lat,
-                              selectedCreateCourt.lon,
-                            ),
-                    )}
-                  </p>
-                </div>
-                <span
-                  className="flex size-9 shrink-0 items-center justify-center rounded-full bg-court/15 text-court"
-                  aria-hidden
-                >
-                  <Info className="size-4" strokeWidth={2.25} />
-                </span>
-              </button>
-            ) : null}
           </div>
+          <div
+            className={cn(
+              "uc-preview-slot shrink-0 px-4",
+              selectedCreateCourt && "uc-preview-slot-open",
+            )}
+          >
+            <div>
+              {selectedCreateCourt ? (
+                <button
+                  type="button"
+                  onClick={() => setCourtInfoId(selectedCreateCourt.id)}
+                  className="uc-press mt-1.5 w-full overflow-hidden rounded-xl border border-court/35 bg-bg-elevated text-left"
+                  aria-label={`About ${selectedCreateCourt.name}`}
+                >
+                  <div className="relative h-[6.75rem] w-full bg-bg-subtle">
+                    {mapThumb ? (
+                      <img
+                        src={mapThumb}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                    ) : null}
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent px-3 pb-2 pt-8">
+                      <p className="truncate text-[14px] font-semibold text-white">
+                        {selectedCreateCourt.name.replace(/\s*Courts?\s*$/i, "") ||
+                          selectedCreateCourt.name}
+                      </p>
+                      <p className="truncate text-[11px] text-white/80">
+                        {selectedCreateCourt.neighborhood ?? "Austin"} ·{" "}
+                        {formatMiles(
+                          "miles" in selectedCreateCourt &&
+                            typeof selectedCreateCourt.miles === "number"
+                            ? selectedCreateCourt.miles
+                            : haversineMi(
+                                origin.lat,
+                                origin.lon,
+                                selectedCreateCourt.lat,
+                                selectedCreateCourt.lon,
+                              ),
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              ) : null}
+            </div>
+          </div>
+          </>
         )}
 
                   </>
@@ -1619,7 +1619,7 @@ export function QuickMatchFlow({
           }}
           disabled={postingCreate}
           className={cn(
-            "w-full rounded-full py-3 text-sm font-semibold",
+            "uc-press w-full rounded-full py-3 text-sm font-semibold",
             postingCreate
               ? "cursor-wait bg-court/70 text-white"
               : "bg-court text-white",
@@ -2600,176 +2600,7 @@ export function QuickMatchFlow({
     );
   }
 
-  const enterLane = (lane: ExploreLane) => {
-    setExploreLane(lane);
-    setOpenDeskTab("open");
-    setView("find");
-  };
-
-  // EXPLORE — clean category home
-  if (view === "explore") {
-    const primary: {
-      id: "hoop_now" | "open";
-      kicker: string;
-      title: string;
-      sub: string;
-      count?: number;
-      countLabel?: string;
-      tone: string;
-    }[] = [
-      {
-        id: "open",
-        kicker: "Posted games",
-        title: "1v1 Lobby",
-        sub: "Join open 1v1s with court & time set.",
-        count: openGames.length,
-        countLabel: "waiting",
-        tone: "from-orange-500 to-court",
-      },
-      ...(isMatchModeEnabled()
-        ? [
-            {
-              id: "hoop_now" as const,
-              kicker: "Free today",
-              title: "Match Mode",
-              sub: "Swipe free players. Court locks after you both accept.",
-              countLabel: "today",
-              tone: "from-rose-500 to-orange-500",
-            },
-          ]
-        : []),
-    ];
-
-
-
-    return (
-      <>
-      <div className={cn("space-y-3", view !== "explore" && "hidden")}>
-        {statusMsg ? (
-          <p className="rounded-lg bg-court/15 px-3 py-2 text-xs font-medium text-court">
-            {statusMsg}
-            <button
-              type="button"
-              className="ml-2 underline"
-              onClick={() => setStatusMsg(null)}
-            >
-              dismiss
-            </button>
-          </p>
-        ) : null}
-
-        <div className="flex items-center justify-between gap-2">
-          <h3 className="font-display text-xl font-semibold tracking-tight text-fg">
-            Play
-          </h3>
-          <button
-            type="button"
-            onClick={startCreate}
-            className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full bg-court px-2.5 text-white shadow-md"
-            aria-label="Create game"
-          >
-            <Plus className="size-3.5" strokeWidth={2.5} />
-            <span className="text-[11px] font-semibold">Create game</span>
-          </button>
-        </div>
-
-        <div className="space-y-2">
-          {playAlerts > 0 ? (
-            <button
-              type="button"
-              onClick={() => {
-                setExploreLane("open");
-                setOpenDeskTab("scheduled");
-                setView("find");
-              }}
-              className="relative flex w-full items-center justify-between overflow-hidden rounded-2xl border border-court/40 bg-court/12 px-3.5 py-3 text-left"
-            >
-              <div className="min-w-0">
-                <p className="text-[10px] font-bold tracking-wide text-court uppercase">
-                  Needs you
-                </p>
-                <p className="text-sm font-semibold text-fg">My Games</p>
-                <p className="text-[11px] text-fg-muted">
-                  {incomingInvites.length
-                    ? `${incomingInvites.length} invite${incomingInvites.length === 1 ? "" : "s"}`
-                    : `${playAlerts} update${playAlerts === 1 ? "" : "s"}`}
-                  {" · "}open this tab
-                </p>
-              </div>
-              <span className="size-2.5 shrink-0 rounded-full bg-court" />
-            </button>
-          ) : null}
-          {primary.map((tile) => (
-            <button
-              key={tile.id}
-              type="button"
-              onClick={() => {
-                if (tile.id === "hoop_now") {
-                  setExploreLane("open");
-                  setView("hoop_now");
-                  return;
-                }
-                enterLane("open");
-              }}
-              className={cn(
-                "relative w-full overflow-hidden rounded-2xl p-3.5 text-left text-white shadow-sm transition active:scale-[0.99]",
-                "min-h-[108px]",
-                `bg-gradient-to-br ${tile.tone}`,
-              )}
-            >
-              {tile.count != null ? (
-                <span className="absolute top-2.5 right-2.5 rounded-full bg-black/25 px-1.5 py-0.5 text-[10px] font-bold tabular-nums">
-                  {tile.count}
-                  {tile.countLabel ? ` ${tile.countLabel}` : ""}
-                </span>
-              ) : null}
-              <p className="text-[10px] font-bold tracking-[0.14em] text-white/80 uppercase">
-                {tile.kicker}
-              </p>
-              <p className="mt-0.5 font-display text-xl font-semibold leading-tight">
-                {tile.title}
-              </p>
-              <p className="mt-1 max-w-[92%] text-[13px] leading-snug text-white/90">
-                {tile.sub}
-              </p>
-            </button>
-          ))}
-        </div>
-
-
-
-        {upcomingGames.length > 0 ? (
-          <div className="space-y-1.5">
-            <p className="text-[10px] font-bold tracking-wide text-fg-subtle uppercase">
-              Your upcoming
-            </p>
-            {upcomingGames.slice(0, 3).map((m) => {
-              const { day, time } = whenParts(m.scheduledAt ?? m.preferredAt);
-              return (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => openGame(m.id, "explore")}
-                  className="flex w-full items-center justify-between gap-2 rounded-xl border border-border bg-bg-elevated px-3 py-2 text-left"
-                >
-                  <span className="truncate text-[12px] font-semibold text-fg">
-                    {m.courtName}
-                  </span>
-                  <span className="shrink-0 text-[11px] font-bold tabular-nums text-fg-muted">
-                    {day} · {time}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        ) : null}
-      </div>
-      {createPane}
-      {inviteReviewSheet}
-      </>
-    );
-  }
-
+  // Play opens on the lobby (explore two-tile menu retired).
 
   // POST-APPROVE — set alerts before Scheduled tab
   if (view === "alerts_setup" && alertsPromptMatchId) {
@@ -2932,40 +2763,46 @@ export function QuickMatchFlow({
           <span className="text-court">Upset City</span>
           <span className="text-fg-muted"> · {placeLabel}</span>
         </p>
-        <button
-          type="button"
-          onClick={() => {
-            if (!requireAuth("profile")) return;
-            onOpenPlayer?.(me);
-          }}
-          className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-bg-elevated"
-          aria-label="Your profile"
-        >
-          {me.id !== GUEST_PLAYER_ID ? (
-            <PlayerAvatar player={me} size="sm" showRank={false} className="!size-9" />
-          ) : (
-            <User className="size-4 text-fg-muted" />
-          )}
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={startCreate}
+            className="uc-press inline-flex h-9 items-center gap-1 rounded-full bg-court px-3 text-white"
+            aria-label="Create game"
+          >
+            <Plus className="size-3.5" strokeWidth={2.5} />
+            <span className="text-[12px] font-semibold">Create</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (!requireAuth("profile")) return;
+              onOpenPlayer?.(me);
+            }}
+            className="uc-press flex size-9 items-center justify-center overflow-hidden rounded-full border border-border bg-bg-elevated"
+            aria-label="Your profile"
+          >
+            {me.id !== GUEST_PLAYER_ID ? (
+              <PlayerAvatar player={me} size="sm" showRank={false} className="!size-9" />
+            ) : (
+              <User className="size-4 text-fg-muted" />
+            )}
+          </button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
+      <div className="flex rounded-full border border-border bg-bg-elevated p-0.5">
         {(
           [
             {
               id: "open" as const,
               label: "Lobby",
               count: laneOpenGames.length,
-              unit: "open",
             },
             {
               id: "scheduled" as const,
               label: "My Games",
               count: scheduledDeskGames.length + myHostingOpen.length + incomingInvites.length,
-              unit:
-                scheduledDeskGames.length + myHostingOpen.length + incomingInvites.length === 1
-                  ? "game"
-                  : "games",
             },
           ] as const
         ).map((tab) => {
@@ -2978,30 +2815,30 @@ export function QuickMatchFlow({
               key={tab.id}
               type="button"
               onClick={() => setOpenDeskTab(tab.id)}
+              aria-label={tab.label}
+              aria-pressed={on}
               className={cn(
-                "relative rounded-[1.35rem] px-3 py-3.5 text-center transition",
-                on
-                  ? "bg-court text-white shadow-[0_8px_24px_rgba(196,92,38,0.35)]"
-                  : "border border-border bg-bg-elevated text-fg-muted",
+                "uc-press relative flex-1 rounded-full px-3 py-2 text-center text-[13px] font-semibold transition-colors",
+                on ? "bg-court text-white" : "text-fg-muted",
               )}
             >
+              <span aria-hidden className="inline-flex items-center justify-center gap-1.5">
+                <span>{tab.label}</span>
+                <span
+                  className={cn(
+                    "text-[11px] font-medium tabular-nums",
+                    on ? "text-white/75" : "text-fg-subtle",
+                  )}
+                >
+                  {tab.count}
+                </span>
+              </span>
               {tab.id === "scheduled" && playAlerts > 0 && !on ? (
                 <span
-                  className="absolute top-2.5 right-2.5 size-2 rounded-full bg-court ring-2 ring-bg-elevated"
-                  aria-label={`${playAlerts} need attention`}
+                  className="absolute top-1.5 right-3 size-1.5 rounded-full bg-court"
+                  aria-hidden
                 />
               ) : null}
-              <span className="block text-[15px] font-semibold leading-none">
-                {tab.label}
-              </span>
-              <span
-                className={cn(
-                  "mt-1.5 block text-[12px] font-medium tabular-nums",
-                  on ? "text-white/80" : "text-fg-subtle",
-                )}
-              >
-                {tab.count} {tab.unit}
-              </span>
             </button>
           );
         })}
@@ -3024,7 +2861,7 @@ export function QuickMatchFlow({
                 <button
                   type="button"
                   onClick={() => setView("hoop_now")}
-                  className="inline-flex h-10 items-center gap-1.5 rounded-full border border-border bg-bg-elevated px-3 text-[13px] font-semibold text-fg"
+                  className="uc-press inline-flex h-10 items-center gap-1.5 rounded-full border border-border bg-bg-elevated px-3 text-[13px] font-semibold text-fg"
                 >
                   <Zap className="size-3.5 text-court" />
                   Match
@@ -3107,7 +2944,7 @@ export function QuickMatchFlow({
               <button
                 type="button"
                 onClick={startCreate}
-                className="mt-6 inline-flex h-12 w-full max-w-[17rem] items-center justify-center gap-1.5 rounded-full bg-court text-[15px] font-semibold text-white shadow-[0_10px_28px_rgba(196,92,38,0.38)]"
+                className="uc-press mt-6 inline-flex h-12 w-full max-w-[17rem] items-center justify-center gap-1.5 rounded-full bg-court text-[15px] font-semibold text-white"
               >
                 Create a game
                 <span aria-hidden>→</span>
@@ -3164,7 +3001,7 @@ export function QuickMatchFlow({
                     type="button"
                     onClick={() => openGame(m.id)}
                     className={cn(
-                      "flex w-full items-stretch gap-0 overflow-hidden rounded-2xl border text-left transition active:scale-[0.995]",
+                      "uc-press flex w-full items-stretch gap-0 overflow-hidden rounded-2xl border text-left",
                       rec
                         ? "border-court/40 bg-bg-elevated"
                         : "border-border/80 bg-bg-elevated",

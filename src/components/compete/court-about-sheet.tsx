@@ -152,7 +152,7 @@ export function CourtAboutSheet({
 
   const sheet = (
     <div
-      className="fixed inset-0 z-[400] flex items-end justify-center bg-black/55 sm:items-center sm:p-4"
+      className="uc-sheet-backdrop fixed inset-0 z-[400] flex items-end justify-center bg-black/50 sm:items-center sm:p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="court-about-title"
@@ -160,9 +160,12 @@ export function CourtAboutSheet({
     >
       <div className="absolute inset-0" aria-hidden />
       <div
-        className="relative z-10 flex max-h-[min(90dvh,680px)] w-full max-w-md flex-col overflow-hidden rounded-t-2xl border border-border bg-bg shadow-2xl sm:rounded-2xl"
+        className="uc-sheet-surface relative z-10 flex max-h-[min(90dvh,680px)] w-full max-w-md flex-col overflow-hidden rounded-t-2xl border border-border bg-bg shadow-soft sm:rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
+        <div className="flex shrink-0 justify-center pt-2 pb-1" aria-hidden>
+          <span className="h-1 w-10 rounded-full bg-fg-subtle/40" />
+        </div>
         {/* Photos only — name/info live below */}
         <div className="relative w-full shrink-0 overflow-hidden bg-bg-subtle">
           <div className="relative aspect-[16/10] w-full max-h-[40dvh] min-h-[11rem]">
