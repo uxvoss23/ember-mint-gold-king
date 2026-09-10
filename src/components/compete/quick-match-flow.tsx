@@ -1486,11 +1486,8 @@ export function QuickMatchFlow({
                               )}
                             </p>
                           </div>
-                          <span
-                            className="mb-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-white/15 text-white"
-                            aria-hidden
-                          >
-                            <ChevronRight className="size-4" strokeWidth={2.5} />
+                          <span className="mb-px shrink-0 text-[11px] font-semibold text-white/90">
+                            View court
                           </span>
                         </div>
                       </div>
