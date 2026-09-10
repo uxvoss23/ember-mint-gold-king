@@ -419,11 +419,15 @@ export function QuickMatchFlow({
   );
 
   useLayoutEffect(() => {
-    if (!active) return;
+    if (!active || view !== "create") {
+      document.documentElement.removeAttribute("data-uc-create-immersive");
+      if (!active) return;
+    }
     if (view === "create") {
       setTabsHidden(true);
       onImmersiveChange?.(true);
       document.documentElement.style.setProperty("--uc-tab-h", "0px");
+      document.documentElement.setAttribute("data-uc-create-immersive", "1");
     }
   }, [active, view, onImmersiveChange, setTabsHidden]);
 
@@ -457,11 +461,11 @@ export function QuickMatchFlow({
     return () => {
       onImmersiveChange?.(false);
       setTabsHidden(false);
+      document.documentElement.removeAttribute("data-uc-create-immersive");
     };
     // Unmount only — don't toggle immersive off between view changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
   useEffect(() => {
     if (!parentLooksLikeGps || nearOrigin) return;
     if (userLat == null || userLon == null) return;
@@ -1207,13 +1211,13 @@ export function QuickMatchFlow({
         className={cn(
           "min-h-0 flex-1",
           mapImmersive
-            ? "flex flex-col gap-1 overflow-hidden pt-1"
+            ? "flex flex-col gap-0.5 overflow-hidden pt-[max(2px,env(safe-area-inset-top))]"
             : "space-y-2.5 overflow-y-auto overscroll-contain px-4 pt-2 pb-6 touch-pan-y [-webkit-overflow-scrolling:touch]",
         )}
       >
-        <div className={mapImmersive ? "shrink-0 space-y-1 px-4" : "contents"}>
+        <div className={mapImmersive ? "shrink-0 space-y-0.5 px-4" : "contents"}>
         {mapImmersive ? (
-          <div className="flex items-center gap-3 pb-0.5">
+          <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={goCreateBack}

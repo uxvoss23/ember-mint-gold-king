@@ -501,6 +501,11 @@
     }
   }
 
+  /* Create 1v1 map: drop the app header so the map can start higher */
+  html[data-uc-create-immersive] .uc-app-header {
+    display: none !important;
+  }
+
   /* While boot splash is up: hide any stray tab bar */
   html[data-uc-booting] .app-shell {
     padding-bottom: 0 !important;
