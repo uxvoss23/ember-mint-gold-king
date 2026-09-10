@@ -66,7 +66,17 @@ function RootDocument() {
         />
         <HeadContent />
         <link rel="stylesheet" href={appCss} />
-        <link rel="stylesheet" href={FONT_HREF} />
+        <link
+          rel="stylesheet"
+          href={FONT_HREF}
+          media="print"
+          onLoad={(e) => {
+            e.currentTarget.media = "all";
+          }}
+        />
+        <noscript>
+          <link rel="stylesheet" href={FONT_HREF} />
+        </noscript>
       </head>
       <body
         className="bg-bg text-fg antialiased"

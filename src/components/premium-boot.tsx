@@ -78,7 +78,7 @@ export function PremiumBootHost() {
       window.setTimeout(() => setAlive(false), 280);
     };
     document.addEventListener("uc:app-ready", hide);
-    const max = window.setTimeout(hide, 1800);
+    const max = window.setTimeout(hide, 900);
     return () => {
       document.removeEventListener("uc:app-ready", hide);
       window.clearTimeout(max);

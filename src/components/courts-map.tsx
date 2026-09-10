@@ -42,11 +42,6 @@ function constrainedMobile(): boolean {
 }
 
 function streetStyle(): import("maplibre-gl").StyleSpecification {
-  const hiRes =
-    typeof window !== "undefined" &&
-    window.devicePixelRatio >= 2 &&
-    !constrainedMobile();
-  const file = hiRes ? "@2x.png" : ".png";
   return {
     version: 8,
     name: "Upset City Street",
@@ -54,11 +49,10 @@ function streetStyle(): import("maplibre-gl").StyleSpecification {
       carto: {
         type: "raster",
         tiles: [
-          `https://a.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}${file}`,
-          `https://b.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}${file}`,
+          "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
         ],
         tileSize: 256,
-        attribution: "&copy; OSM &copy; CARTO",
+        attribution: "Tiles &copy; Esri",
       },
     },
     layers: [
@@ -247,11 +241,15 @@ export function CourtsMap({
         "bottom-right",
       );
       mapRef.current = map;
+      const readyFailsafe = window.setTimeout(() => {
+        if (!cancelled) setReady(true);
+      }, 1400);
       map.on("error", () => {
         if (!cancelled) setTileError(true);
       });
       map.on("load", () => {
         if (!cancelled) {
+          window.clearTimeout(readyFailsafe);
           ucMark("map:tiles");
           setReady(true);
           setTileError(false);

@@ -7,12 +7,12 @@ import {
   Zap,
 } from "lucide-react";
 import { BottomTabBar } from "@/components/bottom-tab-bar";
-const CourtsFinder = lazy(() =>
-  import("@/components/courts-finder").then((m) => ({ default: m.CourtsFinder })),
-);
+import { CourtsFinder } from "@/components/courts-finder";
 import { CourtDetail } from "@/components/court-detail";
 import { LeaderboardPanel } from "@/components/compete/leaderboard-panel";
-import { PlayHub } from "@/components/compete/play-hub";
+const PlayHub = lazy(() =>
+  import("@/components/compete/play-hub").then((m) => ({ default: m.PlayHub })),
+);
 import { YouHome } from "@/components/compete/you-home";
 import { PlayerAvatar } from "@/components/compete/player-avatar";
 import { AdminWorkOrders } from "@/components/admin-work-orders";
@@ -95,6 +95,7 @@ export function SceneShell({
   const [presetCourt, setPresetCourt] = useState<Court | null>(null);
   const [playImmersive, setPlayImmersive] = useState(false);
   const [courtsVisited, setCourtsVisited] = useState(true);
+  const [playVisited, setPlayVisited] = useState(false);
   const [boardVisited, setBoardVisited] = useState(false);
   const [youVisited, setYouVisited] = useState(false);
   const [needProfile, setNeedProfile] = useState(false);
@@ -113,9 +114,17 @@ export function SceneShell({
 
   useEffect(() => {
     if (home === "courts") setCourtsVisited(true);
+    if (home === "games") setPlayVisited(true);
     if (home === "leaderboard") setBoardVisited(true);
     if (home === "you") setYouVisited(true);
   }, [home]);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      void import("@/components/compete/play-hub");
+    }, 900);
+    return () => window.clearTimeout(t);
+  }, []);
 
   useEffect(() => {
     if (!signedIn) return;
@@ -223,6 +232,7 @@ export function SceneShell({
           </div>
         )}
 
+        {(home === "games" || playVisited) && (
         <div
           className={cn(
             home === "games" ? "flex min-h-0 flex-1 flex-col" : "hidden",
@@ -230,6 +240,13 @@ export function SceneShell({
           hidden={home !== "games"}
           aria-hidden={home !== "games"}
         >
+          <Suspense
+            fallback={
+              <div className="flex flex-1 items-center justify-center text-sm text-fg-muted">
+                Opening Play…
+              </div>
+            }
+          >
           <PlayHub
             me={store.me}
             players={store.players}
@@ -353,7 +370,9 @@ export function SceneShell({
               startTransition(() => setHome("you"));
             }}
           />
+          </Suspense>
         </div>
+        )}
 
         {(home === "you" || youVisited) && (
           <div
@@ -387,13 +406,6 @@ export function SceneShell({
             )}
           >
             <div className="min-h-0 flex-1 overflow-hidden">
-              <Suspense
-                fallback={
-                  <div className="flex h-full items-center justify-center text-sm text-fg-muted">
-                    Opening map…
-                  </div>
-                }
-              >
               <CourtsFinder
                 courts={courts}
                 location={location}
@@ -411,7 +423,6 @@ export function SceneShell({
                 focusCourtId={focusCourtId}
                 onFocusCourtConsumed={() => setFocusCourtId(null)}
               />
-              </Suspense>
             </div>
           </div>
         )}

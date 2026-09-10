@@ -1,26 +1,15 @@
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, type ComponentProps } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { User } from "lucide-react";
 import { ViewportLock } from "@/components/viewport-lock";
 import { IosKeyboardGuard } from "@/components/ios-keyboard-guard";
-import { PremiumBootFallback } from "@/components/premium-boot";
+import { SceneShell } from "@/components/compete/scene-shell";
 import { DEFAULT_CITY, catalogNear } from "@/lib/courts/catalog";
 import { fetchCourtsNear } from "@/lib/courts/fetch-courts";
 import type { Court, UserLocation } from "@/lib/courts/types";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { SignedIn, SignedOut, UserButton } from "@/lib/auth/gates";
 import { milesToMeters } from "@/lib/utils";
-
-const SceneShellLazy = lazy(() =>
-  import("@/components/compete/scene-shell").then((m) => ({ default: m.SceneShell })),
-);
-
-function SceneShell(props: ComponentProps<typeof SceneShellLazy>) {
-  useLayoutEffect(() => {
-    document.dispatchEvent(new Event("uc:app-ready"));
-  }, []);
-  return <SceneShellLazy {...props} />;
-}
 
 export const Route = createFileRoute("/")({ component: Home });
 
@@ -179,8 +168,7 @@ function Home() {
 
       <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {location ? (
-          <Suspense fallback={<PremiumBootFallback />}>
-            <SceneShell
+          <SceneShell
               courts={courts}
               location={location}
               courtsLoading={loading}
@@ -197,7 +185,6 @@ function Home() {
               onNearMe={requestLocation}
               showTabBar
             />
-          </Suspense>
         ) : null}
       </main>
     </div>
