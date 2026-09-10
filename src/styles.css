@@ -410,6 +410,9 @@
     min-height: 0;
     overflow: hidden;
   }
+  .uc-preview-swap {
+    animation: uc-fade-in var(--motion-quick) linear;
+  }
 
   @keyframes uc-sheet-up {
     from {
@@ -442,6 +445,9 @@
     }
     .uc-preview-slot {
       transition: none;
+    }
+    .uc-preview-swap {
+      animation: none;
     }
   }
 

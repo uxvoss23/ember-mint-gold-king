@@ -3,6 +3,7 @@ import {
   Bell,
   Calendar,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   Clock,
   Info,
@@ -1086,12 +1087,25 @@ export function QuickMatchFlow({
     const mapThumb = selectedCreateCourt
       ? courtImagesFor(selectedCreateCourt.id, 1)[0]
       : undefined;
-    const createAutoLabel =
-      selectedCreateCourt && !createCourtTouched
-        ? hasPreciseLocation
-          ? "Closest court"
-          : "Highest rated"
-        : null;
+    const browseCourts = [...filteredCourts].sort((a, b) => {
+      if (a.miles !== b.miles) return a.miles - b.miles;
+      return a.name.localeCompare(b.name);
+    });
+    const browseIndex = selectedCreateCourt
+      ? browseCourts.findIndex((c) => c.id === selectedCreateCourt.id)
+      : -1;
+    const createAutoLabel = !selectedCreateCourt
+      ? null
+      : hasPreciseLocation && browseIndex === 0
+        ? "Closest court"
+        : !hasPreciseLocation && !createCourtTouched
+          ? "Highest rated"
+          : null;
+    const stepBrowseCourt = (delta: number) => {
+      if (browseIndex < 0) return;
+      const next = browseCourts[browseIndex + delta];
+      if (next) chooseCreateCourt(next.id);
+    };
 
     createPane = (
       <div
@@ -1427,47 +1441,76 @@ export function QuickMatchFlow({
           >
             <div>
               {selectedCreateCourt ? (
-                <button
-                  type="button"
-                  onClick={() => setCourtInfoId(selectedCreateCourt.id)}
-                  className="uc-press mt-1.5 w-full overflow-hidden rounded-xl border border-court/35 bg-bg-elevated text-left"
-                  aria-label={`About ${selectedCreateCourt.name}`}
-                >
-                  <div className="relative h-36 w-full bg-bg-subtle">
-                    {mapThumb ? (
-                      <img
-                        src={mapThumb}
-                        alt=""
-                        className="h-full w-full object-cover"
-                      />
-                    ) : null}
-                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent px-3 pb-2.5 pt-10">
-                      {createAutoLabel ? (
-                        <p className="text-[10px] font-bold tracking-[0.14em] text-court uppercase">
-                          {createAutoLabel}
-                        </p>
+                <div className="relative mt-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setCourtInfoId(selectedCreateCourt.id)}
+                    className="uc-press w-full overflow-hidden rounded-xl border border-court/35 bg-bg-elevated text-left"
+                    aria-label={`About ${selectedCreateCourt.name}`}
+                  >
+                    <div
+                      key={selectedCreateCourt.id}
+                      className="uc-preview-swap relative h-36 w-full bg-bg-subtle"
+                    >
+                      {mapThumb ? (
+                        <img
+                          src={mapThumb}
+                          alt=""
+                          className="h-full w-full object-cover"
+                        />
                       ) : null}
-                      <p className="truncate text-[15px] font-semibold text-white">
-                        {selectedCreateCourt.name.replace(/\s*Courts?\s*$/i, "") ||
-                          selectedCreateCourt.name}
-                      </p>
-                      <p className="truncate text-[11px] text-white/80">
-                        {selectedCreateCourt.neighborhood ?? "Austin"} ·{" "}
-                        {formatMiles(
-                          "miles" in selectedCreateCourt &&
-                            typeof selectedCreateCourt.miles === "number"
-                            ? selectedCreateCourt.miles
-                            : haversineMi(
-                                origin.lat,
-                                origin.lon,
-                                selectedCreateCourt.lat,
-                                selectedCreateCourt.lon,
-                              ),
-                        )}
-                      </p>
+                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent px-3 pb-2.5 pt-10">
+                        {createAutoLabel ? (
+                          <p className="text-[10px] font-bold tracking-[0.14em] text-court uppercase">
+                            {createAutoLabel}
+                          </p>
+                        ) : null}
+                        <p className="truncate text-[15px] font-semibold text-white">
+                          {selectedCreateCourt.name.replace(/\s*Courts?\s*$/i, "") ||
+                            selectedCreateCourt.name}
+                        </p>
+                        <p className="truncate text-[11px] text-white/80">
+                          {selectedCreateCourt.neighborhood ?? "Austin"} ·{" "}
+                          {formatMiles(
+                            "miles" in selectedCreateCourt &&
+                              typeof selectedCreateCourt.miles === "number"
+                              ? selectedCreateCourt.miles
+                              : haversineMi(
+                                  origin.lat,
+                                  origin.lon,
+                                  selectedCreateCourt.lat,
+                                  selectedCreateCourt.lon,
+                                ),
+                          )}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                </button>
+                  </button>
+                  {browseCourts.length > 1 ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => stepBrowseCourt(-1)}
+                        disabled={browseIndex <= 0}
+                        className="uc-press absolute top-3 left-1 z-20 flex size-12 items-center justify-center rounded-full bg-black/60 text-white shadow-soft disabled:pointer-events-none disabled:opacity-30"
+                        aria-label="Previous court"
+                      >
+                        <ChevronLeft className="size-6" strokeWidth={2.5} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => stepBrowseCourt(1)}
+                        disabled={
+                          browseIndex < 0 || browseIndex >= browseCourts.length - 1
+                        }
+                        className="uc-press absolute top-3 right-1 z-20 flex size-12 items-center justify-center rounded-full bg-black/60 text-white shadow-soft disabled:pointer-events-none disabled:opacity-30"
+                        aria-label="Next court"
+                      >
+                        <ChevronRight className="size-6" strokeWidth={2.5} />
+                      </button>
+                    </>
+                  ) : null}
+                </div>
               ) : null}
             </div>
           </div>
