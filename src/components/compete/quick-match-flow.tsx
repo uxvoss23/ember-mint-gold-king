@@ -13,7 +13,6 @@ import {
   Send,
   Plus,
   Search,
-  User,
   UserPlus,
   X,
   Zap,
@@ -3008,7 +3007,7 @@ export function QuickMatchFlow({
   return (
     <>
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-    <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 pt-2 pb-6 touch-pan-y [-webkit-overflow-scrolling:touch]">
+    <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain px-4 pt-2 pb-6 touch-pan-y [-webkit-overflow-scrolling:touch]">
       {statusMsg ? (
         <p className="rounded-lg bg-court/15 px-3 py-2 text-xs font-medium text-court">
           {statusMsg}
@@ -3023,32 +3022,15 @@ export function QuickMatchFlow({
           <span className="text-court">Upset City</span>
           <span className="text-fg-muted"> · {placeLabel}</span>
         </p>
-        <div className="flex shrink-0 items-center gap-2">
-          <button
-            type="button"
-            onClick={startCreate}
-            className="uc-press inline-flex h-9 items-center gap-1 rounded-full bg-court px-3 text-white"
-            aria-label="Create game"
-          >
-            <Plus className="size-3.5" strokeWidth={2.5} />
-            <span className="text-[12px] font-semibold">Create</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              if (!requireAuth("profile")) return;
-              onOpenPlayer?.(me);
-            }}
-            className="uc-press flex size-9 items-center justify-center overflow-hidden rounded-full border border-border bg-bg-elevated"
-            aria-label="Your profile"
-          >
-            {me.id !== GUEST_PLAYER_ID ? (
-              <PlayerAvatar player={me} size="sm" showRank={false} className="!size-9" />
-            ) : (
-              <User className="size-4 text-fg-muted" />
-            )}
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={startCreate}
+          className="uc-press inline-flex h-9 shrink-0 items-center gap-1 rounded-full bg-court px-3.5 text-white"
+          aria-label="Create game"
+        >
+          <Plus className="size-3.5" strokeWidth={2.5} />
+          <span className="text-[12px] font-semibold">Create</span>
+        </button>
       </div>
 
       <div className="flex rounded-full border border-border bg-bg-elevated p-0.5">
