@@ -331,6 +331,7 @@ export function QuickMatchFlow({
   const [createSorts, setCreateSorts] = useState<Set<string>>(() => new Set(["highest_rated", "nearest"]));
   const [createRadiusMi, setCreateRadiusMi] = useState(5);
   const [createPickMode, setCreatePickMode] = useState<"photos" | "map">("map");
+  const [createFiltersOpen, setCreateFiltersOpen] = useState(false);
   const [courtInfoId, setCourtInfoId] = useState<string | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteQuery, setInviteQuery] = useState("");
@@ -808,6 +809,7 @@ export function QuickMatchFlow({
     setCreateInviteIds([]);
     setCreateInviteOpen(false);
     setCreateVisibility("public");
+    setCreateFiltersOpen(false);
     setCourtInfoId(null);
     setCreateStep(1);
     onImmersiveChange?.(true);
@@ -865,6 +867,7 @@ export function QuickMatchFlow({
     setCreateInviteOpen(false);
     setCreateVisibility("public");
     setCreateSorts(new Set(["highest_rated", "nearest"]));
+    setCreateFiltersOpen(false);
     setCourtInfoId(null);
     setCreateStep(1);
     onImmersiveChange?.(true);
@@ -1136,6 +1139,42 @@ export function QuickMatchFlow({
         </button>
       </div>
     );
+    const filterParts: string[] = [];
+    if (createSorts.has("nearest")) filterParts.push("Near me");
+    if (createSorts.has("highest_rated")) filterParts.push("Highest rated");
+    if (createSorts.has("shaded")) filterParts.push("Shaded");
+    if (createHood !== "all") filterParts.push(createHood);
+    if (createSorts.has("nearest") && hasPreciseLocation) {
+      filterParts.push(`${createRadiusMi} mi`);
+    }
+    const filterCount =
+      createSorts.size + (createHood !== "all" ? 1 : 0);
+    const filterSummary =
+      filterParts.length > 0 ? filterParts.join(" · ") : "All courts";
+    const listMapToggle = (
+      <div className="flex shrink-0 rounded-full border border-border bg-bg-elevated p-0.5">
+        <button
+          type="button"
+          onClick={() => setCreatePickMode("photos")}
+          className={cn(
+            "rounded-full px-2.5 py-1 text-[11px] font-semibold",
+            createPickMode === "photos" ? "bg-fg text-bg" : "text-fg-muted",
+          )}
+        >
+          List
+        </button>
+        <button
+          type="button"
+          onClick={() => setCreatePickMode("map")}
+          className={cn(
+            "rounded-full px-2.5 py-1 text-[11px] font-semibold",
+            createPickMode === "map" ? "bg-fg text-bg" : "text-fg-muted",
+          )}
+        >
+          Map
+        </button>
+      </div>
+    );
 
     createPane = (
       <div
@@ -1152,17 +1191,17 @@ export function QuickMatchFlow({
         className={cn(
           "min-h-0 flex-1",
           mapImmersive
-            ? "flex flex-col gap-2 overflow-hidden pt-2"
+            ? "flex flex-col gap-1 overflow-hidden pt-1"
             : "space-y-2.5 overflow-y-auto overscroll-contain px-4 pt-2 pb-6 touch-pan-y [-webkit-overflow-scrolling:touch]",
         )}
       >
-        <div className={mapImmersive ? "shrink-0 space-y-1.5 px-4" : "contents"}>
+        <div className={mapImmersive ? "shrink-0 space-y-1 px-4" : "contents"}>
         {mapImmersive ? (
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={goCreateBack}
-              className="relative z-30 min-h-11 min-w-[4.5rem] -ml-1 px-1 text-left text-xs font-semibold text-fg-muted pointer-events-auto"
+              className="relative z-30 min-h-9 min-w-[4.25rem] -ml-1 px-1 text-left text-xs font-semibold text-fg-muted pointer-events-auto"
             >
               ← Explore
             </button>
@@ -1180,7 +1219,7 @@ export function QuickMatchFlow({
         <h3 className="font-display text-lg font-semibold text-fg">Create 1v1</h3>
           </>
         )}
-        <CreateGameStepBar step={createStep} onStep={setCreateStep} />
+        <CreateGameStepBar step={createStep} onStep={setCreateStep} compact={mapImmersive} />
         {mapImmersive ? null : (
         <p className="text-[11px] text-fg-muted">
           Ranked 1v1 · best of 3 to 11 · win by 2. Public by default.
@@ -1261,9 +1300,37 @@ export function QuickMatchFlow({
           </div>
           </div>
         ) : null}
-        <div className={mapImmersive ? "shrink-0 space-y-1.5 px-4" : "contents"}>
-<div className="space-y-1">
-          <p className="text-[10px] font-medium text-fg-subtle">Filters · deselect all to see every court</p>
+        <div className={mapImmersive ? "shrink-0 px-4" : "contents"}>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setCreateFiltersOpen((open) => !open)}
+            className="uc-press min-w-0 flex-1 rounded-lg py-1 text-left"
+            aria-expanded={createFiltersOpen}
+            aria-controls="uc-create-filters"
+          >
+            <span className="flex items-center gap-1 text-[12px] font-semibold text-fg">
+              Filters{filterCount > 0 ? ` (${filterCount})` : ""}
+              <ChevronDown
+                className={cn(
+                  "size-3.5 text-fg-muted transition-transform duration-[var(--motion-quick)] ease-[var(--ease-out-smooth)]",
+                  createFiltersOpen && "rotate-180",
+                )}
+                strokeWidth={2.25}
+              />
+            </span>
+            <span className="mt-0.5 block truncate text-[11px] text-fg-muted">
+              {filterSummary}
+            </span>
+          </button>
+          {listMapToggle}
+        </div>
+        <div
+          id="uc-create-filters"
+          className={cn("uc-preview-slot", createFiltersOpen && "uc-preview-slot-open")}
+          aria-hidden={!createFiltersOpen}
+        >
+          <div className="space-y-1 pt-1">
           <div className="flex gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {([
               { id: "highest_rated", label: "Highest rated" },
@@ -1299,11 +1366,6 @@ export function QuickMatchFlow({
               </button>
             ))}
           </div>
-        </div>
-
-        {/* Address row + List | Map to the right */}
-        <div className="flex items-center gap-1.5">
-          <div className="min-w-0 flex-1">
             {createSorts.has("nearest") ? (
               hasPreciseLocation ? (
                 <div className="flex items-center gap-1.5">
@@ -1312,7 +1374,7 @@ export function QuickMatchFlow({
                       {nearOrigin?.label ?? userLocationLabel ?? "Near you"}
                     </span>
                   </p>
-                  <div className="flex max-w-[48%] gap-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  <div className="flex max-w-[55%] gap-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     {[1, 3, 5, 8, 10, 15].map((mi) => (
                       <button key={mi} type="button" onClick={() => setCreateRadiusMi(mi)}
                         className={cn("h-7 shrink-0 rounded-full px-2 text-[10px] font-semibold tabular-nums",
@@ -1336,21 +1398,7 @@ export function QuickMatchFlow({
                     className="h-7 min-w-0 flex-1 rounded-full border border-border bg-bg-elevated px-2.5 text-[11px] text-fg outline-none focus:border-court" />
                 </div>
               )
-            ) : (
-              <p className="text-[10px] text-fg-subtle">Browse courts</p>
-            )}
-          </div>
-          <div className="flex shrink-0 rounded-full border border-border bg-bg-elevated p-0.5">
-            <button type="button" onClick={() => setCreatePickMode("photos")}
-              className={cn("rounded-full px-2.5 py-1 text-[11px] font-semibold", createPickMode === "photos" ? "bg-fg text-bg" : "text-fg-muted")}>
-              List
-            </button>
-            <button type="button" onClick={() => setCreatePickMode("map")}
-              className={cn("rounded-full px-2.5 py-1 text-[11px] font-semibold", createPickMode === "map" ? "bg-fg text-bg" : "text-fg-muted")}>
-              Map
-            </button>
-          </div>
-        </div>
+            ) : null}
         {createSorts.has("nearest") && !hasPreciseLocation && addressHits.length > 0 ? (
           <ul className="max-h-24 overflow-y-auto rounded-lg border border-border bg-bg-elevated">
             {addressHits.map((hit) => (
@@ -1364,6 +1412,8 @@ export function QuickMatchFlow({
             ))}
           </ul>
         ) : null}
+          </div>
+        </div>
         </div>
 
         {createPickMode === "photos" ? (
@@ -1460,6 +1510,7 @@ export function QuickMatchFlow({
               variant="finder"
               bare
               frameSelection
+              layoutKey={createFiltersOpen ? "filters" : "map"}
               mapClassName="h-full w-full"
             />
           </div>

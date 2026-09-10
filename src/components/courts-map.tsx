@@ -20,6 +20,8 @@ interface CourtsMapProps {
   bare?: boolean;
   /** Frame the map around you + the selected court (create flow). */
   frameSelection?: boolean;
+  /** Re-run framing when chrome around the map changes (filters open/close). */
+  layoutKey?: string | number | boolean;
 }
 
 type MapStyle = "satellite" | "street";
@@ -130,6 +132,7 @@ export function CourtsMap({
   mapClassName,
   bare = false,
   frameSelection = false,
+  layoutKey,
 }: CourtsMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<import("maplibre-gl").Map | null>(null);
@@ -578,6 +581,7 @@ export function CourtsMap({
     location.lat,
     location.lon,
     courts,
+    layoutKey,
   ]);
 
   // Instant select highlight without full pin rebuild

@@ -9,9 +9,11 @@ const STEPS = [
 export function CreateGameStepBar({
   step,
   onStep,
+  compact = false,
 }: {
   step: 1 | 2 | 3;
   onStep: (n: 1 | 2 | 3) => void;
+  compact?: boolean;
 }) {
   return (
     <ol className="flex items-center gap-1" aria-label="Create game steps">
@@ -28,13 +30,15 @@ export function CreateGameStepBar({
               disabled={s.n > step}
               aria-current={current ? "step" : undefined}
               className={cn(
-                "flex min-w-0 items-center gap-1.5 rounded-full px-2 py-1 text-left",
+                "flex min-w-0 items-center rounded-full text-left",
+                compact ? "gap-1 px-1.5 py-0.5" : "gap-1.5 px-2 py-1",
                 current ? "bg-court/15" : "",
               )}
             >
               <span
                 className={cn(
-                  "grid size-5 shrink-0 place-items-center rounded-full text-[10px] font-bold",
+                  "grid shrink-0 place-items-center rounded-full font-bold",
+                  compact ? "size-4 text-[9px]" : "size-5 text-[10px]",
                   current || done
                     ? "bg-court text-white"
                     : "bg-bg-subtle text-fg-muted",
@@ -44,7 +48,8 @@ export function CreateGameStepBar({
               </span>
               <span
                 className={cn(
-                  "truncate text-[11px] font-semibold",
+                  "truncate font-semibold",
+                  compact ? "text-[10px]" : "text-[11px]",
                   current ? "text-fg" : "text-fg-muted",
                 )}
               >

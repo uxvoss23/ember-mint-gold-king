@@ -219,6 +219,14 @@ async function pickCreateCourt(page) {
   const list = page.getByRole("button", { name: /^List$/ }).first();
   if (await list.count()) await list.click();
   await page.waitForTimeout(200);
+  const filtersToggle = page.getByRole("button", { name: /^Filters/i }).first();
+  if (await filtersToggle.count()) {
+    const expanded = await filtersToggle.getAttribute("aria-expanded");
+    if (expanded !== "true") {
+      await filtersToggle.click();
+      await page.waitForTimeout(200);
+    }
+  }
   for (const name of ["Highest rated", "Near me", "Shaded"]) {
     const chip = page.getByRole("button", { name: new RegExp(name, "i") }).first();
     if (!(await chip.count())) continue;
