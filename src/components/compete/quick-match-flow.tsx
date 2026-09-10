@@ -1445,7 +1445,7 @@ export function QuickMatchFlow({
                   <button
                     type="button"
                     onClick={() => setCourtInfoId(selectedCreateCourt.id)}
-                    className="uc-press w-full overflow-hidden rounded-xl border border-court/35 bg-bg-elevated text-left"
+                    className="uc-preview-card w-full overflow-hidden rounded-xl border border-court/35 bg-bg-elevated text-left"
                     aria-label={`About ${selectedCreateCourt.name}`}
                   >
                     <div
@@ -1460,29 +1460,39 @@ export function QuickMatchFlow({
                         />
                       ) : null}
                       <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent px-3 pb-2.5 pt-10">
-                        {createAutoLabel ? (
-                          <p className="text-[10px] font-bold tracking-[0.14em] text-court uppercase">
-                            {createAutoLabel}
-                          </p>
-                        ) : null}
-                        <p className="truncate text-[15px] font-semibold text-white">
-                          {selectedCreateCourt.name.replace(/\s*Courts?\s*$/i, "") ||
-                            selectedCreateCourt.name}
-                        </p>
-                        <p className="truncate text-[11px] text-white/80">
-                          {selectedCreateCourt.neighborhood ?? "Austin"} ·{" "}
-                          {formatMiles(
-                            "miles" in selectedCreateCourt &&
-                              typeof selectedCreateCourt.miles === "number"
-                              ? selectedCreateCourt.miles
-                              : haversineMi(
-                                  origin.lat,
-                                  origin.lon,
-                                  selectedCreateCourt.lat,
-                                  selectedCreateCourt.lon,
-                                ),
-                          )}
-                        </p>
+                        <div className="flex items-end gap-2">
+                          <div className="min-w-0 flex-1">
+                            {createAutoLabel ? (
+                              <p className="text-[10px] font-bold tracking-[0.14em] text-court uppercase">
+                                {createAutoLabel}
+                              </p>
+                            ) : null}
+                            <p className="truncate text-[15px] font-semibold text-white">
+                              {selectedCreateCourt.name.replace(/\s*Courts?\s*$/i, "") ||
+                                selectedCreateCourt.name}
+                            </p>
+                            <p className="truncate text-[11px] text-white/80">
+                              {selectedCreateCourt.neighborhood ?? "Austin"} ·{" "}
+                              {formatMiles(
+                                "miles" in selectedCreateCourt &&
+                                  typeof selectedCreateCourt.miles === "number"
+                                  ? selectedCreateCourt.miles
+                                  : haversineMi(
+                                      origin.lat,
+                                      origin.lon,
+                                      selectedCreateCourt.lat,
+                                      selectedCreateCourt.lon,
+                                    ),
+                              )}
+                            </p>
+                          </div>
+                          <span
+                            className="mb-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-white/15 text-white"
+                            aria-hidden
+                          >
+                            <ChevronRight className="size-4" strokeWidth={2.5} />
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </button>

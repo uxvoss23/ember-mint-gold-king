@@ -392,6 +392,15 @@
   .uc-press:active:not(:disabled) {
     transform: scale(0.98);
   }
+  .uc-preview-card {
+    transition:
+      transform var(--motion-quick) var(--ease-out-smooth),
+      opacity var(--motion-quick) linear;
+  }
+  .uc-preview-card:active {
+    transform: scale(0.985);
+    opacity: 0.9;
+  }
   .uc-sheet-backdrop {
     animation: uc-fade-in var(--motion-quick) linear;
   }
@@ -435,9 +444,12 @@
 
   @media (prefers-reduced-motion: reduce) {
     .uc-press,
-    .uc-press:active:not(:disabled) {
+    .uc-press:active:not(:disabled),
+    .uc-preview-card,
+    .uc-preview-card:active {
       transition: none;
       transform: none;
+      opacity: 1;
     }
     .uc-sheet-surface,
     .uc-sheet-backdrop {
