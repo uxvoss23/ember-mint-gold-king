@@ -1198,11 +1198,11 @@ export function QuickMatchFlow({
       >
         <div className={mapImmersive ? "shrink-0 space-y-1 px-4" : "contents"}>
         {mapImmersive ? (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3 pb-0.5">
             <button
               type="button"
               onClick={goCreateBack}
-              className="relative z-30 min-h-9 min-w-[4.25rem] -ml-1 px-1 text-left text-xs font-semibold text-fg-muted pointer-events-auto"
+              className="relative z-30 min-h-11 min-w-[5.25rem] px-2.5 text-left text-[13px] font-semibold text-fg-muted pointer-events-auto"
             >
               ← Explore
             </button>
