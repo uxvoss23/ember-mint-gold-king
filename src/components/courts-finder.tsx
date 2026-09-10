@@ -161,16 +161,76 @@ function matchesArea(court: Court, areaId: string) {
   return n.includes(id) || n === id;
 }
 
+function listFocusY(list: HTMLElement) {
+  const root = list.getBoundingClientRect();
+  return root.top + Math.min(148, Math.max(64, root.height * 0.22));
+}
+
+function primaryCourtId(list: HTMLElement): string | null {
+  const cards = list.querySelectorAll<HTMLElement>("[data-court-card]");
+  if (cards.length === 0) return null;
+  const root = list.getBoundingClientRect();
+  const focusY = listFocusY(list);
+  let best: { id: string; score: number } | null = null;
+  for (const card of cards) {
+    const id = card.dataset.courtId;
+    if (!id) continue;
+    const r = card.getBoundingClientRect();
+    if (r.bottom < root.top + 6 || r.top > root.bottom - 6) continue;
+    const overlap = Math.min(r.bottom, root.bottom) - Math.max(r.top, root.top);
+    if (overlap < 28) continue;
+    const mid = (r.top + r.bottom) / 2;
+    const onLine = r.top <= focusY && r.bottom >= focusY;
+    const score = Math.abs(mid - focusY) - (onLine ? 420 : 0) - overlap * 0.12;
+    if (!best || score < best.score) best = { id, score };
+  }
+  return best?.id ?? cards[0]?.dataset.courtId ?? null;
+}
+
+function cardStillPrimary(list: HTMLElement, id: string) {
+  const card = list.querySelector<HTMLElement>(`[data-court-id="${id}"]`);
+  if (!card) return false;
+  const focusY = listFocusY(list);
+  const r = card.getBoundingClientRect();
+  return r.top <= focusY + 12 && r.bottom >= focusY - 12;
+}
+
+function scrollCardIntoList(
+  list: HTMLElement,
+  id: string,
+  smooth: boolean,
+  force = false,
+) {
+  const card = list.querySelector<HTMLElement>(`[data-court-id="${id}"]`);
+  if (!card) return;
+  const listRect = list.getBoundingClientRect();
+  const cardRect = card.getBoundingClientRect();
+  if (
+    !force &&
+    cardRect.top < listRect.top - 10 &&
+    cardRect.bottom > listFocusY(list) + 24
+  ) {
+    return;
+  }
+  const top = list.scrollTop + (cardRect.top - listRect.top) - 6;
+  if (Math.abs(list.scrollTop - top) < 10) return;
+  list.scrollTo({ top, behavior: smooth ? "smooth" : "auto" });
+}
+
 /* ─── SelectedCourtPreview ────────────────────────────────────────────── */
 
 const SelectedCourtPreview = memo(function SelectedCourtPreview({
   court,
   onDismiss,
   onQuickMatch,
+  active = false,
+  onActivate,
 }: {
   court: Court;
   onDismiss?: () => void;
   onQuickMatch?: (court: Court) => void;
+  active?: boolean;
+  onActivate?: () => void;
 }) {
   const social = useCourtSocial();
   const requireAuth = useRequireAuth();
@@ -253,7 +313,20 @@ const SelectedCourtPreview = memo(function SelectedCourtPreview({
   const compact = !!onDismiss;
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-border bg-bg-elevated shadow-card">
+    <div
+      data-court-card
+      data-court-id={court.id}
+      className={cn(
+        "overflow-hidden rounded-2xl border bg-bg-elevated shadow-card",
+        active ? "border-court ring-2 ring-court/50" : "border-border",
+      )}
+      onClick={(e) => {
+        if (!onActivate) return;
+        const t = e.target as HTMLElement;
+        if (t.closest("button, a, input, [role='button']")) return;
+        onActivate();
+      }}
+    >
       <div className="relative">
         <ImageCarousel
           images={images}
@@ -730,37 +803,71 @@ export function CourtsFinder({
       .slice(0, 8);
   }, [query, filtered]);
 
-  const selectedVisible =
-    !!selected && filtered.some((c) => c.id === selected.id);
-  const others = filtered.filter((c) => c.id !== selected?.id);
+  const selectedVisible = !!selected && filtered.some((c) => c.id === selected.id);
+  const selectedRef = useRef(selected);
+  selectedRef.current = selected;
+  const filteredRef = useRef(filtered);
+  filteredRef.current = filtered;
+  const ignoreListScrollRef = useRef(false);
+  const listScrollRaf = useRef(0);
+  const snapTmr = useRef(0);
 
   const selectCourt = useCallback(
-    (c: Court) => {
+    (c: Court, from: "pin" | "card" | "scroll" | "focus" = "pin") => {
       setSelected(c);
+      if (from === "scroll") return;
       setFiltersOpen(false);
-      setDragging(true);
-      // 2nd of 3 sheet levels (peek → mid → full)
-      applySheetH(SHEET_MID);
-      const el = listRef.current;
-      if (el) el.scrollTop = 0;
+      if (from === "pin" || from === "focus") applySheetH(SHEET_MID);
+      ignoreListScrollRef.current = true;
       requestAnimationFrame(() => {
-        if (listRef.current) listRef.current.scrollTop = 0;
-        setDragging(false);
+        const el = listRef.current;
+        if (el) scrollCardIntoList(el, c.id, true, true);
+        window.setTimeout(() => {
+          ignoreListScrollRef.current = false;
+        }, 420);
       });
     },
     [applySheetH],
   );
 
   useEffect(() => {
-    if (!selected) return;
-    const el = listRef.current;
-    if (el) el.scrollTop = 0;
-  }, [selected?.id]);
+    if (filtered.length === 0) {
+      if (selected) setSelected(null);
+      return;
+    }
+    if (selected && filtered.some((c) => c.id === selected.id)) return;
+    setSelected(filtered[0]!);
+  }, [filtered, selected]);
 
-  const dismissSelected = useCallback(() => {
-    setSelected(null);
-    applySheetH(SHEET_MID);
-  }, [applySheetH]);
+  const onListScroll = useCallback(() => {
+    if (ignoreListScrollRef.current || dragging) return;
+    const list = listRef.current;
+    if (!list) return;
+    if (listScrollRaf.current) return;
+    listScrollRaf.current = requestAnimationFrame(() => {
+      listScrollRaf.current = 0;
+      if (ignoreListScrollRef.current) return;
+      const cur = selectedRef.current?.id ?? null;
+      if (cur && cardStillPrimary(list, cur)) return;
+      const next = primaryCourtId(list);
+      if (!next || next === cur) return;
+      const court = filteredRef.current.find((c) => c.id === next);
+      if (court) selectCourt(court, "scroll");
+    });
+    window.clearTimeout(snapTmr.current);
+    snapTmr.current = window.setTimeout(() => {
+      if (ignoreListScrollRef.current || dragging) return;
+      const el = listRef.current;
+      const id = selectedRef.current?.id ?? (el ? primaryCourtId(el) : null);
+      if (el && id) {
+        ignoreListScrollRef.current = true;
+        scrollCardIntoList(el, id, true);
+        window.setTimeout(() => {
+          ignoreListScrollRef.current = false;
+        }, 320);
+      }
+    }, 150);
+  }, [dragging, selectCourt]);
 
   useEffect(() => {
     if (!focusCourtId) return;
@@ -777,7 +884,7 @@ export function CourtsFinder({
           hit.lon,
         ),
       };
-      selectCourt(withDist);
+      selectCourt(withDist, "focus");
     }
     onFocusCourtConsumed?.();
   }, [
@@ -896,9 +1003,11 @@ export function CourtsFinder({
               : location
           }
           selectedId={selectedVisible ? selected!.id : undefined}
-          onSelect={(c) => selectCourt(c)}
+          onSelect={(c) => selectCourt(c, "pin")}
           variant="finder"
           bare
+          followSelection
+          followBottomPct={sheetH}
           mapClassName="h-full w-full"
           hoopingNowIds={hoopingIds}
         />
@@ -926,12 +1035,7 @@ export function CourtsFinder({
           aria-valuemax={SHEET_FULL}
           aria-valuenow={Math.round(sheetH)}
         >
-          <div
-            className={cn(
-              "flex w-full flex-col items-center",
-              selectedVisible ? "py-1.5" : "py-3",
-            )}
-          >
+          <div className="flex w-full flex-col items-center py-1.5">
             <div className="h-1.5 w-14 rounded-full bg-white/40" />
           </div>
         </div>
@@ -1231,22 +1335,9 @@ export function CourtsFinder({
         <div
           ref={listRef}
           data-courts-scroll="list"
+          onScroll={onListScroll}
           className="min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain px-2.5 pt-0.5 pb-3 [-webkit-overflow-scrolling:touch] [touch-action:pan-y] [overflow-anchor:none]"
         >
-          {selectedVisible && selected ? (
-            <SelectedCourtPreview
-              court={selected}
-              onDismiss={dismissSelected}
-              onQuickMatch={onQuickMatch}
-            />
-          ) : null}
-
-          {selectedVisible && others.length > 0 ? (
-            <p className="px-0.5 pt-0.5 text-[10px] font-semibold tracking-wide text-fg-subtle uppercase">
-              Nearby · scroll for more
-            </p>
-          ) : null}
-
           {loading && courts.length === 0 ? (
             <div className="space-y-3">
               {[0, 1, 2].map((i) => (
@@ -1298,11 +1389,13 @@ export function CourtsFinder({
               </div>
             </div>
           ) : (
-            (selectedVisible ? others : filtered).map((court) => (
+            filtered.map((court) => (
               <SelectedCourtPreview
                 key={court.id}
                 court={court}
+                active={court.id === selected?.id}
                 onQuickMatch={onQuickMatch}
+                onActivate={() => selectCourt(court, "card")}
               />
             ))
           )}

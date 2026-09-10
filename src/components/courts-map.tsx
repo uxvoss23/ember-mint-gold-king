@@ -23,6 +23,10 @@ interface CourtsMapProps {
   frameSelection?: boolean;
   /** Re-run framing when chrome around the map changes (filters open/close). */
   layoutKey?: string | number | boolean;
+  /** Pan (no zoom) so the selected pin stays in the uncovered map area. */
+  followSelection?: boolean;
+  /** Percent of the map height covered by a bottom sheet overlay. */
+  followBottomPct?: number;
 }
 
 type MapStyle = "satellite" | "street";
@@ -125,6 +129,51 @@ function fitUserAndCourt(
   );
 }
 
+/** Pan only — keep current zoom. No-op if the pin is already in the open map. */
+function revealCourtIfNeeded(
+  map: import("maplibre-gl").Map,
+  court: { lat: number; lon: number },
+  bottomPct: number,
+  duration: number,
+) {
+  const el = map.getContainer();
+  const h = el.clientHeight;
+  const w = el.clientWidth;
+  if (h < 48 || w < 48) return;
+
+  const padTop = 72;
+  const padBottom = Math.max(
+    72,
+    Math.round((h * Math.min(92, Math.max(18, bottomPct))) / 100) + 10,
+  );
+  const padX = 36;
+  const visTop = padTop;
+  const visBottom = h - padBottom;
+  if (visBottom - visTop < 88) return;
+
+  const pt = map.project([court.lon, court.lat]);
+  const margin = 32;
+  const inside =
+    pt.x >= padX + margin &&
+    pt.x <= w - padX - margin &&
+    pt.y >= visTop + margin &&
+    pt.y <= visBottom - margin;
+  if (inside) return;
+
+  const targetX = w / 2;
+  const targetY = visTop + (visBottom - visTop) * 0.45;
+  const centerPx = map.project(map.getCenter());
+  const next = map.unproject([
+    centerPx.x + (pt.x - targetX),
+    centerPx.y + (pt.y - targetY),
+  ]);
+  map.easeTo({
+    center: [next.lng, next.lat],
+    duration,
+    essential: true,
+  });
+}
+
 export function CourtsMap({
   courts,
   location,
@@ -138,6 +187,8 @@ export function CourtsMap({
   bare = false,
   frameSelection = false,
   layoutKey,
+  followSelection = false,
+  followBottomPct = 50,
 }: CourtsMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<import("maplibre-gl").Map | null>(null);
@@ -151,6 +202,8 @@ export function CourtsMap({
   const openGamesRef = useRef(openGames);
   openGamesRef.current = openGames;
   const fittingRef = useRef(false);
+  const followPadRef = useRef(followBottomPct);
+  followPadRef.current = followBottomPct;
   const didOverviewRef = useRef(false);
   const [style, setStyle] = useState<MapStyle>("street");
   const [ready, setReady] = useState(false);
@@ -618,6 +671,27 @@ export function CourtsMap({
     location.lon,
     layoutKey,
   ]);
+
+  useEffect(() => {
+    if (!followSelection || frameSelection) return;
+    const map = mapRef.current;
+    if (!map || !ready || !selectedId) return;
+    const court = courtsRef.current.find((c) => c.id === selectedId);
+    if (!court) return;
+    const reduce =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const duration = reduce ? 0 : 240;
+    fittingRef.current = true;
+    revealCourtIfNeeded(map, court, followPadRef.current, duration);
+    const later = window.setTimeout(() => {
+      fittingRef.current = false;
+    }, duration + 40);
+    return () => {
+      fittingRef.current = false;
+      window.clearTimeout(later);
+    };
+  }, [followSelection, frameSelection, selectedId, ready]);
 
   // Instant select highlight without full pin rebuild
   useEffect(() => {
