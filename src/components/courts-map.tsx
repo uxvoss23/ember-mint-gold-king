@@ -135,6 +135,7 @@ export function CourtsMap({
   const mapRef = useRef<import("maplibre-gl").Map | null>(null);
   const markersRef = useRef<import("maplibre-gl").Marker[]>([]);
   const pinElsRef = useRef<Map<string, HTMLElement>>(new Map());
+  const pinGenRef = useRef(0);
   const [style, setStyle] = useState<MapStyle>("street");
   const [ready, setReady] = useState(false);
   const [tileError, setTileError] = useState(false);
@@ -266,26 +267,40 @@ export function CourtsMap({
   // Yield to the browser so first taps aren't blocked by marker DOM work
   useEffect(() => {
     if (!ready || !mapRef.current) return;
-    let cancelled = false;
+    const gen = ++pinGenRef.current;
     let idleId: number | null = null;
     let timeoutId: number | null = null;
 
     const run = async () => {
       const maplibregl = await import("maplibre-gl");
       const map = mapRef.current;
-      if (!map || cancelled) return;
+      if (!map || pinGenRef.current !== gen) return;
 
       markersRef.current.forEach((m) => m.remove());
       markersRef.current = [];
       pinElsRef.current.clear();
+      const placed: import("maplibre-gl").Marker[] = [];
+      const placeMarker = (marker: import("maplibre-gl").Marker) => {
+        if (pinGenRef.current !== gen) {
+          marker.remove();
+          return false;
+        }
+        placed.push(marker);
+        markersRef.current = placed;
+        return true;
+      };
 
       const youEl = document.createElement("div");
       youEl.innerHTML = `<div class="uc-you"></div>`;
-      markersRef.current.push(
-        new maplibregl.Marker({ element: youEl, anchor: "center" })
-          .setLngLat([location.lon, location.lat])
-          .addTo(map),
-      );
+      if (
+        !placeMarker(
+          new maplibregl.Marker({ element: youEl, anchor: "center" })
+            .setLngLat([location.lon, location.lat])
+            .addTo(map),
+        )
+      ) {
+        return;
+      }
 
       const zoom = map.getZoom();
       const cluster = zoom < 11.5 && courts.length > 8;
@@ -294,6 +309,7 @@ export function CourtsMap({
       const hooping = hoopingRef.current;
 
       const placePin = (c: Court) => {
+        if (pinGenRef.current !== gen) return;
         const king = kings[c.id];
         const open = openGames[c.id] ?? 0;
         const selected = c.id === sel;
@@ -380,7 +396,7 @@ export function CourtsMap({
           .setLngLat([c.lon, c.lat])
           .addTo(map);
         pin.getElement().style.zIndex = selected || live ? "7" : "5";
-        markersRef.current.push(pin);
+        placeMarker(pin);
       };
 
       if (cluster) {
@@ -411,7 +427,7 @@ export function CourtsMap({
               .setLngLat([lon, lat])
               .addTo(map);
             cl.getElement().style.zIndex = "5";
-            markersRef.current.push(cl);
+            placeMarker(cl);
           }
         }
       } else {
@@ -478,7 +494,7 @@ export function CourtsMap({
             .setLngLat([lon, lat])
             .addTo(map);
           chip.getElement().style.zIndex = "1";
-          markersRef.current.push(chip);
+          placeMarker(chip);
         }
       }
 
@@ -510,7 +526,6 @@ export function CourtsMap({
     }
 
     return () => {
-      cancelled = true;
       if (idleId != null && typeof cancelIdleCallback === "function") {
         cancelIdleCallback(idleId);
       }

@@ -503,21 +503,14 @@ export function QuickMatchFlow({
     if (createHood !== "all") {
       filtered = filtered.filter((c) => c.neighborhood === createHood);
     }
-    if (createSorts.size > 0) {
-      if (wantHighest) filtered = filtered.filter((c) => isRecommendedCourt(c));
-      if (wantShaded) filtered = filtered.filter((c) => isShadedCourt(c));
-      if (wantNearest && hasPreciseLocation) {
-        filtered = filtered.filter((c) => c.miles <= createRadiusMi + 0.05);
-      }
+    if (wantHighest) filtered = filtered.filter((c) => isRecommendedCourt(c));
+    if (wantShaded) filtered = filtered.filter((c) => isShadedCourt(c));
+    if (wantNearest && hasPreciseLocation) {
+      filtered = filtered.filter((c) => c.miles <= createRadiusMi + 0.05);
     }
-    if (filtered.length === 0) filtered = [...courtOptions];
     filtered.sort((a, b) => {
-      if (wantHighest) {
-        const aUc = RECOMMENDED_COURT_IDS.has(a.id) ? 1 : 0;
-        const bUc = RECOMMENDED_COURT_IDS.has(b.id) ? 1 : 0;
-        if (bUc !== aUc) return bUc - aUc;
-      }
-      return a.miles - b.miles;
+      if (a.miles !== b.miles) return a.miles - b.miles;
+      return a.name.localeCompare(b.name);
     });
     return filtered;
   }, [courtOptions, createHood, createSorts, createRadiusMi, hasPreciseLocation]);
@@ -892,8 +885,14 @@ export function QuickMatchFlow({
   }, [me.id, active]);
 
   const chooseCreateCourt = (id: string) => {
+    if (!createFilteredCourts.some((c) => c.id === id)) return;
     setCreateCourtId(id);
     setCreateCourtTouched(true);
+  };
+
+  const resetCreateFilters = () => {
+    setCreateHood("all");
+    setCreateSorts(new Set());
   };
 
   useEffect(() => {
@@ -901,8 +900,8 @@ export function QuickMatchFlow({
     const stillValid =
       !!createCourtId && createFilteredCourts.some((c) => c.id === createCourtId);
     if (createCourtTouched && stillValid) return;
-    const next = defaultCreateCourtId(createFilteredCourts, hasPreciseLocation);
-    if (!next || next === createCourtId) return;
+    const next = defaultCreateCourtId(createFilteredCourts, hasPreciseLocation) ?? "";
+    if (next === createCourtId) return;
     setCreateCourtId(next);
   }, [
     view,
@@ -1079,8 +1078,10 @@ export function QuickMatchFlow({
 
     const selectedCreateCourt = createCourtId
       ? filteredCourts.find((c) => c.id === createCourtId) ??
-        courtOptions.find((c) => c.id === createCourtId) ??
-        courts.find((c) => c.id === createCourtId)
+        (createCourtLocked
+          ? (courtOptions.find((c) => c.id === createCourtId) ??
+            courts.find((c) => c.id === createCourtId))
+          : undefined)
       : undefined;
     const createImages = selectedCreateCourt
       ? courtImagesFor(selectedCreateCourt.id, 5)
@@ -1093,10 +1094,7 @@ export function QuickMatchFlow({
     const mapThumb = selectedCreateCourt
       ? courtImagesFor(selectedCreateCourt.id, 1)[0]
       : undefined;
-    const browseCourts = [...filteredCourts].sort((a, b) => {
-      if (a.miles !== b.miles) return a.miles - b.miles;
-      return a.name.localeCompare(b.name);
-    });
+    const browseCourts = filteredCourts;
     const browseIndex = selectedCreateCourt
       ? browseCourts.findIndex((c) => c.id === selectedCreateCourt.id)
       : -1;
@@ -1126,6 +1124,18 @@ export function QuickMatchFlow({
       const next = browseCourts[browseIndex + delta];
       if (next) chooseCreateCourt(next.id);
     };
+    const noMatchFilters = (
+      <div className="rounded-xl border border-border bg-bg-elevated px-3 py-3 text-center">
+        <p className="text-[13px] font-semibold text-fg">No courts match these filters</p>
+        <button
+          type="button"
+          onClick={resetCreateFilters}
+          className="uc-press mt-2 text-[12px] font-semibold text-court"
+        >
+          Show all courts
+        </button>
+      </div>
+    );
 
     createPane = (
       <div
@@ -1432,7 +1442,7 @@ export function QuickMatchFlow({
               })}
             </div>
             {filteredCourts.length === 0 ? (
-              <p className="py-2 text-center text-xs text-fg-muted">No courts match. Turn off a filter or expand radius.</p>
+              noMatchFilters
             ) : !createCourtId ? (
               <p className="text-center text-[11px] text-fg-muted">
                 Nearby highest-rated courts are shown first. Tap a court or ⓘ for more information.
@@ -1445,7 +1455,7 @@ export function QuickMatchFlow({
             <CourtsMap
               courts={filteredCourts}
               location={{ lat: origin.lat, lon: origin.lon, label: "You" }}
-              selectedId={createCourtId || null}
+              selectedId={selectedCreateCourt?.id ?? null}
               onSelect={(c) => chooseCreateCourt(c.id)}
               variant="finder"
               bare
@@ -1456,11 +1466,13 @@ export function QuickMatchFlow({
           <div
             className={cn(
               "uc-preview-slot shrink-0 px-4",
-              selectedCreateCourt && "uc-preview-slot-open",
+              (selectedCreateCourt || filteredCourts.length === 0) && "uc-preview-slot-open",
             )}
           >
             <div>
-              {selectedCreateCourt ? (
+              {filteredCourts.length === 0 ? (
+                <div className="mt-1.5">{noMatchFilters}</div>
+              ) : selectedCreateCourt ? (
                 <div className="relative mt-1.5 flex items-center gap-1.5">
                   {browseCourts.length > 1 ? (
                     <button
@@ -1749,7 +1761,7 @@ export function QuickMatchFlow({
           onClick={() => {
             if (postingCreate) return;
             if (createStep === 1) {
-              if (!createCourtId) {
+              if (!selectedCreateCourt) {
                 goCreateBack();
                 return;
               }
@@ -1786,7 +1798,7 @@ export function QuickMatchFlow({
           {postingCreate
             ? "Posting…"
             : createStep === 1
-              ? createCourtId
+              ? selectedCreateCourt
                 ? "Continue"
                 : "Back to Explore"
               : createStep === 2
