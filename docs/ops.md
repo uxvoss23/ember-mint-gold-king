@@ -42,6 +42,21 @@ Federated OAuth secrets live in `GROK_AUTH_CLIENT_SECRET` (or `GROK_PREVIEW_CLIE
 - Preview: PGLite applies the same files on startup (`src/lib/db.ts`).
 - Never edit an already-applied file. Add `0012_….sql`.
 
+## Functional baseline
+
+Known-good checkpoint for UI/design work:
+
+- Git tag: `checkpoint/e2e-47-two-account`
+- Restore branch: `baseline/e2e-47-two-account`
+- Commit: `a8f741a` (`Keep signed-in players, fail closed without DATABASE_URL, and prove the two-account confirm loop.`)
+- `npm run test:e2e` — **47 required checks, 0 fail**
+
+Do not change competitive rules, auth/session behavior, rating timing, score validation, or persistence in a design pass. Restore with `git checkout checkpoint/e2e-47-two-account` if a visual refactor breaks the journey.
+
+Required two-account path that must keep passing:
+
+account isolation → discover/join → messaging → invalid 1–0/1–0 rejected → valid series submitted → opponent confirmation → ratings update only after confirmation.
+
 ## Logging
 
 Server logs are JSON lines from `appLog` (`src/lib/log.ts`). Events: `auth.*`, `game.*`, `courts.*`, `profile.*`. Emails, tokens, cookies, photos, and raw GPS are stripped.

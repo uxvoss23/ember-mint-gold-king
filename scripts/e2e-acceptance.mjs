@@ -3,6 +3,11 @@
  * Acceptance against a running app. Guest UI + required two-account journey.
  * Failures print and exit 1. Do not treat journey steps as optional.
  *
+ * Functional baseline: git tag `checkpoint/e2e-47-two-account` (commit a8f741a).
+ * UI/design refactors must still pass every required check — do not delete,
+ * skip, or weaken assertions (especially account isolation, join, chat,
+ * 1–0/1–0 rejection, opponent confirm, and ratings only after confirm).
+ *
  * Usage: BASE_URL=http://127.0.0.1:8080 node scripts/e2e-acceptance.mjs
  */
 import { mkdirSync } from "node:fs";
@@ -16,6 +21,8 @@ const SHOT =
 mkdirSync(SHOT, { recursive: true });
 
 const results = [];
+/** Happy-path required checks at checkpoint/e2e-47-two-account. Do not lower. */
+const BASELINE_REQUIRED = 47;
 const ignoredConsole =
   /Failed to load resource|net::ERR|Overpass|AbortError|Download the React DevTools|favicon/i;
 
@@ -760,12 +767,14 @@ try {
   await ctxB.close();
 
   const failed = results.filter((r) => !r.ok && r.required);
+  const requiredCount = results.filter((r) => r.required).length;
   console.log(
     JSON.stringify(
       {
         url: BASE,
         passed: results.filter((r) => r.ok).length,
         failed: failed.length,
+        required: requiredCount,
         failures: failed,
         consoleErrors: consoleErrors.slice(0, 8),
       },
@@ -773,6 +782,12 @@ try {
       2,
     ),
   );
+  if (requiredCount < BASELINE_REQUIRED) {
+    console.error(
+      `FAIL  baseline requires ${BASELINE_REQUIRED} required checks, got ${requiredCount}`,
+    );
+    process.exit(1);
+  }
   if (failed.length) process.exit(1);
 } finally {
   await browser.close();
