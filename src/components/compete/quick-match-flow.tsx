@@ -38,7 +38,7 @@ import { CourtMapCutout } from "@/components/court-map-cutout";
 import { CourtsMap } from "@/components/courts-map";
 import { ImageCarousel } from "@/components/image-carousel";
 import type { Court } from "@/lib/courts/types";
-import { courtImagesFor } from "@/lib/courts/images";
+import { courtImagesFor, isPlaceholderPhoto } from "@/lib/courts/images";
 import { directionsUrl } from "@/lib/maps/directions";
 import { suggestAustinAddresses, type GeoHit } from "@/lib/maps/geocode";
 import { displayRating } from "@/lib/rating/engine";
@@ -1097,6 +1097,7 @@ export function QuickMatchFlow({
     const mapThumb = selectedCreateCourt
       ? courtImagesFor(selectedCreateCourt.id, 1)[0]
       : undefined;
+    const hasRealPhoto = Boolean(mapThumb) && !isPlaceholderPhoto(mapThumb);
     const browseCourts = filteredCourts;
     const browseIndex = selectedCreateCourt
       ? browseCourts.findIndex((c) => c.id === selectedCreateCourt.id)
@@ -1305,22 +1306,24 @@ export function QuickMatchFlow({
           <button
             type="button"
             onClick={() => setCreateFiltersOpen((open) => !open)}
-            className="uc-press min-w-0 flex-1 rounded-lg py-1 text-left"
+            className="uc-press flex min-h-11 min-w-0 flex-1 items-center rounded-lg py-1 pr-2 text-left"
             aria-expanded={createFiltersOpen}
             aria-controls="uc-create-filters"
           >
-            <span className="flex items-center gap-1 text-[12px] font-semibold text-fg">
-              Filters{filterCount > 0 ? ` (${filterCount})` : ""}
-              <ChevronDown
-                className={cn(
-                  "size-3.5 text-fg-muted transition-transform duration-[var(--motion-quick)] ease-[var(--ease-out-smooth)]",
-                  createFiltersOpen && "rotate-180",
-                )}
-                strokeWidth={2.25}
-              />
-            </span>
-            <span className="mt-0.5 block truncate text-[11px] text-fg-muted">
-              {filterSummary}
+            <span className="min-w-0 flex-1">
+              <span className="flex items-center gap-1 text-[12px] font-semibold text-fg">
+                Filters{filterCount > 0 ? ` (${filterCount})` : ""}
+                <ChevronDown
+                  className={cn(
+                    "size-3.5 shrink-0 text-fg-muted transition-transform duration-[var(--motion-fast)] ease-[var(--ease-out-smooth)]",
+                    createFiltersOpen && "rotate-180",
+                  )}
+                  strokeWidth={2.25}
+                />
+              </span>
+              <span className="mt-0.5 block truncate text-[12px] font-medium text-fg">
+                {filterSummary}
+              </span>
             </span>
           </button>
           {listMapToggle}
@@ -1556,24 +1559,41 @@ export function QuickMatchFlow({
                       key={selectedCreateCourt.id}
                       className="uc-preview-swap relative h-36 w-full bg-bg-subtle"
                     >
-                      {mapThumb ? (
+                      {hasRealPhoto ? (
                         <img
                           src={mapThumb}
                           alt=""
-                          className="h-full w-full object-cover"
+                          className="absolute inset-0 h-full w-full object-cover"
                         />
                       ) : null}
-                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/88 to-transparent px-3 pb-2.5 pt-10">
+                      <div
+                        className={cn(
+                          "absolute inset-x-0 px-3",
+                          hasRealPhoto
+                            ? "bottom-0 bg-gradient-to-t from-black/88 to-transparent pb-2.5 pt-10"
+                            : "inset-0 flex flex-col justify-center pb-2.5 pt-3",
+                        )}
+                      >
                         {createAutoLabel ? (
                           <p className="text-[10px] font-bold tracking-[0.14em] text-court uppercase">
                             {createAutoLabel}
                           </p>
                         ) : null}
-                        <p className="truncate text-[16px] font-semibold text-white">
+                        <p
+                          className={cn(
+                            "truncate text-[16px] font-semibold",
+                            hasRealPhoto ? "text-white" : "text-fg",
+                          )}
+                        >
                           {selectedCreateCourt.name.replace(/\s*Courts?\s*$/i, "") ||
                             selectedCreateCourt.name}
                         </p>
-                        <p className="truncate text-[12px] text-white/80">
+                        <p
+                          className={cn(
+                            "truncate text-[12px]",
+                            hasRealPhoto ? "text-white/80" : "text-fg-muted",
+                          )}
+                        >
                           {selectedCreateCourt.neighborhood ?? "Austin"}
                           {selectedMiles != null
                             ? ` · ${formatSelectedDistance(selectedMiles, distanceKind)}`

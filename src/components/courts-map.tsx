@@ -193,8 +193,17 @@ export function CourtsMap({
       });
       map.on("zoomend", () => setZoomTick((t) => t + 1));
 
+      let resizeRaf = 0;
       const ro = new ResizeObserver(() => {
-        map.resize();
+        if (resizeRaf) return;
+        resizeRaf = requestAnimationFrame(() => {
+          resizeRaf = 0;
+          try {
+            map.resize();
+          } catch {
+            /* map already gone */
+          }
+        });
       });
       if (containerRef.current) ro.observe(containerRef.current);
       (map as unknown as { __ro?: ResizeObserver }).__ro = ro;
@@ -568,7 +577,7 @@ export function CourtsMap({
     const raf = requestAnimationFrame(() => {
       requestAnimationFrame(fit);
     });
-    const later = window.setTimeout(fit, reduce ? 0 : 260);
+    const later = window.setTimeout(fit, reduce ? 0 : 280);
     return () => {
       cancelled = true;
       cancelAnimationFrame(raf);
