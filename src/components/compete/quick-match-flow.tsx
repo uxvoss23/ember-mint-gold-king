@@ -48,6 +48,7 @@ import type { MatchFormat } from "@/lib/upset/types";
 import { applyFriendsAndDms, formatLocalWhen, useUpsetStore } from "@/lib/upset/store";
 import { matchActionsForPlayer, incomingInvitesFor } from "@/lib/upset/match-actions";
 import { mutationError, refreshCompetitiveSnapshot, refreshCompetitiveSnapshotSoon } from "@/lib/game/client-actions";
+import { ucMark } from "@/lib/perf/uc-mark";
 import { setLiveSyncFast } from "@/lib/game/use-competitive-sync";
 import type { Match, Player, PlayerReview } from "@/lib/upset/types";
 import { cn, formatHeightInches } from "@/lib/utils";
@@ -332,6 +333,7 @@ export function QuickMatchFlow({
   const [createRadiusMi, setCreateRadiusMi] = useState(5);
   const [createPickMode, setCreatePickMode] = useState<"photos" | "map">("map");
   const [createFiltersOpen, setCreateFiltersOpen] = useState(false);
+  const createMapMarked = useRef(false);
   const [courtInfoId, setCourtInfoId] = useState<string | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteQuery, setInviteQuery] = useState("");
@@ -411,6 +413,10 @@ export function QuickMatchFlow({
     ? { lat: nearOrigin.lat, lon: nearOrigin.lon }
     : parentOrigin;
   const hasPreciseLocation = !!nearOrigin || parentLooksLikeGps;
+  const createMapLocation = useMemo(
+    () => ({ lat: origin.lat, lon: origin.lon, label: "You" as const }),
+    [origin.lat, origin.lon],
+  );
 
   useLayoutEffect(() => {
     if (!active) return;
@@ -759,19 +765,22 @@ export function QuickMatchFlow({
       return;
     }
     setLocatingNear(true);
+    ucMark("geo:start");
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        ucMark("geo:done");
         setNearOrigin({ lat: pos.coords.latitude, lon: pos.coords.longitude, label: "Near you", source: "gps" });
         setLocatingNear(false);
         setShowAddressEntry(false);
         setNearLocError(null);
       },
       (err) => {
+        ucMark("geo:fail");
         setLocatingNear(false);
         setNearLocError(err.code === 1 ? "Denied — type an address" : "GPS failed — type an address");
         setShowAddressEntry(true);
       },
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 60_000 },
+      { enableHighAccuracy: false, timeout: 4000, maximumAge: 120_000 },
     );
   };
 
@@ -857,6 +866,7 @@ export function QuickMatchFlow({
 
   const startCreate = () => {
     if (!requireAuth("create")) return;
+    ucMark("create:open");
     setCreateCourtId("");
     setCreateCourtTouched(false);
     setCreateCourtLocked(false);
@@ -905,6 +915,7 @@ export function QuickMatchFlow({
     if (createCourtTouched && stillValid) return;
     const next = defaultCreateCourtId(createFilteredCourts, hasPreciseLocation) ?? "";
     if (next === createCourtId) return;
+    ucMark("create:selected");
     setCreateCourtId(next);
   }, [
     view,
@@ -1094,6 +1105,10 @@ export function QuickMatchFlow({
       .filter((p): p is Player => !!p);
     const mapImmersive =
       createStep === 1 && createPickMode === "map" && !createCourtLocked;
+    if (mapImmersive && !createMapMarked.current) {
+      createMapMarked.current = true;
+      ucMark("create:map-jsx");
+    }
     const mapThumb = selectedCreateCourt
       ? courtImagesFor(selectedCreateCourt.id, 1)[0]
       : undefined;
@@ -1507,7 +1522,7 @@ export function QuickMatchFlow({
           <div className="relative min-h-0 flex-1 overflow-hidden">
             <CourtsMap
               courts={filteredCourts}
-              location={{ lat: origin.lat, lon: origin.lon, label: "You" }}
+              location={createMapLocation}
               selectedId={selectedCreateCourt?.id ?? null}
               onSelect={(c) => chooseCreateCourt(c.id)}
               variant="finder"

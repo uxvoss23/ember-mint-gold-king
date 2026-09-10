@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Court, UserLocation } from "@/lib/courts/types";
 import type { Player } from "@/lib/upset/types";
+import { ucMark } from "@/lib/perf/uc-mark";
 import { cn } from "@/lib/utils";
 
 interface CourtsMapProps {
@@ -25,6 +26,10 @@ interface CourtsMapProps {
 }
 
 type MapStyle = "satellite" | "street";
+
+const EMPTY_KINGS: Record<string, Player | null | undefined> = {};
+const EMPTY_OPEN: Record<string, number> = {};
+let maplibreMod: typeof import("maplibre-gl") | null = null;
 
 function constrainedMobile(): boolean {
   if (typeof window === "undefined") return false;
@@ -125,8 +130,8 @@ export function CourtsMap({
   location,
   selectedId,
   onSelect,
-  kings = {},
-  openGames = {},
+  kings = EMPTY_KINGS,
+  openGames = EMPTY_OPEN,
   hoopingNowIds,
   variant = "scene",
   mapClassName,
@@ -139,10 +144,19 @@ export function CourtsMap({
   const markersRef = useRef<import("maplibre-gl").Marker[]>([]);
   const pinElsRef = useRef<Map<string, HTMLElement>>(new Map());
   const pinGenRef = useRef(0);
+  const courtsRef = useRef(courts);
+  courtsRef.current = courts;
+  const kingsRef = useRef(kings);
+  kingsRef.current = kings;
+  const openGamesRef = useRef(openGames);
+  openGamesRef.current = openGames;
+  const fittingRef = useRef(false);
+  const didOverviewRef = useRef(false);
   const [style, setStyle] = useState<MapStyle>("street");
   const [ready, setReady] = useState(false);
   const [tileError, setTileError] = useState(false);
-  const [zoomTick, setZoomTick] = useState(0);
+  const [clusterMode, setClusterMode] = useState(false);
+  const courtsKey = useMemo(() => courts.map((c) => c.id).join(","), [courts]);
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
   const selectedIdRef = useRef(selectedId);
@@ -155,7 +169,9 @@ export function CourtsMap({
     let cancelled = false;
     (async () => {
       if (!containerRef.current || mapRef.current) return;
-      const maplibregl = await import("maplibre-gl");
+      ucMark("map:init-start");
+      const maplibregl = maplibreMod ?? (await import("maplibre-gl"));
+      maplibreMod = maplibregl;
       await import("maplibre-gl/dist/maplibre-gl.css");
       if (cancelled || !containerRef.current) return;
 
@@ -183,6 +199,7 @@ export function CourtsMap({
       });
       map.on("load", () => {
         if (!cancelled) {
+          ucMark("map:tiles");
           setReady(true);
           setTileError(false);
           requestAnimationFrame(() => {
@@ -191,7 +208,11 @@ export function CourtsMap({
           });
         }
       });
-      map.on("zoomend", () => setZoomTick((t) => t + 1));
+      map.on("zoomend", () => {
+        if (fittingRef.current) return;
+        const next = map.getZoom() < 11.5 && courtsRef.current.length > 8;
+        setClusterMode((prev) => (prev === next ? prev : next));
+      });
 
       let resizeRaf = 0;
       const ro = new ResizeObserver(() => {
@@ -284,7 +305,9 @@ export function CourtsMap({
     let timeoutId: number | null = null;
 
     const run = async () => {
-      const maplibregl = await import("maplibre-gl");
+      ucMark("map:pins-start");
+      const maplibregl = maplibreMod ?? (await import("maplibre-gl"));
+      maplibreMod = maplibregl;
       const map = mapRef.current;
       if (!map || pinGenRef.current !== gen) return;
 
@@ -315,15 +338,17 @@ export function CourtsMap({
       }
 
       const zoom = map.getZoom();
-      const cluster = zoom < 11.5 && courts.length > 8;
+      const cluster = clusterMode || (zoom < 11.5 && courts.length > 8);
       const isFinder = variant === "finder";
       const sel = selectedIdRef.current;
       const hooping = hoopingRef.current;
+      const kingsNow = kingsRef.current;
+      const openNow = openGamesRef.current;
 
       const placePin = (c: Court) => {
         if (pinGenRef.current !== gen) return;
-        const king = kings[c.id];
-        const open = openGames[c.id] ?? 0;
+        const king = kingsNow[c.id];
+        const open = openNow[c.id] ?? 0;
         const selected = c.id === sel;
         const live = hooping.has(c.id);
         const el = document.createElement("div");
@@ -510,7 +535,8 @@ export function CourtsMap({
         }
       }
 
-      if (courts.length > 0 && zoomTick === 0 && !frameSelection) {
+      if (courts.length > 0 && !frameSelection && !didOverviewRef.current) {
+        didOverviewRef.current = true;
         const bounds = new maplibregl.LngLatBounds();
         bounds.extend([location.lon, location.lat]);
         for (const c of courts.slice(0, 40)) bounds.extend([c.lon, c.lat]);
@@ -525,6 +551,7 @@ export function CourtsMap({
           duration: 450,
         });
       }
+      ucMark("map:pins-done");
     };
 
     if (typeof requestIdleCallback === "function") {
@@ -544,13 +571,11 @@ export function CourtsMap({
       if (timeoutId != null) window.clearTimeout(timeoutId);
     };
   }, [
-    courts,
+    courtsKey,
     location.lat,
     location.lon,
-    kings,
-    openGames,
     ready,
-    zoomTick,
+    clusterMode,
     variant,
     hoopingKey,
     frameSelection,
@@ -559,27 +584,29 @@ export function CourtsMap({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready || !frameSelection || !selectedId) return;
-    const court = courts.find((c) => c.id === selectedId);
+    const court = courtsRef.current.find((c) => c.id === selectedId);
     if (!court) return;
     let cancelled = false;
     const reduce =
       typeof window !== "undefined" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const duration = reduce ? 0 : 250;
+    const duration = reduce ? 0 : 220;
 
+    fittingRef.current = true;
     const fit = () => {
       if (cancelled || !mapRef.current) return;
       map.resize();
       fitUserAndCourt(map, location, court, duration);
     };
 
-    fit();
-    const raf = requestAnimationFrame(() => {
-      requestAnimationFrame(fit);
-    });
-    const later = window.setTimeout(fit, reduce ? 0 : 280);
+    const raf = requestAnimationFrame(fit);
+    const later = window.setTimeout(() => {
+      fittingRef.current = false;
+      ucMark("map:fit");
+    }, duration + 40);
     return () => {
       cancelled = true;
+      fittingRef.current = false;
       cancelAnimationFrame(raf);
       window.clearTimeout(later);
     };
@@ -589,7 +616,6 @@ export function CourtsMap({
     ready,
     location.lat,
     location.lon,
-    courts,
     layoutKey,
   ]);
 
