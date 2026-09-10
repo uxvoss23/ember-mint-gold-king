@@ -35,6 +35,15 @@ export function courtImagesFor(
   return [COURT_PLACEHOLDER];
 }
 
+/** Shared source of truth: catalog court + admin photo overrides. */
+export function imagesForCourt(
+  courtId: string,
+  count = 4,
+  overrides?: Record<string, { photos?: CourtImageOverride | null }> | null,
+): string[] {
+  return courtImagesFor(courtId, count, overrides?.[courtId]?.photos ?? null);
+}
+
 /** @deprecated hash-index unused; kept so older callers typecheck */
 export function imageIndexFromId(id: string): number {
   let h = 0;

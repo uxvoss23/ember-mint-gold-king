@@ -37,7 +37,8 @@ import { CourtMapCutout } from "@/components/court-map-cutout";
 import { CourtsMap } from "@/components/courts-map";
 import { ImageCarousel } from "@/components/image-carousel";
 import type { Court } from "@/lib/courts/types";
-import { courtImagesFor, isPlaceholderPhoto } from "@/lib/courts/images";
+import { COURT_PLACEHOLDER, imagesForCourt, isPlaceholderPhoto } from "@/lib/courts/images";
+import { refreshCourtAdmin, useCourtAdmin } from "@/lib/courts/admin-overrides";
 import { directionsUrl } from "@/lib/maps/directions";
 import { suggestAustinAddresses, type GeoHit } from "@/lib/maps/geocode";
 import { displayRating } from "@/lib/rating/engine";
@@ -211,6 +212,7 @@ export function QuickMatchFlow({
 }: QuickMatchFlowProps) {
   const store = useUpsetStore();
   const requireAuth = useRequireAuth();
+  const courtOverrides = useCourtAdmin((s) => s.overrides);
   const setTabsHidden = useTabBarGate((s) => s.setHidden);
   const [view, setView] = useState<View>("find");
   const [createStep, setCreateStep] = useState<1 | 2 | 3>(1);
@@ -220,6 +222,11 @@ export function QuickMatchFlow({
 
   useEffect(() => {
     if (view === "create") setCreateHeld(true);
+  }, [view]);
+
+  useEffect(() => {
+    if (view !== "create") return;
+    void refreshCourtAdmin().catch(() => undefined);
   }, [view]);
 
   const goExplore = useCallback(() => {
@@ -1101,7 +1108,7 @@ export function QuickMatchFlow({
           : undefined)
       : undefined;
     const createImages = selectedCreateCourt
-      ? courtImagesFor(selectedCreateCourt.id, 5)
+      ? imagesForCourt(selectedCreateCourt.id, 5, courtOverrides)
       : [];
     const invitedPlayers = createInviteIds
       .map((id) => playerById.get(id))
@@ -1113,8 +1120,8 @@ export function QuickMatchFlow({
       ucMark("create:map-jsx");
     }
     const mapThumb = selectedCreateCourt
-      ? courtImagesFor(selectedCreateCourt.id, 1)[0]
-      : undefined;
+      ? imagesForCourt(selectedCreateCourt.id, 1, courtOverrides)[0]
+      : COURT_PLACEHOLDER;
     const hasRealPhoto = Boolean(mapThumb) && !isPlaceholderPhoto(mapThumb);
     const browseCourts = filteredCourts;
     const browseIndex = selectedCreateCourt
@@ -1441,7 +1448,7 @@ export function QuickMatchFlow({
           <>
             <div className="flex gap-2 overflow-x-auto pb-1 snap-x snap-mandatory [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {filteredCourts.map((c) => {
-                const thumb = courtImagesFor(c.id, 1)[0];
+                const thumb = imagesForCourt(c.id, 1, courtOverrides)[0];
                 const selected = c.id === createCourtId;
                 return (
                   <div
@@ -1573,45 +1580,28 @@ export function QuickMatchFlow({
                     className="uc-preview-card min-w-0 flex-1 overflow-hidden rounded-xl border border-court/35 bg-bg-elevated text-left"
                     aria-label={`About ${selectedCreateCourt.name}`}
                   >
-                    <div
-                      key={selectedCreateCourt.id}
-                      className="uc-preview-swap relative h-36 w-full bg-bg-subtle"
-                    >
-                      {hasRealPhoto ? (
+                    <div key={selectedCreateCourt.id} className="uc-preview-swap">
+                      <div className="relative aspect-[16/10] w-full overflow-hidden bg-bg-subtle">
                         <img
-                          src={mapThumb}
+                          src={mapThumb || COURT_PLACEHOLDER}
                           alt=""
-                          className="absolute inset-0 h-full w-full object-cover"
+                          className={cn(
+                            "absolute inset-0 h-full w-full object-cover",
+                            !hasRealPhoto && "object-contain p-6 opacity-40",
+                          )}
                         />
-                      ) : null}
-                      <div
-                        className={cn(
-                          "absolute inset-x-0 px-3",
-                          hasRealPhoto
-                            ? "bottom-0 bg-gradient-to-t from-black/88 to-transparent pb-2.5 pt-10"
-                            : "inset-0 flex flex-col justify-center pb-2.5 pt-3",
-                        )}
-                      >
+                      </div>
+                      <div className="px-3 py-2">
                         {createAutoLabel ? (
                           <p className="text-[10px] font-bold tracking-[0.14em] text-court uppercase">
                             {createAutoLabel}
                           </p>
                         ) : null}
-                        <p
-                          className={cn(
-                            "truncate text-[16px] font-semibold",
-                            hasRealPhoto ? "text-white" : "text-fg",
-                          )}
-                        >
+                        <p className="truncate text-[16px] font-semibold text-fg">
                           {selectedCreateCourt.name.replace(/\s*Courts?\s*$/i, "") ||
                             selectedCreateCourt.name}
                         </p>
-                        <p
-                          className={cn(
-                            "truncate text-[12px]",
-                            hasRealPhoto ? "text-white/80" : "text-fg-muted",
-                          )}
-                        >
+                        <p className="truncate text-[12px] text-fg-muted">
                           {selectedCreateCourt.neighborhood ?? "Austin"}
                           {selectedMiles != null
                             ? ` · ${formatSelectedDistance(selectedMiles, distanceKind)}`
@@ -1951,7 +1941,7 @@ export function QuickMatchFlow({
     const host = playerById.get(selected.hostId);
     const miles = haversineMi(origin.lat, origin.lon, selected.lat, selected.lon);
     const court = resolveCourt(selected, courts);
-    const images = courtImagesFor(court.id, 4);
+    const images = imagesForCourt(court.id, 4, courtOverrides);
     const mapsHref = directionsUrl(court.lat, court.lon, court.name);
     const canInvite = selected.hostId === me.id && selected.status === "open";
     const canCancel =
@@ -2086,7 +2076,7 @@ export function QuickMatchFlow({
                     const prop = c.proposal;
                     const pending = prop.status === "pending";
                     const iProposed = prop.proposedById === me.id;
-                    const propImgs = courtImagesFor(prop.courtId, 4);
+                    const propImgs = imagesForCourt(prop.courtId, 4, courtOverrides);
                     const propCourt = courts.find((x) => x.id === prop.courtId);
                     const who = prop.proposedByName.split(" ")[0];
                     return (
@@ -2489,7 +2479,7 @@ export function QuickMatchFlow({
                   <div className="flex gap-2 overflow-x-auto pb-1">
                     {courts.slice(0, 30).map((c) => {
                       const on = c.id === (changeCourtId || selected.courtId);
-                      const thumb = courtImagesFor(c.id, 1)[0];
+                      const thumb = imagesForCourt(c.id, 1, courtOverrides)[0];
                       return (
                         <button
                           key={c.id}

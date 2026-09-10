@@ -35,7 +35,7 @@ import {
   useHydrateCourtAdmin,
 } from "@/lib/courts/admin-overrides";
 import { useFavorites } from "@/lib/courts/favorites";
-import { COURT_PLACEHOLDER, courtImagesFor, isPlaceholderPhoto } from "@/lib/courts/images";
+import { COURT_PLACEHOLDER, imagesForCourt, isPlaceholderPhoto } from "@/lib/courts/images";
 import {
   confirmCount,
   courtIdsHoopingNow,
@@ -242,7 +242,7 @@ const SelectedCourtPreview = memo(function SelectedCourtPreview({
   const admin = isModeratorMe(me?.role, authUser?.primaryEmail);
   const ov = useCourtAdmin((s) => s.overrides[court.id]);
   const display = mergeCourtWithOverride(court, ov);
-  const images = courtImagesFor(court.id, 5, ov?.photos);
+  const images = imagesForCourt(court.id, 5, ov ? { [court.id]: ov } : null);
   const isFav = favorites.ids.includes(court.id);
   const favCount = favoriteCountFor(court.id, isFav, social.favoriteBonus);
   const courtReviews = reviewsFor(social.reviews, court.id);

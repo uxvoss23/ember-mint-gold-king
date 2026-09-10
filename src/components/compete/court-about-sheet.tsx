@@ -3,7 +3,8 @@ import { createPortal } from "react-dom";
 import { Heart, MapPin, Star, X } from "lucide-react";
 import { ImageCarousel } from "@/components/image-carousel";
 import type { Court } from "@/lib/courts/types";
-import { courtImagesFor } from "@/lib/courts/images";
+import { imagesForCourt } from "@/lib/courts/images";
+import { useCourtAdmin } from "@/lib/courts/admin-overrides";
 import { useFavorites } from "@/lib/courts/favorites";
 import {
   favoriteCountFor,
@@ -93,6 +94,7 @@ export function CourtAboutSheet({
 }) {
   const social = useCourtSocial();
   const favorites = useFavorites();
+  const courtOverrides = useCourtAdmin((s) => s.overrides);
 
   useEffect(() => {
     if (!court) return;
@@ -126,7 +128,7 @@ export function CourtAboutSheet({
         ? court.miles
         : null;
 
-  const images = courtImagesFor(court.id, 6);
+  const images = imagesForCourt(court.id, 6, courtOverrides);
   const about = courtAboutText(court);
   const isFav = favorites.ids.includes(court.id);
   const favCount = favoriteCountFor(court.id, isFav, social.favoriteBonus);

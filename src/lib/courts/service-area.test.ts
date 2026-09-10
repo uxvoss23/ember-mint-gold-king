@@ -2,7 +2,7 @@
  * Phase 3: Austin service area + honest court photos.
  */
 import assert from "node:assert/strict";
-import { COURT_PLACEHOLDER, courtImagesFor } from "./images.ts";
+import { COURT_PLACEHOLDER, courtImagesFor, imagesForCourt } from "./images.ts";
 
 function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371000;
@@ -34,5 +34,18 @@ const verified = courtImagesFor("cat-zilker", 4, {
 });
 assert.equal(verified[0], "/uploads/a.jpg");
 assert.ok(!verified.includes(COURT_PLACEHOLDER));
+
+assert.equal(
+  imagesForCourt("cat-bartholomew", 1, {
+    "cat-bartholomew": { photos: { preview: "/uploads/bart.jpg", gallery: [] } },
+  })[0],
+  "/uploads/bart.jpg",
+  "create + courts share override photos",
+);
+assert.equal(
+  imagesForCourt("cat-bartholomew", 1, {})[0],
+  COURT_PLACEHOLDER,
+  "no photo still falls back",
+);
 
 console.log("ALL COURT PHASE 3 TESTS PASSED");
