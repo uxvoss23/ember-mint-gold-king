@@ -1217,7 +1217,7 @@ export function QuickMatchFlow({
       >
         <div className={mapImmersive ? "shrink-0 space-y-0.5 px-4" : "contents"}>
         {mapImmersive ? (
-          <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between gap-3">
             <button
               type="button"
               onClick={goCreateBack}
@@ -1225,7 +1225,7 @@ export function QuickMatchFlow({
             >
               ← Explore
             </button>
-            <h3 className="font-display text-[15px] font-semibold text-fg">Create 1v1</h3>
+            <h3 className="font-display pr-0.5 text-[15px] font-semibold text-fg">Create 1v1</h3>
           </div>
         ) : (
           <>
