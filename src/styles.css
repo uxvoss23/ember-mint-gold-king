@@ -263,8 +263,9 @@
     display: none !important;
   }
 
-  .uc-pin:not(.uc-pin-selected) .uc-pin-label {
-    display: none;
+  .uc-pin:not(.uc-pin-selected) .uc-pin-label,
+  .uc-pin-finder-wrap:not(.uc-pin-selected) .uc-pin-label {
+    display: none !important;
   }
 
   .uc-pin-finder-wrap .uc-pin-face,

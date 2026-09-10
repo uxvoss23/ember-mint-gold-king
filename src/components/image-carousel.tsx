@@ -215,16 +215,19 @@ export function ImageCarousel({
 
   if (count === 0) return null;
 
+  const allQuiet = images.every((src) => isPlaceholderPhoto(src));
+
   return (
     <div
       className={cn(
-        "group/carousel relative w-full overflow-hidden bg-black",
+        "group/carousel relative w-full overflow-hidden",
+        allQuiet ? "bg-bg-subtle" : "bg-black",
         className,
       )}
     >
       <div
         className="relative w-full"
-        style={{ paddingBottom: compact ? "54%" : "62.5%" }}
+        style={{ paddingBottom: allQuiet ? "34%" : compact ? "54%" : "62.5%" }}
       >
         <div
           ref={scrollerRef}
@@ -259,7 +262,7 @@ export function ImageCarousel({
                   decoding="async"
                   fetchPriority={priority && i === 0 ? "high" : "low"}
                 />
-                {isPlaceholderPhoto(src) ? (
+                {isPlaceholderPhoto(src) && !allQuiet ? (
                   <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/35 to-transparent px-3 pb-3 pt-8">
                     <p className="text-center text-[11px] font-semibold tracking-wide text-white/90">
                       No verified photo of this court

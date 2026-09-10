@@ -12,6 +12,7 @@ import {
   ChevronUp,
   ExternalLink,
   Heart,
+  Info,
   LocateFixed,
   Radio,
   Search,
@@ -34,7 +35,7 @@ import {
   useHydrateCourtAdmin,
 } from "@/lib/courts/admin-overrides";
 import { useFavorites } from "@/lib/courts/favorites";
-import { courtImagesFor } from "@/lib/courts/images";
+import { COURT_PLACEHOLDER, courtImagesFor, isPlaceholderPhoto } from "@/lib/courts/images";
 import {
   confirmCount,
   courtIdsHoopingNow,
@@ -311,14 +312,19 @@ const SelectedCourtPreview = memo(function SelectedCourtPreview({
 
   const verified = live ? hasVerified(live, authorFirst) : false;
   const compact = !!onDismiss;
+  const hasRealPhoto = images.some((src) => !isPlaceholderPhoto(src));
+  const distanceText = formatDistance(display.distanceMeters);
+  const placeLine = [display.neighborhood, distanceText].filter(Boolean).join(" · ");
 
   return (
     <div
       data-court-card
       data-court-id={court.id}
       className={cn(
-        "overflow-hidden rounded-2xl border bg-bg-elevated shadow-card",
-        active ? "border-court ring-2 ring-court/50" : "border-border",
+        "overflow-hidden rounded-2xl border bg-bg-elevated shadow-card transition-[border-color,box-shadow] duration-200",
+        active
+          ? "border-court shadow-[inset_3px_0_0_0_var(--color-court)]"
+          : "border-border",
       )}
       onClick={(e) => {
         if (!onActivate) return;
@@ -327,58 +333,72 @@ const SelectedCourtPreview = memo(function SelectedCourtPreview({
         onActivate();
       }}
     >
-      <div className="relative">
-        <ImageCarousel
-          images={images}
-          alt={display.name}
-          className="w-full"
-          priority
-          compact={compact}
-        />
-        {live ? (
-          <span className="absolute top-2 left-2 z-10 inline-flex items-center gap-1 rounded-full bg-emerald-500/95 px-2 py-0.5 text-[10px] font-bold tracking-wide text-white shadow-sm">
-            <Radio className="size-2.5 animate-pulse" strokeWidth={2.5} />
-            Hooping now
-          </span>
-        ) : null}
-        {admin || onDismiss ? (
-          <div className="absolute top-2 right-2 z-10 flex gap-1.5">
-            {admin ? <AdminEditCourtButton court={display} /> : null}
-            {onDismiss ? (
-              <button
-                type="button"
-                onClick={onDismiss}
-                className="flex size-8 items-center justify-center rounded-full border border-border bg-bg/70 text-fg backdrop-blur-md"
-                aria-label="Dismiss selection"
-              >
-                <X className="size-3.5" />
-              </button>
-            ) : null}
-          </div>
-        ) : null}
-        <div className="absolute bottom-2 left-2 z-10 flex flex-wrap items-center gap-1.5">
-          <span className="rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-white backdrop-blur-sm">
-            {formatDistance(display.distanceMeters)}
-          </span>
-          {display.neighborhood ? (
-            <span className="rounded-full bg-black/45 px-2 py-0.5 text-[11px] font-medium text-white/90 backdrop-blur-sm">
-              {display.neighborhood}
+      {hasRealPhoto ? (
+        <div className="relative">
+          <ImageCarousel
+            images={images}
+            alt={display.name}
+            className="w-full"
+            priority={active}
+            compact
+          />
+          {live ? (
+            <span className="absolute top-2 left-2 z-10 inline-flex items-center gap-1 rounded-full bg-emerald-500/95 px-2 py-0.5 text-[10px] font-bold tracking-wide text-white shadow-sm">
+              <Radio className="size-2.5 animate-pulse" strokeWidth={2.5} />
+              Hooping now
             </span>
           ) : null}
+          {admin || onDismiss ? (
+            <div className="absolute top-2 right-2 z-10 flex gap-1.5">
+              {admin ? <AdminEditCourtButton court={display} /> : null}
+              {onDismiss ? (
+                <button
+                  type="button"
+                  onClick={onDismiss}
+                  className="flex size-8 items-center justify-center rounded-full border border-border bg-bg/70 text-fg backdrop-blur-md"
+                  aria-label="Dismiss selection"
+                >
+                  <X className="size-3.5" />
+                </button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
-      </div>
+      ) : (
+        <div className="relative h-12 overflow-hidden bg-bg-subtle">
+          <img
+            src={COURT_PLACEHOLDER}
+            alt=""
+            className="pointer-events-none absolute inset-0 h-full w-full object-contain opacity-[0.14]"
+          />
+          {live ? (
+            <span className="absolute top-2 left-2 z-10 inline-flex items-center gap-1 rounded-full bg-emerald-500/95 px-2 py-0.5 text-[10px] font-bold tracking-wide text-white shadow-sm">
+              <Radio className="size-2.5 animate-pulse" strokeWidth={2.5} />
+              Hooping now
+            </span>
+          ) : null}
+          {admin ? (
+            <div className="absolute top-1.5 right-2 z-10">
+              <AdminEditCourtButton court={display} />
+            </div>
+          ) : null}
+        </div>
+      )}
 
       <div
         className={cn(
           "px-3",
-          compact ? "space-y-1.5 pt-1.5 pb-2" : "space-y-3 pt-2.5 pb-2.5",
+          compact ? "space-y-1.5 pt-1.5 pb-2" : "space-y-2.5 pt-2.5 pb-2.5",
         )}
       >
         <div>
           <h3 className="font-display text-[15px] font-semibold leading-snug tracking-tight text-fg">
             {display.name}
           </h3>
-          <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[12px] text-fg-muted">
+          {placeLine ? (
+            <p className="mt-0.5 truncate text-[12px] text-fg-muted">{placeLine}</p>
+          ) : null}
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[12px] text-fg-muted">
             <span className="inline-flex items-center gap-1 font-semibold text-fg">
               <Star className="size-3 fill-amber-400 text-amber-400" />
               {courtReviews.length ? avgReview.toFixed(1) : "—"}
@@ -732,6 +752,7 @@ export function CourtsFinder({
     label: string;
   } | null>(null);
   const [geocoding, setGeocoding] = useState(false);
+  const [sourceOpen, setSourceOpen] = useState(false);
 
   const dragRef = useRef<{
     startY: number;
@@ -906,7 +927,10 @@ export function CourtsFinder({
     });
   };
 
-  const clearFilters = () => setFilters(new Set());
+  const clearFilters = () => {
+    setFilters(new Set());
+    setAreas(new Set(["all"]));
+  };
 
   const toggleArea = (id: string) => {
     setAreas((prev) => {
@@ -1030,37 +1054,31 @@ export function CourtsFinder({
           style={{ touchAction: "none" }}
           onPointerDown={onHandlePointerDown}
           role="slider"
-          aria-label="Drag court list up or down"
+          aria-label="Drag court list"
           aria-valuemin={SHEET_PEEK}
           aria-valuemax={SHEET_FULL}
           aria-valuenow={Math.round(sheetH)}
+          aria-valuetext={
+            sheetH < 43 ? "Compact" : sheetH < 76 ? "Browse" : "Expanded"
+          }
         >
-          <div className="flex w-full flex-col items-center py-1.5">
-            <div className="h-1.5 w-14 rounded-full bg-white/40" />
+          <div className="flex w-full flex-col items-center pt-2 pb-1">
+            <div className="h-1.5 w-12 rounded-full bg-white/55" />
           </div>
         </div>
 
         <div
-          className="flex shrink-0 cursor-grab touch-none select-none items-center gap-1.5 px-2.5 pb-1.5 active:cursor-grabbing"
+          className="flex shrink-0 cursor-grab touch-none select-none items-center gap-1.5 px-2.5 pb-2 active:cursor-grabbing"
           style={{ touchAction: "none" }}
           onPointerDown={onHandlePointerDown}
         >
-          <p className="min-w-0 flex-1 truncate text-[12px] font-semibold text-fg">
-            {loading && courts.length === 0
-              ? "Loading courts…"
-              : `${filtered.length} court${filtered.length === 1 ? "" : "s"}`}
-            {locError ? (
-              <span className="font-normal text-fg-subtle"> · {locError}</span>
-            ) : null}
-          </p>
-
           <button
             type="button"
             onClick={() => {
               setSearchOpen((v) => !v);
               if (!searchOpen) applySheetH(SHEET_PEEK);
             }}
-            className="flex size-8 items-center justify-center rounded-xl border border-border bg-bg-elevated text-fg-muted"
+            className="flex size-9 items-center justify-center rounded-xl border border-border bg-bg-elevated text-fg-muted"
             aria-label="Search"
             data-no-sheet-drag
           >
@@ -1071,7 +1089,7 @@ export function CourtsFinder({
             type="button"
             onClick={onNearMe}
             disabled={locating}
-            className="flex size-8 items-center justify-center rounded-xl bg-accent text-accent-fg disabled:opacity-60"
+            className="flex size-9 items-center justify-center rounded-xl bg-accent text-accent-fg disabled:opacity-60"
             aria-label="Near me"
             data-no-sheet-drag
           >
@@ -1082,7 +1100,7 @@ export function CourtsFinder({
             type="button"
             onClick={() => setFiltersOpen((v) => !v)}
             className={cn(
-              "inline-flex items-center gap-1 rounded-xl border px-2.5 py-1.5 text-[11px] font-semibold",
+              "inline-flex h-9 items-center gap-1 rounded-xl border px-2.5 text-[12px] font-semibold",
               filtersOpen || filters.size > 0
                 ? "border-court/40 bg-court/10 text-court"
                 : "border-border bg-bg-elevated text-fg-muted",
@@ -1099,7 +1117,37 @@ export function CourtsFinder({
               <ChevronDown className="size-3.5 opacity-90" strokeWidth={2.5} />
             )}
           </button>
+
+          <div className="ml-auto flex min-w-0 items-center gap-0.5">
+            <p className="truncate text-[11px] font-medium tabular-nums text-fg-subtle">
+              {loading && courts.length === 0
+                ? "…"
+                : `${filtered.length}`}
+            </p>
+            <button
+              type="button"
+              onClick={() => setSourceOpen((v) => !v)}
+              className="flex size-7 items-center justify-center rounded-full text-fg-subtle hover:text-fg-muted"
+              aria-label="Map data info"
+              aria-expanded={sourceOpen}
+              data-no-sheet-drag
+            >
+              <Info className="size-3.5" strokeWidth={1.75} />
+            </button>
+          </div>
         </div>
+
+        {sourceOpen ? (
+          <p className="shrink-0 px-3 pb-1.5 text-[11px] leading-snug text-fg-subtle">
+            {dataSource === "mixed" || dataSource === "osm"
+              ? "Live map plus Austin catalog."
+              : locError
+                ? locError
+                : "Austin court catalog."}
+          </p>
+        ) : locError ? (
+          <p className="shrink-0 px-3 pb-1 text-[11px] text-fg-subtle">{locError}</p>
+        ) : null}
 
         {searchOpen ? (
           <div className="shrink-0 space-y-1.5 px-2.5 pb-1.5" data-no-sheet-drag>
@@ -1308,17 +1356,6 @@ export function CourtsFinder({
           </div>
         ) : null}
 
-        {dataSource === "catalog" ? (
-          <p className="px-2.5 pb-1 text-[10px] font-medium text-fg-subtle">
-            Showing the saved Austin court catalog
-            {loading ? " · checking live map…" : " — not live external map data."}
-          </p>
-        ) : dataSource === "mixed" || dataSource === "osm" ? (
-          <p className="px-2.5 pb-1 text-[10px] font-medium text-fg-subtle">
-            Live map plus Austin catalog
-          </p>
-        ) : null}
-
         {error ? (
           <div className="mx-2.5 mb-1.5 rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-[12px]">
             {error}
@@ -1336,7 +1373,7 @@ export function CourtsFinder({
           ref={listRef}
           data-courts-scroll="list"
           onScroll={onListScroll}
-          className="min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain px-2.5 pt-0.5 pb-3 [-webkit-overflow-scrolling:touch] [touch-action:pan-y] [overflow-anchor:none]"
+          className="min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain px-2.5 pt-0.5 pb-24 [-webkit-overflow-scrolling:touch] [touch-action:pan-y] [overflow-anchor:none] [scroll-padding-bottom:6rem]"
         >
           {loading && courts.length === 0 ? (
             <div className="space-y-3">
@@ -1370,22 +1407,23 @@ export function CourtsFinder({
                   : "Widen the radius, clear a filter, or search an address."}
               </p>
               <div className="mt-4 flex gap-2">
-                {filters.size > 0 ? (
+                {filters.size > 0 || !areas.has("all") ? (
                   <button
                     type="button"
                     onClick={clearFilters}
-                    className="rounded-full border border-border px-3.5 py-1.5 text-sm font-medium text-fg"
+                    className="rounded-full bg-court px-3.5 py-1.5 text-sm font-semibold text-white"
                   >
                     Clear filters
                   </button>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={onRefresh}
-                  className="rounded-full bg-court px-3.5 py-1.5 text-sm font-semibold text-white"
-                >
-                  Refresh
-                </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={onRefresh}
+                    className="rounded-full bg-court px-3.5 py-1.5 text-sm font-semibold text-white"
+                  >
+                    Refresh
+                  </button>
+                )}
               </div>
             </div>
           ) : (
