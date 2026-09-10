@@ -1450,7 +1450,7 @@ export function QuickMatchFlow({
                   >
                     <div
                       key={selectedCreateCourt.id}
-                      className="uc-preview-swap relative h-36 w-full bg-bg-subtle"
+                      className="uc-preview-swap relative h-40 w-full bg-bg-subtle"
                     >
                       {mapThumb ? (
                         <img
@@ -1459,37 +1459,33 @@ export function QuickMatchFlow({
                           className="h-full w-full object-cover"
                         />
                       ) : null}
-                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent px-3 pb-2.5 pt-10">
-                        <div className="flex items-end gap-2">
-                          <div className="min-w-0 flex-1">
-                            {createAutoLabel ? (
-                              <p className="text-[10px] font-bold tracking-[0.14em] text-court uppercase">
-                                {createAutoLabel}
-                              </p>
-                            ) : null}
-                            <p className="truncate text-[15px] font-semibold text-white">
-                              {selectedCreateCourt.name.replace(/\s*Courts?\s*$/i, "") ||
-                                selectedCreateCourt.name}
-                            </p>
-                            <p className="truncate text-[11px] text-white/80">
-                              {selectedCreateCourt.neighborhood ?? "Austin"} ·{" "}
-                              {formatMiles(
-                                "miles" in selectedCreateCourt &&
-                                  typeof selectedCreateCourt.miles === "number"
-                                  ? selectedCreateCourt.miles
-                                  : haversineMi(
-                                      origin.lat,
-                                      origin.lon,
-                                      selectedCreateCourt.lat,
-                                      selectedCreateCourt.lon,
-                                    ),
-                              )}
-                            </p>
-                          </div>
-                          <span className="mb-px shrink-0 text-[11px] font-semibold text-white/90">
-                            View court
-                          </span>
-                        </div>
+                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent px-3 pb-2.5 pt-10">
+                        {createAutoLabel ? (
+                          <p className="text-[10px] font-bold tracking-[0.14em] text-court uppercase">
+                            {createAutoLabel}
+                          </p>
+                        ) : null}
+                        <p className="truncate text-[15px] font-semibold text-white">
+                          {selectedCreateCourt.name.replace(/\s*Courts?\s*$/i, "") ||
+                            selectedCreateCourt.name}
+                        </p>
+                        <p className="truncate text-[11px] text-white/80">
+                          {selectedCreateCourt.neighborhood ?? "Austin"} ·{" "}
+                          {formatMiles(
+                            "miles" in selectedCreateCourt &&
+                              typeof selectedCreateCourt.miles === "number"
+                              ? selectedCreateCourt.miles
+                              : haversineMi(
+                                  origin.lat,
+                                  origin.lon,
+                                  selectedCreateCourt.lat,
+                                  selectedCreateCourt.lon,
+                                ),
+                          )}
+                        </p>
+                        <span className="mt-1.5 inline-flex items-center rounded-full bg-court px-3.5 py-1.5 text-[12px] font-semibold text-white">
+                          View court
+                        </span>
                       </div>
                     </div>
                   </button>
