@@ -73,6 +73,51 @@ function asIdSet(ids?: Set<string> | string[]): Set<string> {
   return ids instanceof Set ? ids : new Set(ids);
 }
 
+const MIN_FRAME_SPAN = 0.012;
+
+function fitUserAndCourt(
+  map: import("maplibre-gl").Map,
+  user: { lat: number; lon: number },
+  court: { lat: number; lon: number },
+  duration: number,
+) {
+  const el = map.getContainer();
+  const h = el.clientHeight;
+  const w = el.clientWidth;
+  if (h < 48 || w < 48) return;
+
+  let west = Math.min(user.lon, court.lon);
+  let east = Math.max(user.lon, court.lon);
+  let south = Math.min(user.lat, court.lat);
+  let north = Math.max(user.lat, court.lat);
+  if (east - west < MIN_FRAME_SPAN) {
+    const mid = (east + west) / 2;
+    west = mid - MIN_FRAME_SPAN / 2;
+    east = mid + MIN_FRAME_SPAN / 2;
+  }
+  if (north - south < MIN_FRAME_SPAN) {
+    const mid = (north + south) / 2;
+    south = mid - MIN_FRAME_SPAN / 2;
+    north = mid + MIN_FRAME_SPAN / 2;
+  }
+
+  const padTop = Math.min(88, Math.max(56, Math.round(h * 0.2)));
+  const padBottom = Math.min(110, Math.max(72, Math.round(h * 0.26)));
+  const padX = Math.min(64, Math.max(40, Math.round(w * 0.14)));
+
+  map.fitBounds(
+    [
+      [west, south],
+      [east, north],
+    ],
+    {
+      padding: { top: padTop, bottom: padBottom, left: padX, right: padX },
+      maxZoom: 13,
+      duration,
+    },
+  );
+}
+
 export function CourtsMap({
   courts,
   location,
@@ -489,24 +534,28 @@ export function CourtsMap({
     if (!map || !ready || !frameSelection || !selectedId) return;
     const court = courts.find((c) => c.id === selectedId);
     if (!court) return;
+    let cancelled = false;
     const reduce =
       typeof window !== "undefined" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const west = Math.min(location.lon, court.lon);
-    const south = Math.min(location.lat, court.lat);
-    const east = Math.max(location.lon, court.lon);
-    const north = Math.max(location.lat, court.lat);
-    map.fitBounds(
-      [
-        [west, south],
-        [east, north],
-      ],
-      {
-        padding: { top: 52, bottom: 36, left: 44, right: 44 },
-        maxZoom: 13.2,
-        duration: reduce ? 0 : 250,
-      },
-    );
+    const duration = reduce ? 0 : 250;
+
+    const fit = () => {
+      if (cancelled || !mapRef.current) return;
+      map.resize();
+      fitUserAndCourt(map, location, court, duration);
+    };
+
+    fit();
+    const raf = requestAnimationFrame(() => {
+      requestAnimationFrame(fit);
+    });
+    const later = window.setTimeout(fit, reduce ? 0 : 260);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf);
+      window.clearTimeout(later);
+    };
   }, [
     frameSelection,
     selectedId,

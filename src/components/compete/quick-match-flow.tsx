@@ -1487,28 +1487,53 @@ export function QuickMatchFlow({
                     </div>
                   </button>
                   {browseCourts.length > 1 ? (
-                    <>
+                    <div
+                      className="absolute inset-0 z-20"
+                      style={{ pointerEvents: "none" }}
+                    >
                       <button
                         type="button"
-                        onClick={() => stepBrowseCourt(-1)}
-                        disabled={browseIndex <= 0}
-                        className="uc-press absolute top-3 left-1 z-20 flex size-12 items-center justify-center rounded-full bg-black/60 text-white shadow-soft disabled:pointer-events-none disabled:opacity-30"
                         aria-label="Previous court"
+                        aria-disabled={browseIndex <= 0}
+                        className="uc-press absolute top-3 left-1 flex size-12 items-center justify-center rounded-full bg-black/60 text-white shadow-soft aria-disabled:opacity-30"
+                        style={{ pointerEvents: "auto", touchAction: "manipulation" }}
+                        onPointerDown={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (browseIndex <= 0) return;
+                          stepBrowseCourt(-1);
+                        }}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                        }}
                       >
                         <ChevronLeft className="size-6" strokeWidth={2.5} />
                       </button>
                       <button
                         type="button"
-                        onClick={() => stepBrowseCourt(1)}
-                        disabled={
+                        aria-label="Next court"
+                        aria-disabled={
                           browseIndex < 0 || browseIndex >= browseCourts.length - 1
                         }
-                        className="uc-press absolute top-3 right-1 z-20 flex size-12 items-center justify-center rounded-full bg-black/60 text-white shadow-soft disabled:pointer-events-none disabled:opacity-30"
-                        aria-label="Next court"
+                        className="uc-press absolute top-3 right-1 flex size-12 items-center justify-center rounded-full bg-black/60 text-white shadow-soft aria-disabled:opacity-30"
+                        style={{ pointerEvents: "auto", touchAction: "manipulation" }}
+                        onPointerDown={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (browseIndex < 0 || browseIndex >= browseCourts.length - 1) {
+                            return;
+                          }
+                          stepBrowseCourt(1);
+                        }}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                        }}
                       >
                         <ChevronRight className="size-6" strokeWidth={2.5} />
                       </button>
-                    </>
+                    </div>
                   ) : null}
                 </div>
               ) : null}
