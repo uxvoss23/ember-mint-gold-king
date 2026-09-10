@@ -161,6 +161,12 @@ function haversineMi(lat1: number, lon1: number, lat2: number, lon2: number) {
 }
 function inAustinMetro(lat: number, lon: number) { return lat >= 30.05 && lat <= 30.55 && lon >= -98.05 && lon <= -97.45; }
 function formatMiles(mi: number) { if (mi < 0.1) return "<0.1 mi"; if (mi < 10) return `${mi.toFixed(1)} mi`; return `${Math.round(mi)} mi`; }
+function formatSelectedDistance(mi: number, kind: "away" | "home" | "plain") {
+  const dist = formatMiles(mi);
+  if (kind === "away") return `${dist} away`;
+  if (kind === "home") return `${dist} from home`;
+  return dist;
+}
 function whenParts(iso: string) {
   try {
     const d = new Date(iso);
@@ -1094,6 +1100,20 @@ export function QuickMatchFlow({
     const browseIndex = selectedCreateCourt
       ? browseCourts.findIndex((c) => c.id === selectedCreateCourt.id)
       : -1;
+    const selectedMiles = selectedCreateCourt
+      ? "miles" in selectedCreateCourt &&
+        typeof selectedCreateCourt.miles === "number"
+        ? selectedCreateCourt.miles
+        : haversineMi(
+            origin.lat,
+            origin.lon,
+            selectedCreateCourt.lat,
+            selectedCreateCourt.lon,
+          )
+      : null;
+    const distanceKind: "away" | "home" | "plain" = hasPreciseLocation
+      ? "away"
+      : "plain";
     const createAutoLabel = !selectedCreateCourt
       ? null
       : hasPreciseLocation && browseIndex === 0
@@ -1441,16 +1461,37 @@ export function QuickMatchFlow({
           >
             <div>
               {selectedCreateCourt ? (
-                <div className="relative mt-1.5">
+                <div className="relative mt-1.5 flex items-center gap-1.5">
+                  {browseCourts.length > 1 ? (
+                    <button
+                      type="button"
+                      aria-label="Previous court"
+                      aria-disabled={browseIndex <= 0}
+                      className="uc-press flex size-12 shrink-0 items-center justify-center rounded-full bg-bg-elevated text-fg ring-1 ring-border aria-disabled:opacity-30"
+                      style={{ touchAction: "manipulation" }}
+                      onPointerDown={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (browseIndex <= 0) return;
+                        stepBrowseCourt(-1);
+                      }}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }}
+                    >
+                      <ChevronLeft className="size-6" strokeWidth={2.5} />
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     onClick={() => setCourtInfoId(selectedCreateCourt.id)}
-                    className="uc-preview-card w-full overflow-hidden rounded-xl border border-court/35 bg-bg-elevated text-left"
+                    className="uc-preview-card min-w-0 flex-1 overflow-hidden rounded-xl border border-court/35 bg-bg-elevated text-left"
                     aria-label={`About ${selectedCreateCourt.name}`}
                   >
                     <div
                       key={selectedCreateCourt.id}
-                      className="uc-preview-swap relative h-40 w-full bg-bg-subtle"
+                      className="uc-preview-swap relative h-36 w-full bg-bg-subtle"
                     >
                       {mapThumb ? (
                         <img
@@ -1459,84 +1500,58 @@ export function QuickMatchFlow({
                           className="h-full w-full object-cover"
                         />
                       ) : null}
-                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent px-3 pb-2.5 pt-10">
+                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/88 to-transparent px-3 pb-2.5 pt-10">
                         {createAutoLabel ? (
                           <p className="text-[10px] font-bold tracking-[0.14em] text-court uppercase">
                             {createAutoLabel}
                           </p>
                         ) : null}
-                        <p className="truncate text-[15px] font-semibold text-white">
+                        <p className="truncate text-[16px] font-semibold text-white">
                           {selectedCreateCourt.name.replace(/\s*Courts?\s*$/i, "") ||
                             selectedCreateCourt.name}
                         </p>
-                        <p className="truncate text-[11px] text-white/80">
-                          {selectedCreateCourt.neighborhood ?? "Austin"} ·{" "}
-                          {formatMiles(
-                            "miles" in selectedCreateCourt &&
-                              typeof selectedCreateCourt.miles === "number"
-                              ? selectedCreateCourt.miles
-                              : haversineMi(
-                                  origin.lat,
-                                  origin.lon,
-                                  selectedCreateCourt.lat,
-                                  selectedCreateCourt.lon,
-                                ),
-                          )}
+                        <p className="truncate text-[12px] text-white/80">
+                          {selectedCreateCourt.neighborhood ?? "Austin"}
+                          {selectedMiles != null
+                            ? ` · ${formatSelectedDistance(selectedMiles, distanceKind)}`
+                            : ""}
                         </p>
-                        <span className="mt-1.5 inline-flex items-center rounded-full bg-court px-3.5 py-1.5 text-[12px] font-semibold text-white">
-                          View court
+                        <span className="mt-1 inline-flex items-center text-[12px] font-semibold text-court">
+                          View details
+                          <span aria-hidden className="ml-0.5">
+                            ›
+                          </span>
                         </span>
                       </div>
                     </div>
                   </button>
                   {browseCourts.length > 1 ? (
-                    <div
-                      className="absolute inset-0 z-20"
-                      style={{ pointerEvents: "none" }}
-                    >
-                      <button
-                        type="button"
-                        aria-label="Previous court"
-                        aria-disabled={browseIndex <= 0}
-                        className="uc-press absolute top-3 left-1 flex size-12 items-center justify-center rounded-full bg-black/60 text-white shadow-soft aria-disabled:opacity-30"
-                        style={{ pointerEvents: "auto", touchAction: "manipulation" }}
-                        onPointerDown={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          if (browseIndex <= 0) return;
-                          stepBrowseCourt(-1);
-                        }}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                        }}
-                      >
-                        <ChevronLeft className="size-6" strokeWidth={2.5} />
-                      </button>
-                      <button
-                        type="button"
-                        aria-label="Next court"
-                        aria-disabled={
-                          browseIndex < 0 || browseIndex >= browseCourts.length - 1
+                    <button
+                      type="button"
+                      aria-label="Next court"
+                      aria-disabled={
+                        browseIndex < 0 || browseIndex >= browseCourts.length - 1
+                      }
+                      className="uc-press flex size-12 shrink-0 items-center justify-center rounded-full bg-bg-elevated text-fg ring-1 ring-border aria-disabled:opacity-30"
+                      style={{ touchAction: "manipulation" }}
+                      onPointerDown={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (
+                          browseIndex < 0 ||
+                          browseIndex >= browseCourts.length - 1
+                        ) {
+                          return;
                         }
-                        className="uc-press absolute top-3 right-1 flex size-12 items-center justify-center rounded-full bg-black/60 text-white shadow-soft aria-disabled:opacity-30"
-                        style={{ pointerEvents: "auto", touchAction: "manipulation" }}
-                        onPointerDown={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          if (browseIndex < 0 || browseIndex >= browseCourts.length - 1) {
-                            return;
-                          }
-                          stepBrowseCourt(1);
-                        }}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                        }}
-                      >
-                        <ChevronRight className="size-6" strokeWidth={2.5} />
-                      </button>
-                    </div>
+                        stepBrowseCourt(1);
+                      }}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }}
+                    >
+                      <ChevronRight className="size-6" strokeWidth={2.5} />
+                    </button>
                   ) : null}
                 </div>
               ) : null}
