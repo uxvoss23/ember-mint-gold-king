@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 42" fill="none">
+  <defs>
+    <linearGradient id="ucPinFill" x1="16" y1="2.2" x2="16" y2="40">
+      <stop stop-color="#FF8A3A"/>
+      <stop offset="0.22" stop-color="#FF741D"/>
+      <stop offset="0.55" stop-color="#F24E08"/>
+      <stop offset="1" stop-color="#CF4101"/>
+    </linearGradient>
+    <clipPath id="ucBallClip"><circle cx="16" cy="14.1" r="7.6"/></clipPath>
+  </defs>
+  <ellipse cx="16" cy="40.5" rx="4.2" ry="1.1" fill="rgba(0,0,0,0.2)"/>
+  <path d="M16 39.7C16.55 30.15 28.55 22.7 28.55 14.1A12.15 12.15 0 1 0 3.45 14.1C3.45 22.7 15.45 30.15 16 39.7Z" fill="url(#ucPinFill)" stroke="#fff" stroke-width="2.15" stroke-linejoin="round" stroke-linecap="round"/>
+  <g fill="none" stroke="#fff" stroke-width="1.55" stroke-linecap="round" clip-path="url(#ucBallClip)">
+    <circle cx="16" cy="14.1" r="6.9"/>
+    <path d="M16 7.2V21"/>
+    <path d="M15.2 7.4C10.8 10.6 10.8 17.6 15.2 20.8"/>
+    <path d="M16.8 7.4C21.2 10.6 21.2 17.6 16.8 20.8"/>
+  </g>
+</svg>
