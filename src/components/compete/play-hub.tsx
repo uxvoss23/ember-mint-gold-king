@@ -71,6 +71,9 @@ export const PlayHub = memo(function PlayHub({
     onImmersiveChange?.(v);
   }, [onImmersiveChange]);
 
+  void onBrowseCourts;
+  void onOpenProfile;
+
   return (
     <div
       className={
@@ -98,8 +101,6 @@ export const PlayHub = memo(function PlayHub({
         active={active}
         gameBackTo={gameBackTo}
         onGameBack={onGameBack}
-        onBrowseCourts={onBrowseCourts}
-        onOpenProfile={onOpenProfile}
       />
       </div>
     </div>
