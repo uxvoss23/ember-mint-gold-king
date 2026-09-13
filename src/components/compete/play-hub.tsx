@@ -36,6 +36,7 @@ interface PlayHubProps {
   active?: boolean;
   gameBackTo?: "you" | null;
   onGameBack?: () => void;
+  onBrowseCourts?: () => void;
 }
 
 /**
@@ -62,6 +63,7 @@ export const PlayHub = memo(function PlayHub({
   active = true,
   gameBackTo = null,
   onGameBack,
+  onBrowseCourts,
 }: PlayHubProps) {
   const [immersive, setImmersive] = useState(false);
   const setImmersiveBoth = useCallback((v: boolean) => {
@@ -96,6 +98,8 @@ export const PlayHub = memo(function PlayHub({
         active={active}
         gameBackTo={gameBackTo}
         onGameBack={onGameBack}
+        onBrowseCourts={onBrowseCourts}
+        onOpenProfile={onOpenProfile}
       />
       </div>
     </div>
