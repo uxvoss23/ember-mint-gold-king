@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { createPortal } from "react-dom";
+import { ChevronLeft, ChevronRight, Maximize2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { isPlaceholderPhoto } from "@/lib/courts/images";
 
@@ -11,6 +12,10 @@ interface ImageCarouselProps {
   showControls?: boolean;
   /** Shorter frame so CTAs fit above the fold on court select */
   compact?: boolean;
+  /** Tap the photo to open a near-full-screen viewer */
+  allowFullscreen?: boolean;
+  /** Fill a parent with an explicit height instead of using aspect padding */
+  fill?: boolean;
 }
 
 /**
@@ -26,14 +31,21 @@ export function ImageCarousel({
   priority,
   showControls = true,
   compact = false,
+  allowFullscreen = false,
+  fill = false,
 }: ImageCarouselProps) {
   const [index, setIndex] = useState(0);
+  const [fullscreen, setFullscreen] = useState(false);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const trackRef = useRef<HTMLDivElement | null>(null);
   const indexRef = useRef(0);
   indexRef.current = index;
   const count = images.length;
   const widthRef = useRef(0);
+  const allowFsRef = useRef(allowFullscreen);
+  allowFsRef.current = allowFullscreen;
+  const openFsRef = useRef(() => {});
+  openFsRef.current = () => setFullscreen(true);
 
   const measure = useCallback(() => {
     const el = scrollerRef.current;
@@ -194,6 +206,9 @@ export function ImageCarousel({
         }
         next = Math.max(0, Math.min(count - 1, next));
         goTo(next, true);
+      } else if (allowFsRef.current && !dragging) {
+        const dist = Math.hypot(e.clientX - startX, e.clientY - startY);
+        if (dist < 12) openFsRef.current();
       }
       active = false;
       axis = null;
@@ -222,16 +237,24 @@ export function ImageCarousel({
       className={cn(
         "group/carousel relative w-full overflow-hidden",
         allQuiet ? "bg-bg-subtle" : "bg-black",
+        fill ? "h-full" : "w-full",
         className,
       )}
     >
       <div
-        className="relative w-full"
-        style={{ paddingBottom: allQuiet ? "34%" : compact ? "54%" : "62.5%" }}
+        className={cn("relative w-full", fill && "h-full")}
+        style={
+          fill
+            ? undefined
+            : { paddingBottom: allQuiet ? "34%" : compact ? "54%" : "62.5%" }
+        }
       >
         <div
           ref={scrollerRef}
           className="absolute inset-0 overflow-hidden touch-pan-y"
+          onClick={() => {
+            if (allowFullscreen && count <= 1) setFullscreen(true);
+          }}
           style={{
             // Vertical list scroll always works from the photo
             touchAction: "pan-y",
@@ -257,7 +280,12 @@ export function ImageCarousel({
                   src={Math.abs(i - index) <= 1 ? src : undefined}
                   alt={i === 0 ? alt : ""}
                   draggable={false}
-                  className="pointer-events-none block h-full w-full select-none object-cover object-center"
+                  className={cn(
+                    "pointer-events-none block h-full w-full select-none",
+                    fill && allQuiet
+                      ? "object-contain p-12 opacity-[0.16]"
+                      : "object-cover object-center",
+                  )}
                   loading={priority && i === 0 ? "eager" : "lazy"}
                   decoding="async"
                   fetchPriority={priority && i === 0 ? "high" : "low"}
@@ -323,6 +351,69 @@ export function ImageCarousel({
           ) : null}
         </>
       ) : null}
+      {allowFullscreen ? (
+        <button
+          type="button"
+          aria-label="View full photo"
+          onClick={(e) => {
+            e.stopPropagation();
+            setFullscreen(true);
+          }}
+          className="absolute top-2 left-2 z-20 rounded-full bg-black/45 p-1.5 text-white"
+        >
+          <Maximize2 className="size-3.5" strokeWidth={2.25} />
+        </button>
+      ) : null}
+      {fullscreen && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              className="fixed inset-0 z-[600] flex flex-col bg-black"
+              role="dialog"
+              aria-modal="true"
+              aria-label={alt || "Court photo"}
+            >
+              <button
+                type="button"
+                onClick={() => setFullscreen(false)}
+                className="absolute top-[max(0.75rem,env(safe-area-inset-top))] right-3 z-10 flex size-10 items-center justify-center rounded-full bg-white/15 text-white"
+                aria-label="Close photo"
+              >
+                <X className="size-5" strokeWidth={2.25} />
+              </button>
+              <div className="flex min-h-0 flex-1 items-center justify-center px-2">
+                <img
+                  src={images[index]}
+                  alt={alt}
+                  className="max-h-full max-w-full object-contain"
+                />
+              </div>
+              {count > 1 ? (
+                <>
+                  <button
+                    type="button"
+                    aria-label="Previous photo"
+                    onClick={() => go(-1)}
+                    className="absolute top-1/2 left-1 z-10 flex size-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/15 text-white"
+                  >
+                    <ChevronLeft className="size-6" strokeWidth={2.5} />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Next photo"
+                    onClick={() => go(1)}
+                    className="absolute top-1/2 right-1 z-10 flex size-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/15 text-white"
+                  >
+                    <ChevronRight className="size-6" strokeWidth={2.5} />
+                  </button>
+                  <p className="absolute bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-0 right-0 text-center text-[12px] font-medium tabular-nums text-white/80">
+                    {index + 1} / {count}
+                  </p>
+                </>
+              ) : null}
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

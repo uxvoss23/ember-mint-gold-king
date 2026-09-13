@@ -1,8 +1,8 @@
 import { cn } from "@/lib/utils";
 
 const STEPS = [
-  { n: 1 as const, label: "Court" },
-  { n: 2 as const, label: "Details" },
+  { n: 1 as const, label: "Details" },
+  { n: 2 as const, label: "Court" },
   { n: 3 as const, label: "Review" },
 ];
 

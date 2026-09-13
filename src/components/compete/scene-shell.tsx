@@ -1,4 +1,4 @@
-import { lazy, Suspense, startTransition, useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import {
   MapPinned,
   Trophy,
@@ -68,7 +68,7 @@ export function SceneShell({
   courtsLocating = false,
   courtsError = null,
   courtsLocError = null,
-  radiusMi = 8,
+  radiusMi = 50,
   dataSource = "",
   outOfArea = false,
   onRadiusChange,
@@ -140,13 +140,13 @@ export function SceneShell({
   const playBadge = playAttentionCount(store.matches, store.me);
 
   const goHome = useCallback((id: SceneHome) => {
-    startTransition(() => setHome(id));
+    setHome(id);
   }, []);
 
   const startQuickAtCourt = useCallback((court: Court) => {
     setSelectedCourt(null);
     setPresetCourt(court);
-    startTransition(() => setHome("games"));
+    setHome("games");
   }, []);
 
   const title =
@@ -367,7 +367,7 @@ export function SceneShell({
             gameBackTo={gameBackTo}
             onGameBack={() => {
               setGameBackTo(null);
-              startTransition(() => setHome("you"));
+              setHome("you");
             }}
           />
           </Suspense>
@@ -422,6 +422,7 @@ export function SceneShell({
                 onQuickMatch={startQuickAtCourt}
                 focusCourtId={focusCourtId}
                 onFocusCourtConsumed={() => setFocusCourtId(null)}
+                active={home === "courts"}
               />
             </div>
           </div>
@@ -437,12 +438,12 @@ export function SceneShell({
       {/* Portaled tabs — only after boot splash fully unmounts */}
       {showTabBar ? (
       <div
-        className={tabsHidden ? "hidden" : undefined}
+        className={cn("relative z-50", tabsHidden && "hidden")}
         hidden={tabsHidden}
         aria-hidden={tabsHidden}
       >
       <BottomTabBar>
-        <div className="pointer-events-auto relative flex w-full max-w-lg items-end rounded-2xl border border-border-strong bg-bg-elevated/95 px-0.5 py-0.5 shadow-soft backdrop-blur-md">
+        <div className="pointer-events-auto relative z-50 flex w-full max-w-lg items-end rounded-2xl border border-border-strong bg-bg-elevated/95 px-0.5 py-0.5 shadow-soft backdrop-blur-md">
           {(
             [
               { id: "courts" as const, label: "Courts", icon: MapPinned },
@@ -459,6 +460,7 @@ export function SceneShell({
                 "relative flex min-w-0 flex-1 flex-col items-center gap-0 rounded-xl px-0.5 py-1.5 text-[9px] font-semibold leading-tight",
                 home === t.id ? "bg-bg-soft text-fg" : "text-fg-muted",
               )}
+              style={{ touchAction: "manipulation" }}
               aria-label={
                 t.id === "games" && playBadge > 0 && home !== "games"
                   ? `Play, ${playBadge} waiting`

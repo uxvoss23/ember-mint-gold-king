@@ -67,7 +67,7 @@ export function PremiumBootHost() {
   useLayoutEffect(() => {
     document.documentElement.removeAttribute("data-uc-booting");
     let gone = false;
-    const hide = () => {
+    const hide = (unmountNow = false) => {
       if (gone) return;
       gone = true;
       const el = document.getElementById("uc-premium-boot");
@@ -75,12 +75,19 @@ export function PremiumBootHost() {
         el.classList.add("uc-boot-out");
         el.style.pointerEvents = "none";
       }
-      window.setTimeout(() => setAlive(false), 280);
+      window.__ucBootHidden = true;
+      if (unmountNow) setAlive(false);
+      else window.setTimeout(() => setAlive(false), 280);
     };
-    document.addEventListener("uc:app-ready", hide);
-    const max = window.setTimeout(hide, 900);
+    const onReady = () => hide(false);
+    if (window.__ucBootHidden) {
+      hide(true);
+      return;
+    }
+    document.addEventListener("uc:app-ready", onReady);
+    const max = window.setTimeout(() => hide(false), 900);
     return () => {
-      document.removeEventListener("uc:app-ready", hide);
+      document.removeEventListener("uc:app-ready", onReady);
       window.clearTimeout(max);
     };
   }, []);

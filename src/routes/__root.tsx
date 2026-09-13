@@ -4,6 +4,7 @@ import { CreatedWithGrokBanner } from "@/components/created-with-grok-banner";
 import { PREMIUM_BOOT_CSS, PremiumBootHost } from "@/components/premium-boot";
 import { NotFoundPage } from "@/components/not-found";
 import appCss from "../styles.css?url";
+import mapPreloadUrl from "@/lib/maps/preload-maplibre.ts?url";
 
 const APP_NAME = "Upset City — Where the best hoopers emerge";
 const host = import.meta.env.VITE_PUBLIC_HOSTNAME;
@@ -14,7 +15,7 @@ const ogImage = host
 const FONT_HREF =
   "https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Instrument+Sans:wght@500;600;700&display=swap";
 
-const BOOT_SCRIPT = `(function(){document.documentElement.removeAttribute("data-uc-booting");var lines=["Lacing up","Checking the board","Finding a run","Tip-off soon"];var i=0;var s=document.getElementById("uc-boot-status");var t=setInterval(function(){i=(i+1)%lines.length;if(s)s.textContent=lines[i];if(!document.getElementById("uc-premium-boot"))clearInterval(t);},900);})();`;
+const BOOT_SCRIPT = `(function(){document.documentElement.removeAttribute("data-uc-booting");window.__ucPerf=window.__ucPerf||[];window.__ucMark=function(s){window.__ucPerf.push({stage:s,t:Math.round(performance.now())})};window.__ucMark("boot:script");var lines=["Lacing up","Checking the board","Finding a run","Tip-off soon"];var i=0;var s=document.getElementById("uc-boot-status");var t=setInterval(function(){i=(i+1)%lines.length;if(s)s.textContent=lines[i];if(!document.getElementById("uc-premium-boot"))clearInterval(t);},900);function hide(){if(window.__ucBootHidden)return;window.__ucBootHidden=true;window.__ucMark("boot:hide");var el=document.getElementById("uc-premium-boot");if(!el)return;el.classList.add("uc-boot-out");el.style.pointerEvents="none"}function consider(){if(document.querySelector(".uc-map canvas")){hide();return}if(performance.now()>=720)hide()}setTimeout(consider,240);setTimeout(hide,900);document.addEventListener("uc:app-ready",hide)})();`;
 
 export const Route = createRootRoute({
   notFoundComponent: NotFoundPage,
@@ -66,6 +67,8 @@ function RootDocument() {
         />
         <HeadContent />
         <link rel="stylesheet" href={appCss} />
+        <link rel="modulepreload" href={mapPreloadUrl} suppressHydrationWarning />
+        <script type="module" src={mapPreloadUrl} suppressHydrationWarning />
         <link
           rel="stylesheet"
           href={FONT_HREF}

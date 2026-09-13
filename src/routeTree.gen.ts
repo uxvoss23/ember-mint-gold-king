@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SplatRouteImport } from './routes/$'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as MapV2RouteImport } from './routes/map-v2'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
 const IndexRoute = IndexRouteImport.update({
@@ -29,6 +30,11 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MapV2Route = MapV2RouteImport.update({
+  id: '/map-v2',
+  path: '/map-v2',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -39,12 +45,14 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/login': typeof LoginRoute
+  '/map-v2': typeof MapV2Route
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/login': typeof LoginRoute
+  '/map-v2': typeof MapV2Route
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesById {
@@ -52,20 +60,22 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/login': typeof LoginRoute
+  '/map-v2': typeof MapV2Route
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/$' | '/login' | '/api/auth/$'
+  fullPaths: '/' | '/$' | '/login' | '/map-v2' | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/$' | '/login' | '/api/auth/$'
-  id: '__root__' | '/' | '/$' | '/login' | '/api/auth/$'
+  to: '/' | '/$' | '/login' | '/map-v2' | '/api/auth/$'
+  id: '__root__' | '/' | '/$' | '/login' | '/map-v2' | '/api/auth/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SplatRoute: typeof SplatRoute
   LoginRoute: typeof LoginRoute
+  MapV2Route: typeof MapV2Route
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
@@ -92,6 +102,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/map-v2': {
+      id: '/map-v2'
+      path: '/map-v2'
+      fullPath: '/map-v2'
+      preLoaderRoute: typeof MapV2RouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -106,6 +123,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SplatRoute: SplatRoute,
   LoginRoute: LoginRoute,
+  MapV2Route: MapV2Route,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport

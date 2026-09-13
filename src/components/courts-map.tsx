@@ -27,6 +27,7 @@ interface CourtsMapProps {
   followSelection?: boolean;
   /** Percent of the map height covered by a bottom sheet overlay. */
   followBottomPct?: number;
+  styleToggleClassName?: string;
 }
 
 type MapStyle = "satellite" | "street";
@@ -183,10 +184,12 @@ export function CourtsMap({
   layoutKey,
   followSelection = false,
   followBottomPct = 50,
+  styleToggleClassName,
 }: CourtsMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<import("maplibre-gl").Map | null>(null);
   const markersRef = useRef<import("maplibre-gl").Marker[]>([]);
+  const youMarkerRef = useRef<import("maplibre-gl").Marker | null>(null);
   const pinElsRef = useRef<Map<string, HTMLElement>>(new Map());
   const pinGenRef = useRef(0);
   const courtsRef = useRef(courts);
@@ -286,6 +289,8 @@ export function CourtsMap({
       markersRef.current.forEach((m) => m.remove());
       markersRef.current = [];
       pinElsRef.current.clear();
+      youMarkerRef.current?.remove();
+      youMarkerRef.current = null;
       const map = mapRef.current as
         | (import("maplibre-gl").Map & { __ro?: ResizeObserver })
         | null;
@@ -375,18 +380,6 @@ export function CourtsMap({
         markersRef.current = placed;
         return true;
       };
-
-      const youEl = document.createElement("div");
-      youEl.innerHTML = `<div class="uc-you"></div>`;
-      if (
-        !placeMarker(
-          new maplibregl.Marker({ element: youEl, anchor: "center" })
-            .setLngLat([location.lon, location.lat])
-            .addTo(map),
-        )
-      ) {
-        return;
-      }
 
       const zoom = map.getZoom();
       const cluster = clusterMode || (zoom < 11.5 && courts.length > 8);
@@ -586,6 +579,23 @@ export function CourtsMap({
         }
       }
 
+      let you = youMarkerRef.current;
+      if (!you) {
+        const el = document.createElement("div");
+        el.className = "uc-you-wrap";
+        el.innerHTML = `<div class="uc-you"></div>`;
+        you = new maplibregl.Marker({ element: el, anchor: "center" })
+          .setLngLat([location.lon, location.lat])
+          .addTo(map);
+        youMarkerRef.current = you;
+      } else {
+        you.setLngLat([location.lon, location.lat]).addTo(map);
+      }
+      const youNode = you.getElement();
+      youNode.classList.add("uc-you-wrap");
+      youNode.style.zIndex = "10000";
+      youNode.style.pointerEvents = "none";
+
       if (courts.length > 0 && !frameSelection && !didOverviewRef.current) {
         didOverviewRef.current = true;
         const bounds = new maplibregl.LngLatBounds();
@@ -733,7 +743,7 @@ export function CourtsMap({
           Map tiles didn’t load. The court list still works.
         </div>
       ) : null}
-      <div className="absolute top-3 left-3 z-10 flex rounded-full border border-border bg-bg/90 p-0.5 shadow-soft backdrop-blur-md">
+      <div className={cn("absolute top-3 left-3 z-10 flex rounded-full border border-border bg-bg/90 p-0.5 shadow-soft backdrop-blur-md", styleToggleClassName)}>
         {(
           [
             { id: "street" as const, label: "Street" },

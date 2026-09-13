@@ -1,0 +1,45 @@
+.root {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100dvh;
+  background: #101318;
+  overflow: hidden;
+}
+
+.canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.badge {
+  position: absolute;
+  z-index: 3;
+  left: 16px;
+  top: max(16px, env(safe-area-inset-top));
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(12, 12, 14, 0.78);
+  color: #fff;
+  font: 600 12px/1.2 "DM Sans", system-ui, sans-serif;
+  letter-spacing: 0.04em;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  pointer-events: none;
+}
+
+.note {
+  position: absolute;
+  z-index: 3;
+  left: 16px;
+  right: 16px;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(12, 12, 14, 0.82);
+  color: rgba(255, 255, 255, 0.78);
+  font: 500 12px/1.35 "DM Sans", system-ui, sans-serif;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  pointer-events: none;
+}

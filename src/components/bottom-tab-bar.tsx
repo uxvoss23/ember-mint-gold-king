@@ -92,7 +92,7 @@ export function BottomTabBar({ children }: { children: ReactNode }) {
       id="uc-bottom-tab-bar"
       data-uc-tab-bar="true"
       aria-label="Main"
-      className="pointer-events-none relative z-20 flex w-full shrink-0 justify-center box-border px-2.5 pt-1 pb-2"
+      className="pointer-events-auto relative z-50 flex w-full shrink-0 justify-center box-border px-2.5 pt-1 pb-2"
     >
       {children}
     </nav>

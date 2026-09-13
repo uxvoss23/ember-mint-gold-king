@@ -10,6 +10,7 @@ import type { Court, UserLocation } from "@/lib/courts/types";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { SignedIn, SignedOut, UserButton } from "@/lib/auth/gates";
 import { milesToMeters } from "@/lib/utils";
+import { ucMark } from "@/lib/perf/uc-mark";
 
 export const Route = createFileRoute("/")({ component: Home });
 
@@ -26,12 +27,12 @@ function seedCourts(loc: UserLocation, miles: number): Court[] {
 
 function Home() {
   const [location, setLocation] = useState<UserLocation | null>(AUSTIN);
-  const [courts, setCourts] = useState<Court[]>(() => seedCourts(AUSTIN, 8));
+  const [courts, setCourts] = useState<Court[]>(() => seedCourts(AUSTIN, 50));
   const [loading, setLoading] = useState(false);
   const [locating, setLocating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [locError, setLocError] = useState<string | null>(null);
-  const [radiusMi, setRadiusMi] = useState(8);
+  const [radiusMi, setRadiusMi] = useState(50);
   const [dataSource, setDataSource] = useState<string>("catalog");
   const [outOfArea, setOutOfArea] = useState(false);
   const { isPending: authPending } = useCurrentUserState();
@@ -40,11 +41,11 @@ function Home() {
   const bootstrapped = useRef(false);
 
   useLayoutEffect(() => {
+    ucMark("app:mounted");
     document.documentElement.removeAttribute("data-uc-booting");
-    const t = window.setTimeout(() => {
-      document.dispatchEvent(new Event("uc:app-ready"));
-    }, 450);
-    return () => window.clearTimeout(t);
+    const fire = () => document.dispatchEvent(new Event("uc:app-ready"));
+    const raf = window.requestAnimationFrame(fire);
+    return () => window.cancelAnimationFrame(raf);
   }, []);
 
   const loadCourts = useCallback(async (loc: UserLocation, miles: number, catalogOnly = false) => {
@@ -58,7 +59,7 @@ function Home() {
         data: {
           lat: loc.lat,
           lon: loc.lon,
-          radiusMeters: Math.round(milesToMeters(miles)),
+          radiusMeters: Math.min(50_000, Math.round(milesToMeters(miles))),
           label: loc.label,
           catalogOnly,
         },
@@ -79,7 +80,7 @@ function Home() {
   useEffect(() => {
     if (bootstrapped.current) return;
     bootstrapped.current = true;
-    void loadCourts(AUSTIN, 8, true);
+    void loadCourts(AUSTIN, 50, true);
   }, [loadCourts]);
 
   const requestLocation = useCallback(() => {

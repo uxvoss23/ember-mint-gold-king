@@ -223,24 +223,23 @@ export function CourtDetail({ court, onClose, onQuickMatch }: CourtDetailProps) 
                   <span className="tabular-nums text-fg">{favCount}</span> saved
                 </span>
               </div>
-              {display.address ? (
-                <a
-                  href={mapsUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-2 flex items-start gap-1.5 text-[13px] text-court"
-                >
-                  <MapPin className="mt-0.5 size-3.5 shrink-0" strokeWidth={1.75} />
-                  <span>
-                    <span className="underline decoration-court/35 underline-offset-2">
-                      {display.address}
-                    </span>
-                    <span className="mt-0.5 block text-[11px] font-medium text-fg-subtle no-underline">
-                      Open in Maps
-                    </span>
+              <a
+                href={mapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 flex items-start gap-1.5 text-[13px] text-court"
+              >
+                <MapPin className="mt-0.5 size-3.5 shrink-0" strokeWidth={1.75} />
+                <span>
+                  <span className="underline decoration-court/35 underline-offset-2">
+                    {display.address ||
+                      [display.neighborhood, "Austin"].filter(Boolean).join(" · ")}
                   </span>
-                </a>
-              ) : null}
+                  <span className="mt-0.5 block text-[11px] font-medium text-fg-subtle no-underline">
+                    Get directions
+                  </span>
+                </span>
+              </a>
             </div>
 
             {/* Amenities */}

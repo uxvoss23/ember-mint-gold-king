@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
-import { Heart, MapPin, Star, X } from "lucide-react";
+import { Heart, MapPin, Star, Swords, X } from "lucide-react";
 import { ImageCarousel } from "@/components/image-carousel";
 import type { Court } from "@/lib/courts/types";
 import { imagesForCourt } from "@/lib/courts/images";
@@ -12,6 +12,7 @@ import {
   useCourtSocial,
 } from "@/lib/courts/social";
 import { cn } from "@/lib/utils";
+import { directionsUrl } from "@/lib/maps/directions";
 
 export type AboutCourt =
   | (Court & { miles?: number })
@@ -81,6 +82,7 @@ export function CourtAboutSheet({
   court,
   onClose,
   onSelectCourt,
+  onPlay,
   isSelected = false,
   userLat,
   userLon,
@@ -88,6 +90,7 @@ export function CourtAboutSheet({
   court: AboutCourt | null | undefined;
   onClose: () => void;
   onSelectCourt?: (id: string) => void;
+  onPlay?: () => void;
   isSelected?: boolean;
   userLat?: number;
   userLon?: number;
@@ -138,6 +141,13 @@ export function CourtAboutSheet({
       ? courtReviews.reduce((s, r) => s + r.rating, 0) / courtReviews.length
       : null;
 
+  const mapsHref =
+    typeof lat === "number" && typeof lon === "number"
+      ? directionsUrl(lat, lon, court.address || court.name)
+      : court.address
+        ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(court.address)}`
+        : null;
+
   const amenityLabels: Record<string, string> = {
     lights: "Lights",
     full_court: "Full court",
@@ -170,7 +180,7 @@ export function CourtAboutSheet({
         </div>
         {/* Photos only — name/info live below */}
         <div className="relative w-full shrink-0 overflow-hidden bg-bg-subtle">
-          <div className="relative aspect-[16/10] w-full max-h-[40dvh] min-h-[11rem]">
+          <div className="relative aspect-[16/9] w-full max-h-[56dvh] min-h-[18rem]">
             {images.length > 0 ? (
               <ImageCarousel
                 images={images}
@@ -178,6 +188,8 @@ export function CourtAboutSheet({
                 className="absolute inset-0 h-full w-full"
                 showControls
                 priority
+                allowFullscreen
+                fill
               />
             ) : (
               <div className="absolute inset-0 bg-bg-subtle" />
@@ -244,7 +256,28 @@ export function CourtAboutSheet({
               </span>
             </div>
 
-            {court.address ? (
+            {mapsHref ? (
+              <a
+                href={mapsHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-start gap-2 rounded-xl border border-border bg-bg-elevated px-3 py-2.5"
+              >
+                <MapPin className="mt-0.5 size-4 shrink-0 text-court" />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-medium leading-snug text-fg">
+                    {court.address ||
+                      [court.neighborhood, "Austin"].filter(Boolean).join(" · ")}
+                  </span>
+                  <span className="mt-0.5 inline-flex items-center text-[12px] font-semibold text-court">
+                    Get directions
+                    <span aria-hidden className="ml-0.5">
+                      ›
+                    </span>
+                  </span>
+                </span>
+              </a>
+            ) : court.address ? (
               <p className="flex items-start gap-1.5 text-[13px] leading-snug text-fg">
                 <MapPin className="mt-0.5 size-4 shrink-0 text-court" />
                 <span>{court.address}</span>
@@ -327,6 +360,24 @@ export function CourtAboutSheet({
                 )}
               >
                 {isSelected ? "Selected ✓" : "Select this court"}
+              </button>
+            </div>
+          ) : onPlay ? (
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 rounded-full border border-border py-2.5 text-sm font-semibold text-fg"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={onPlay}
+                className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-court py-2.5 text-sm font-semibold text-white"
+              >
+                <Swords className="size-3.5" strokeWidth={1.75} />
+                Play
               </button>
             </div>
           ) : (

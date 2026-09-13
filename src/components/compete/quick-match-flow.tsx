@@ -3,7 +3,6 @@ import {
   Bell,
   Calendar,
   ChevronDown,
-  ChevronLeft,
   ChevronRight,
   Clock,
   Info,
@@ -35,6 +34,11 @@ import {
 import { PlayerAvatar } from "@/components/compete/player-avatar";
 import { CourtMapCutout } from "@/components/court-map-cutout";
 import { CourtsMap } from "@/components/courts-map";
+import {
+  CourtsMapCarousel,
+  type CarouselCardMeta,
+  type CourtsMapCarouselHandle,
+} from "@/components/courts-map-carousel";
 import { ImageCarousel } from "@/components/image-carousel";
 import type { Court } from "@/lib/courts/types";
 import { COURT_PLACEHOLDER, imagesForCourt, isPlaceholderPhoto } from "@/lib/courts/images";
@@ -336,7 +340,7 @@ export function QuickMatchFlow({
   const [joinBringingBall, setJoinBringingBall] = useState<boolean | null>(null);
   const [createHood, setCreateHood] = useState("all");
   const [createSorts, setCreateSorts] = useState<Set<string>>(() => new Set(["highest_rated", "nearest"]));
-  const [createRadiusMi, setCreateRadiusMi] = useState(5);
+  const [createRadiusMi, setCreateRadiusMi] = useState(50);
   const [createPickMode, setCreatePickMode] = useState<"photos" | "map">("map");
   const [createFiltersOpen, setCreateFiltersOpen] = useState(false);
   const createMapMarked = useRef(false);
@@ -367,6 +371,8 @@ export function QuickMatchFlow({
   const chatComposerRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLInputElement>(null);
   const createGridRef = useRef<HTMLDivElement>(null);
+  const createCarouselApiRef = useRef<CourtsMapCarouselHandle>(null);
+  const ignoreCreateCarouselRef = useRef(false);
   const [keyboardInset, setKeyboardInset] = useState(0);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [reviewInviteId, setReviewInviteId] = useState<string | null>(null);
@@ -907,10 +913,18 @@ export function QuickMatchFlow({
     }
   }, [me.id, active]);
 
-  const chooseCreateCourt = (id: string) => {
+  const chooseCreateCourt = (id: string, from: "pin" | "scroll" | "card" = "pin") => {
     if (!createFilteredCourts.some((c) => c.id === id)) return;
     setCreateCourtId(id);
     setCreateCourtTouched(true);
+    if (from === "scroll") return;
+    ignoreCreateCarouselRef.current = true;
+    requestAnimationFrame(() => {
+      createCarouselApiRef.current?.scrollToId(id, from !== "card");
+      window.setTimeout(() => {
+        ignoreCreateCarouselRef.current = false;
+      }, 380);
+    });
   };
 
   const resetCreateFilters = () => {
@@ -919,7 +933,7 @@ export function QuickMatchFlow({
   };
 
   useEffect(() => {
-    if (view !== "create" || createStep !== 1 || createCourtLocked) return;
+    if (view !== "create" || createStep !== 2 || createCourtLocked) return;
     const stillValid =
       !!createCourtId && createFilteredCourts.some((c) => c.id === createCourtId);
     if (createCourtTouched && stillValid) return;
@@ -1114,45 +1128,15 @@ export function QuickMatchFlow({
       .map((id) => playerById.get(id))
       .filter((p): p is Player => !!p);
     const mapImmersive =
-      createStep === 1 && createPickMode === "map" && !createCourtLocked;
+      createStep === 2 && createPickMode === "map" && !createCourtLocked;
     if (mapImmersive && !createMapMarked.current) {
       createMapMarked.current = true;
       ucMark("create:map-jsx");
     }
-    const mapThumb = selectedCreateCourt
-      ? imagesForCourt(selectedCreateCourt.id, 1, courtOverrides)[0]
-      : COURT_PLACEHOLDER;
-    const hasRealPhoto = Boolean(mapThumb) && !isPlaceholderPhoto(mapThumb);
-    const browseCourts = filteredCourts;
-    const browseIndex = selectedCreateCourt
-      ? browseCourts.findIndex((c) => c.id === selectedCreateCourt.id)
-      : -1;
-    const selectedMiles = selectedCreateCourt
-      ? "miles" in selectedCreateCourt &&
-        typeof selectedCreateCourt.miles === "number"
-        ? selectedCreateCourt.miles
-        : haversineMi(
-            origin.lat,
-            origin.lon,
-            selectedCreateCourt.lat,
-            selectedCreateCourt.lon,
-          )
-      : null;
-    const distanceKind: "away" | "home" | "plain" = hasPreciseLocation
-      ? "away"
-      : "plain";
-    const createAutoLabel = !selectedCreateCourt
-      ? null
-      : hasPreciseLocation && browseIndex === 0
-        ? "Closest court"
-        : !hasPreciseLocation && !createCourtTouched
-          ? "Highest rated"
-          : null;
-    const stepBrowseCourt = (delta: number) => {
-      if (browseIndex < 0) return;
-      const next = browseCourts[browseIndex + delta];
-      if (next) chooseCreateCourt(next.id);
-    };
+    const createCardMeta: Record<string, CarouselCardMeta> = {};
+    for (const c of filteredCourts) {
+      createCardMeta[c.id] = { avg: 0, reviews: 0, favCount: 0 };
+    }
     const noMatchFilters = (
       <div className="rounded-xl border border-border bg-bg-elevated px-3 py-3 text-center">
         <p className="text-[13px] font-semibold text-fg">No courts match these filters</p>
@@ -1171,7 +1155,7 @@ export function QuickMatchFlow({
     if (createSorts.has("shaded")) filterParts.push("Shaded");
     if (createHood !== "all") filterParts.push(createHood);
     if (createSorts.has("nearest") && hasPreciseLocation) {
-      filterParts.push(`${createRadiusMi} mi`);
+      filterParts.push(createRadiusMi >= 50 ? "Any distance" : `${createRadiusMi} mi`);
     }
     const filterCount =
       createSorts.size + (createHood !== "all" ? 1 : 0);
@@ -1253,7 +1237,7 @@ export function QuickMatchFlow({
         )}
         </div>
 
-        {createStep === 1 ? (
+        {createStep === 2 ? (
         <>
         {createCourtLocked && selectedCreateCourt ? (
           <div className="overflow-hidden rounded-2xl border border-court/40 bg-court/10">
@@ -1357,6 +1341,8 @@ export function QuickMatchFlow({
           id="uc-create-filters"
           className={cn("uc-preview-slot", createFiltersOpen && "uc-preview-slot-open")}
           aria-hidden={!createFiltersOpen}
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
         >
           <div className="space-y-1 pt-1">
           <div className="flex gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -1403,11 +1389,11 @@ export function QuickMatchFlow({
                     </span>
                   </p>
                   <div className="flex max-w-[55%] gap-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                    {[1, 3, 5, 8, 10, 15].map((mi) => (
+                    {[1, 3, 5, 10, 15, 20, 50].map((mi) => (
                       <button key={mi} type="button" onClick={() => setCreateRadiusMi(mi)}
                         className={cn("h-7 shrink-0 rounded-full px-2 text-[10px] font-semibold tabular-nums",
                           createRadiusMi === mi ? "bg-court text-white" : "border border-border bg-bg-elevated text-fg-muted")}>
-                        {mi}mi
+                        {mi === 50 ? "Any" : `${mi}mi`}
                       </button>
                     ))}
                   </div>
@@ -1534,118 +1520,35 @@ export function QuickMatchFlow({
               courts={filteredCourts}
               location={createMapLocation}
               selectedId={selectedCreateCourt?.id ?? null}
-              onSelect={(c) => chooseCreateCourt(c.id)}
+              onSelect={(c) => chooseCreateCourt(c.id, "pin")}
               variant="finder"
               bare
-              frameSelection
+              followSelection
+              followBottomPct={40}
               layoutKey={createFiltersOpen ? "filters" : "map"}
               mapClassName="h-full w-full"
+              styleToggleClassName="!top-3"
             />
-          </div>
-          <div
-            className={cn(
-              "uc-preview-slot shrink-0 px-4",
-              (selectedCreateCourt || filteredCourts.length === 0) && "uc-preview-slot-open",
-            )}
-          >
-            <div>
-              {filteredCourts.length === 0 ? (
-                <div className="mt-1.5">{noMatchFilters}</div>
-              ) : selectedCreateCourt ? (
-                <div className="relative mt-1.5 flex items-center gap-1.5">
-                  {browseCourts.length > 1 ? (
-                    <button
-                      type="button"
-                      aria-label="Previous court"
-                      aria-disabled={browseIndex <= 0}
-                      className="uc-press flex size-12 shrink-0 items-center justify-center rounded-full bg-bg-elevated text-fg ring-1 ring-border aria-disabled:opacity-30"
-                      style={{ touchAction: "manipulation" }}
-                      onPointerDown={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (browseIndex <= 0) return;
-                        stepBrowseCourt(-1);
-                      }}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                      }}
-                    >
-                      <ChevronLeft className="size-6" strokeWidth={2.5} />
-                    </button>
-                  ) : null}
-                  <button
-                    type="button"
-                    onClick={() => setCourtInfoId(selectedCreateCourt.id)}
-                    className="uc-preview-card min-w-0 flex-1 overflow-hidden rounded-xl border border-court/35 bg-bg-elevated text-left"
-                    aria-label={`About ${selectedCreateCourt.name}`}
-                  >
-                    <div key={selectedCreateCourt.id} className="uc-preview-swap">
-                      <div className="relative aspect-[16/10] w-full overflow-hidden bg-bg-subtle">
-                        <img
-                          src={mapThumb || COURT_PLACEHOLDER}
-                          alt=""
-                          className={cn(
-                            "absolute inset-0 h-full w-full object-cover",
-                            !hasRealPhoto && "object-contain p-6 opacity-40",
-                          )}
-                        />
-                      </div>
-                      <div className="px-3 py-2">
-                        {createAutoLabel ? (
-                          <p className="text-[10px] font-bold tracking-[0.14em] text-court uppercase">
-                            {createAutoLabel}
-                          </p>
-                        ) : null}
-                        <p className="truncate text-[16px] font-semibold text-fg">
-                          {selectedCreateCourt.name.replace(/\s*Courts?\s*$/i, "") ||
-                            selectedCreateCourt.name}
-                        </p>
-                        <p className="truncate text-[12px] text-fg-muted">
-                          {selectedCreateCourt.neighborhood ?? "Austin"}
-                          {selectedMiles != null
-                            ? ` · ${formatSelectedDistance(selectedMiles, distanceKind)}`
-                            : ""}
-                        </p>
-                        <span className="mt-1 inline-flex items-center text-[12px] font-semibold text-court">
-                          View details
-                          <span aria-hidden className="ml-0.5">
-                            ›
-                          </span>
-                        </span>
-                      </div>
-                    </div>
-                  </button>
-                  {browseCourts.length > 1 ? (
-                    <button
-                      type="button"
-                      aria-label="Next court"
-                      aria-disabled={
-                        browseIndex < 0 || browseIndex >= browseCourts.length - 1
-                      }
-                      className="uc-press flex size-12 shrink-0 items-center justify-center rounded-full bg-bg-elevated text-fg ring-1 ring-border aria-disabled:opacity-30"
-                      style={{ touchAction: "manipulation" }}
-                      onPointerDown={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (
-                          browseIndex < 0 ||
-                          browseIndex >= browseCourts.length - 1
-                        ) {
-                          return;
-                        }
-                        stepBrowseCourt(1);
-                      }}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                      }}
-                    >
-                      <ChevronRight className="size-6" strokeWidth={2.5} />
-                    </button>
-                  ) : null}
-                </div>
-              ) : null}
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20">
+              <div className="pointer-events-auto">
+                {filteredCourts.length === 0 ? (
+                  <div className="px-4 pb-2">{noMatchFilters}</div>
+                ) : (
+                  <CourtsMapCarousel
+                    ref={createCarouselApiRef}
+                    courts={filteredCourts}
+                    selectedId={selectedCreateCourt?.id ?? null}
+                    meta={createCardMeta}
+                    overrides={courtOverrides}
+                    ignoreRef={ignoreCreateCarouselRef}
+                    onActiveChange={(c) => chooseCreateCourt(c.id, "scroll")}
+                    onOpenDetails={(c) => {
+                      chooseCreateCourt(c.id, "card");
+                      setCourtInfoId(c.id);
+                    }}
+                  />
+                )}
+              </div>
             </div>
           </div>
           </>
@@ -1656,7 +1559,7 @@ export function QuickMatchFlow({
         </>
         ) : null}
 
-        {createStep === 2 ? (
+        {createStep === 1 ? (
         <>
         <div className="space-y-2 rounded-xl border border-border bg-bg-elevated p-3">
           <p className="text-[11px] font-bold text-fg">Game type</p>
@@ -1821,10 +1724,10 @@ export function QuickMatchFlow({
               </ul>
               <div className="mt-3 flex gap-2">
                 <button type="button" onClick={() => setCreateStep(1)} className="text-[11px] font-semibold text-court">
-                  Edit court
+                  Edit details
                 </button>
                 <button type="button" onClick={() => setCreateStep(2)} className="text-[11px] font-semibold text-court">
-                  Edit details
+                  Edit court
                 </button>
               </div>
             </div>
@@ -1840,14 +1743,6 @@ export function QuickMatchFlow({
           onClick={() => {
             if (postingCreate) return;
             if (createStep === 1) {
-              if (!selectedCreateCourt) {
-                goCreateBack();
-                return;
-              }
-              setCreateStep(2);
-              return;
-            }
-            if (createStep === 2) {
               if (!createWhen) {
                 setStatusMsg("Pick a date and time.");
                 return;
@@ -1859,6 +1754,14 @@ export function QuickMatchFlow({
               if (createVisibility === "invite_only" && createInviteIds.length === 0) {
                 setStatusMsg("Private matches need at least one invite.");
                 setCreateInviteOpen(true);
+                return;
+              }
+              setCreateStep(2);
+              return;
+            }
+            if (createStep === 2) {
+              if (!selectedCreateCourt) {
+                setStatusMsg("Pick a court.");
                 return;
               }
               setCreateStep(3);
@@ -1877,11 +1780,11 @@ export function QuickMatchFlow({
           {postingCreate
             ? "Posting…"
             : createStep === 1
-              ? selectedCreateCourt
-                ? "Continue"
-                : "Back to Explore"
+              ? "Continue"
               : createStep === 2
-                ? "Review & post"
+                ? selectedCreateCourt
+                  ? "Continue"
+                  : "Pick a court"
                 : createVisibility === "invite_only"
                   ? `Post private match · ${createInviteIds.length} invite${createInviteIds.length === 1 ? "" : "s"}`
                   : createInviteIds.length
@@ -2992,7 +2895,6 @@ export function QuickMatchFlow({
   ];
   const sortLabel =
     sortOptions.find((s) => s.id === (lobbySort ?? "recent"))?.label ?? "Most recent";
-  const placeLabel = userLocationLabel?.trim() || "Austin, TX";
 
   return (
     <>
@@ -3007,23 +2909,8 @@ export function QuickMatchFlow({
         </p>
       ) : null}
 
-      <div className="flex items-center justify-between gap-3">
-        <p className="min-w-0 truncate text-[17px] font-semibold tracking-tight">
-          <span className="text-court">Upset City</span>
-          <span className="text-fg-muted"> · {placeLabel}</span>
-        </p>
-        <button
-          type="button"
-          onClick={startCreate}
-          className="uc-press inline-flex h-9 shrink-0 items-center gap-1 rounded-full bg-court px-3.5 text-white"
-          aria-label="Create game"
-        >
-          <Plus className="size-3.5" strokeWidth={2.5} />
-          <span className="text-[12px] font-semibold">Create</span>
-        </button>
-      </div>
-
-      <div className="flex rounded-full border border-border bg-bg-elevated p-0.5">
+      <div className="flex items-center gap-2">
+        <div className="flex min-w-0 flex-1 rounded-full border border-border bg-bg-elevated p-0.5">
         {(
           [
             {
@@ -3074,6 +2961,16 @@ export function QuickMatchFlow({
             </button>
           );
         })}
+        </div>
+        <button
+          type="button"
+          onClick={startCreate}
+          className="uc-press inline-flex h-9 shrink-0 items-center gap-1 rounded-full bg-court px-3.5 text-white"
+          aria-label="Create game"
+        >
+          <Plus className="size-3.5" strokeWidth={2.5} />
+          <span className="text-[12px] font-semibold">Create</span>
+        </button>
       </div>
 
       {/* OPEN — marketplace */}

@@ -130,6 +130,21 @@ export default defineConfig(({ command }) => ({
     host: "0.0.0.0",
     port: 8080,
     strictPort: true,
+    warmup: {
+      clientFiles: [
+        "./src/lib/maps/preload-maplibre.ts",
+        "./src/lib/maps/engine.ts",
+        "./src/components/courts-map.tsx",
+      ],
+    },
+  },
+  optimizeDeps: {
+    include: ["maplibre-gl"],
+    esbuildOptions: {
+      minify: true,
+      legalComments: "none",
+      target: "es2022",
+    },
   },
   resolve: { tsconfigPaths: true },
   plugins: [

@@ -128,8 +128,9 @@
     border-top-color: color-mix(in oklab, var(--color-fg) 12%, transparent) !important;
   }
 
-  .uc-you-wrap {
-    z-index: 80 !important;
+  .uc-you-wrap,
+  .maplibregl-marker.uc-you-wrap {
+    z-index: 10000 !important;
     pointer-events: none;
   }
 
@@ -594,6 +595,46 @@
   html[data-uc-create-immersive] .uc-app-header,
   html[data-uc-courts-map] .uc-app-header {
     display: none !important;
+  }
+
+  /* Create 1v1 court picker: compact landscape cards (~184px) so the map stays visible */
+  html[data-uc-create-immersive] [data-courts-scroll="carousel"] {
+    padding-bottom: 0.25rem;
+    padding-top: 0;
+  }
+
+  html[data-uc-create-immersive] .uc-map-carousel-card {
+    display: flex;
+    flex-direction: column;
+    height: 184px !important;
+    max-height: 184px !important;
+    overflow: hidden;
+  }
+
+  html[data-uc-create-immersive] .uc-map-carousel-card > div:first-child {
+    aspect-ratio: 2.2 / 1 !important;
+    flex: 0 0 122px !important;
+    height: 122px !important;
+    max-height: 122px !important;
+  }
+
+  html[data-uc-create-immersive] .uc-map-carousel-card > div:first-child img {
+    object-fit: cover;
+    padding: 0;
+  }
+
+  html[data-uc-create-immersive] .uc-map-carousel-card > div:last-child {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 0;
+    padding: 4px 10px 6px !important;
+  }
+
+  html[data-uc-create-immersive] .uc-map-carousel-card h3 {
+    font-size: 13px;
+    line-height: 1.2;
   }
 
   /* While boot splash is up: hide any stray tab bar */
