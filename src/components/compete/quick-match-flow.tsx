@@ -30,7 +30,6 @@ import { HoopNowFlow } from "@/components/compete/hoop-now-flow";
 import { PlayerBrowseFilters } from "@/components/compete/player-browse-filters";
 import { MatchRemindersCard } from "@/components/compete/match-reminders-card";
 import {
-  reminderState,
   remindersCompleted,
 } from "@/lib/match-reminders";
 import { PlayerAvatar } from "@/components/compete/player-avatar";
@@ -42,7 +41,7 @@ import {
 } from "@/components/courts-map-carousel";
 import { ImageCarousel } from "@/components/image-carousel";
 import type { Court } from "@/lib/courts/types";
-import { COURT_PLACEHOLDER, imagesForCourt, isPlaceholderPhoto } from "@/lib/courts/images";
+import { imagesForCourt } from "@/lib/courts/images";
 import { refreshCourtAdmin, useCourtAdmin } from "@/lib/courts/admin-overrides";
 import { directionsUrl } from "@/lib/maps/directions";
 import { suggestAustinAddresses, type GeoHit } from "@/lib/maps/geocode";
@@ -60,7 +59,7 @@ import { cn, formatHeightInches } from "@/lib/utils";
 import { useVisualKeyboard } from "@/hooks/use-visual-keyboard";
 import { DEFAULT_BROWSE_FILTERS, loadBrowseFilters, persistBrowseFilters, clearPersistedBrowseFilters, playerMatchesBrowseFilters, type BrowseFilters } from "@/lib/upset/browse-filters";
 import { isDemoMode, isMatchModeEnabled } from "@/lib/config";
-import { GUEST_PLAYER_ID, isGuestPlayerId } from "@/lib/game/guest";
+import { isGuestPlayerId } from "@/lib/game/guest";
 import { useRequireAuth } from "@/lib/game/use-require-auth";
 import { addFriendFn } from "@/lib/game/dm-fns";
 import {
@@ -76,7 +75,7 @@ import {
   reportPlayerFn,
 } from "@/lib/game/fns";
 import { useTabBarGate } from "@/lib/ui/tab-bar-gate";
-import { RATED_RULES_COPY, canAccessGameChat, chatThreadIds, messagesInThread } from "@/lib/game/rules";
+import { canAccessGameChat, chatThreadIds, messagesInThread } from "@/lib/game/rules";
 import { markInboxRead } from "@/lib/messages/inbox";
 import { collectBusySlots, conflictMessage, slotConflict } from "@/lib/game/schedule-conflict";
 
@@ -175,12 +174,6 @@ function haversineMi(lat1: number, lon1: number, lat2: number, lon2: number) {
 }
 function inAustinMetro(lat: number, lon: number) { return lat >= 30.05 && lat <= 30.55 && lon >= -98.05 && lon <= -97.45; }
 function formatMiles(mi: number) { if (mi < 0.1) return "<0.1 mi"; if (mi < 10) return `${mi.toFixed(1)} mi`; return `${Math.round(mi)} mi`; }
-function formatSelectedDistance(mi: number, kind: "away" | "home" | "plain") {
-  const dist = formatMiles(mi);
-  if (kind === "away") return `${dist} away`;
-  if (kind === "home") return `${dist} from home`;
-  return dist;
-}
 function whenParts(iso: string) {
   try {
     const d = new Date(iso);
@@ -216,7 +209,7 @@ function cityRankOf(players: Player[], playerId: string): number | null {
 export function QuickMatchFlow({
   me, players, courts, matches, userLat, userLon, userLocationLabel,
   onCreateMatch, onAcceptMatch, onOpenPlayer,
-  compactHeader = false, onImmersiveChange,
+  compactHeader: _compactHeader = false, onImmersiveChange,
   focusMatchId = null, onFocusMatchConsumed,
   presetCourt = null, onPresetCourtConsumed,
   active = true,
@@ -411,11 +404,6 @@ export function QuickMatchFlow({
   const [keyboardInset, setKeyboardInset] = useState(0);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [reviewInviteId, setReviewInviteId] = useState<string | null>(null);
-  const [actionExpandId, setActionExpandId] = useState<string | null>(null);
-  const [waitingExpandId, setWaitingExpandId] = useState<string | null>(null);
-  const [editingWaitId, setEditingWaitId] = useState<string | null>(null);
-  const [nudgeFlash, setNudgeFlash] = useState<string | null>(null);
-  const [waitingChat, setWaitingChat] = useState("");
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [cancelError, setCancelError] = useState<string | null>(null);
@@ -427,7 +415,7 @@ export function QuickMatchFlow({
   const [showAddressEntry, setShowAddressEntry] = useState(false);
   const [addressQuery, setAddressQuery] = useState("");
   const [addressHits, setAddressHits] = useState<GeoHit[]>([]);
-  const [addressSearching, setAddressSearching] = useState(false);
+  const [_addressSearching, setAddressSearching] = useState(false);
 
   // Deep-link from Me / Upcoming: open the game sheet. Must win over the
   // "Play just became active with alerts → scheduled desk" effect below.
@@ -747,7 +735,6 @@ export function QuickMatchFlow({
   );
   const needsYou = useMemo(() => matchActionsForPlayer(matches, me), [matches, me]);
   const needsYouActive = useMemo(() => needsYou.filter((a) => a.kind !== "waiting_confirm"), [needsYou]);
-  const waitingOnThem = useMemo(() => needsYou.filter((a) => a.kind === "waiting_confirm"), [needsYou]);
   const playAlerts = incomingInvites.length + needsYouActive.length;
   const wasPlayActive = useRef(false);
   useEffect(() => {
@@ -1879,6 +1866,7 @@ export function QuickMatchFlow({
           </button>
           <button
             type="button"
+            aria-label="Chat tab"
             onClick={openGameChat}
             className={cn(
               "relative rounded-lg py-1.5 text-center text-[12px] font-semibold",
@@ -2677,7 +2665,8 @@ export function QuickMatchFlow({
         <button
           type="button"
           onClick={openGameChat}
-          aria-label="Open chat"
+          data-testid="open-game-chat"
+          aria-label="Open game chat"
           className="flex w-full items-center gap-3 rounded-2xl border border-border bg-bg-elevated px-3 py-3 text-left"
         >
           <span className="flex size-10 items-center justify-center rounded-full bg-court/15 text-court">
@@ -3277,6 +3266,7 @@ export function QuickMatchFlow({
                     key={m.id}
                     type="button"
                     onClick={() => openGame(m.id)}
+                    aria-label={`${host?.name ?? "Host"} ${gameType} at ${m.courtName}`}
                     className={cn(
                       "uc-press flex w-full items-stretch gap-0 overflow-hidden rounded-2xl border text-left",
                       rec

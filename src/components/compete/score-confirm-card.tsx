@@ -137,6 +137,8 @@ export function ScoreConfirmCard({
           <div className="flex gap-2 pt-0.5">
             <button
               type="button"
+              data-testid="confirm-score"
+              aria-label="Looks right · confirm"
               onClick={onConfirm}
               className="h-11 flex-1 rounded-xl bg-court text-sm font-semibold text-white"
             >

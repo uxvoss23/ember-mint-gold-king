@@ -43,6 +43,13 @@ export function YouHome({
   const isKing = rank === 1;
   const displayName = accountName?.trim() || me.name;
   const overrides = useCourtAdmin((s) => s.overrides);
+  const [verifyUrl] = useState(() => {
+    try {
+      return sessionStorage.getItem("uc-verify-url");
+    } catch {
+      return null;
+    }
+  });
 
   if (!signedIn) return null;
 
@@ -70,19 +77,13 @@ export function YouHome({
     ? formatLocalWhen(nextGame.scheduledAt ?? nextGame.preferredAt)
     : "";
   const waiting = nextGame && !nextGame.opponentId;
-  const [verifyUrl] = useState(() => {
-    try {
-      return sessionStorage.getItem("uc-verify-url");
-    } catch {
-      return null;
-    }
-  });
 
   return (
     <div className="space-y-6">
       <button
         type="button"
         onClick={onOpenProfile}
+        aria-label={displayName}
         className="flex w-full items-center gap-3.5 text-left"
       >
         <PlayerAvatar player={me} size="lg" showElite className="!size-[4.25rem]" />
@@ -171,6 +172,11 @@ export function YouHome({
           <button
             type="button"
             onClick={() => onOpenMatch(nextGame.id)}
+            aria-label={
+              nextGame.status === "played_pending"
+                ? `Score pending vs ${nextGame.courtName}`
+                : nextGame.courtName
+            }
             className="flex w-full items-center gap-3 rounded-2xl bg-bg-elevated p-2.5 text-left"
           >
             <div className="size-[4.25rem] shrink-0 overflow-hidden rounded-xl bg-bg-subtle">

@@ -3,8 +3,8 @@ import { getPushPublicKeyFn, savePushSubscriptionFn } from "./fns";
 const ASKED_KEY = "uc-push-asked";
 
 function urlBase64ToUint8Array(base64: string): BufferSource {
-  const padding = "=".repeat((4 - (base64.length % 4)) % 4);
-  const raw = atob(base64.replace(/-/g, "+").replace(/_/g, "/"));
+  const _padding = "=".repeat((4 - (base64.length % 4)) % 4);
+  const raw = atob(base64.replace(/-/g, "+").replace(/_/g, "/") + _padding);
   const out = new Uint8Array(raw.length);
   for (let i = 0; i < raw.length; i += 1) out[i] = raw.charCodeAt(i);
   return out;

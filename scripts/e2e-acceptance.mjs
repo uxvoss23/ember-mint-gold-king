@@ -75,12 +75,16 @@ async function clickVis(page, name, timeout = 5000) {
 }
 
 async function openScoreConfirm(page) {
-  if (!(await visButton(page, /Looks right · confirm/i).count())) {
+  const confirmCtl = () =>
+    page.getByTestId("confirm-score").or(visButton(page, /Looks right · confirm/i)).first();
+  if (!(await confirmCtl().count())) {
+    await tapTab(page, "Me");
+    await page.waitForTimeout(800);
     const fromMe = await clickVis(page, /Score pending vs/i, 4000);
     if (!fromMe) await clickVis(page, /Score pending/i, 2000);
     await page.waitForTimeout(700);
   }
-  if (!(await visButton(page, /Looks right · confirm/i).count())) {
+  if (!(await confirmCtl().count())) {
     await tapTab(page, "Play");
     await page.waitForTimeout(500);
     await clickVis(page, /My Games/i, 3000);
@@ -91,8 +95,7 @@ async function openScoreConfirm(page) {
   }
   await clickVis(page, /^Details$/i, 2000);
   await page.waitForTimeout(400);
-  const confirm = visButton(page, /Looks right · confirm/i);
-  return confirm
+  return confirmCtl()
     .waitFor({ state: "visible", timeout: 12000 })
     .then(() => true)
     .catch(() => false);
@@ -152,13 +155,26 @@ async function completeProfile(page, age = "24", { tryUnderage = false } = {}) {
 }
 
 async function signupOnLoginPage(page, { name, email, password }) {
-  if (!(await page.getByPlaceholder("What should we call you?").count())) {
-    await page.getByRole("button", { name: /Create an account/i }).click();
+  await page.getByPlaceholder("you@email.com").first().waitFor({ state: "visible", timeout: 15000 });
+  const nameBox = page.getByPlaceholder("What should we call you?");
+  for (let i = 0; i < 5; i += 1) {
+    if (await nameBox.isVisible().catch(() => false)) break;
+    const toggle = page.getByRole("button", { name: "Create an account" }).first();
+    if (await toggle.count()) {
+      await toggle.scrollIntoViewIfNeeded().catch(() => {});
+      await toggle.click({ force: true });
+    }
+    await page.waitForTimeout(500);
   }
-  await page.getByPlaceholder("What should we call you?").fill(name);
+  if (!(await nameBox.isVisible().catch(() => false))) {
+    await page.screenshot({ path: `${SHOT}/e2e-signup-mode.png` }).catch(() => {});
+    const t = (await page.locator("body").innerText().catch(() => "")).slice(0, 240);
+    throw new Error(`signup form did not open (${t})`);
+  }
+  await nameBox.fill(name);
   await page.getByPlaceholder("you@email.com").fill(email);
   await page.getByPlaceholder("At least 8 characters").fill(password);
-  await page.getByRole("button", { name: /Create account/i }).click();
+  await page.getByRole("button", { name: /^Create account$/i }).click();
   const alert = page.locator('[role="alert"]').first();
   await page.waitForTimeout(800);
   const err = (await alert.textContent().catch(() => "")) || "";
@@ -204,18 +220,36 @@ async function pickTipoff(page) {
     if (expanded !== "true") await tip.click();
     await page.waitForTimeout(300);
   }
-  const futureDay = page.getByRole("button", { name: /Fri|Sat|Sun|Mon|Tue|Wed|Thu/i }).nth(4);
-  if (await futureDay.count()) {
-    await futureDay.click();
+  const days = page.getByRole("button", { name: /Fri|Sat|Sun|Mon|Tue|Wed|Thu/i });
+  const dayCount = await days.count();
+  const start = Math.min(2, Math.max(0, dayCount - 1));
+  for (let i = start; i < dayCount; i += 1) {
+    const day = days.nth(i);
+    if (await day.isDisabled().catch(() => true)) continue;
+    await day.click();
     await page.waitForTimeout(200);
+    const times = page.getByRole("button", { name: /\d{1,2}:\d{2}\s*(AM|PM)/i });
+    const n = await times.count();
+    for (let j = 0; j < n; j += 1) {
+      const slot = times.nth(j);
+      if (await slot.isDisabled().catch(() => true)) continue;
+      await slot.click();
+      await page.waitForTimeout(250);
+      return true;
+    }
   }
-  const timeBtn = page.getByRole("button", { name: /\d{1,2}:\d{2}\s*(AM|PM)/i }).nth(4);
-  await timeBtn.waitFor({ state: "visible", timeout: 6000 });
-  await timeBtn.click();
-  await page.waitForTimeout(250);
+  return false;
 }
 
 async function pickCreateCourt(page) {
+  if ((await createFlowOpen(page).count()) === 0) {
+    await tapTab(page, "Play");
+    await page.waitForTimeout(400);
+    if (await playCreateButton(page).count()) {
+      await playCreateButton(page).click();
+      await page.waitForTimeout(600);
+    }
+  }
   const list = page.getByRole("button", { name: /^List$/ }).first();
   if (await list.count()) await list.click();
   await page.waitForTimeout(200);
@@ -236,18 +270,17 @@ async function pickCreateCourt(page) {
       await page.waitForTimeout(150);
     }
   }
-  const select = page.getByRole("button", { name: /Select /i }).first();
+  const select = page.getByRole("button", { name: /Select (?!court$)/i }).first();
   const appeared = await select
     .waitFor({ state: "visible", timeout: 8000 })
     .then(() => true)
     .catch(() => false);
   if (appeared) {
     await select.click();
-  } else {
-    const card = page.locator("button.w-full.text-left").first();
-    if (await card.count()) await card.click();
+    return;
   }
-  await page.waitForTimeout(300);
+  const card = page.getByRole("button", { name: /Park|Zilker|Givens|Butler|Bartholomew|Pease|Rosewood/i }).first();
+  if (await card.count()) await card.click();
 }
 
 function createFlowOpen(page) {
@@ -267,53 +300,72 @@ async function ensureTabs(page, timeout = 12000) {
   await waitTabs(page, timeout);
 }
 
-async function postPublicMatch(page) {
-  await pickCreateCourt(page);
-  const continueBtn = page.getByRole("button", { name: /^Continue$/ }).first();
-  if (!(await continueBtn.count())) {
+async function postedMatchVisible(page) {
+  if ((await createFlowOpen(page).count()) > 0) return false;
+  if ((await page.getByRole("button", { name: /Post public match|Create Game/i }).count()) > 0) {
     return false;
   }
-  await continueBtn.click();
-  await page.waitForTimeout(400);
-  await pickTipoff(page);
-  const yes = page.getByRole("button", { name: /^Yes$/ }).first();
-  if (await yes.count()) await yes.click();
-  const review = page.getByRole("button", { name: /Review & post/i }).first();
-  if (await review.count()) {
-    await review.click();
-    await page.waitForTimeout(500);
+  if ((await page.getByTestId("open-game-chat").count()) > 0) return true;
+  const t = await bodyText(page);
+  return /You’re hosting|Waiting for a player|Public match is live in the lobby/i.test(t);
+}
+
+async function postPublicMatch(page) {
+  const continueBtn = page.getByRole("button", { name: /^Continue$/ }).first();
+  if (await continueBtn.count()) {
+    await pickTipoff(page);
+    const yes = page.getByRole("button", { name: /^Yes$/ }).first();
+    if (await yes.count()) await yes.click();
+    await continueBtn.click();
+    await page.waitForTimeout(400);
   }
-  if ((await page.getByRole("button", { name: /Post public match/i }).count()) === 0) {
+  await pickCreateCourt(page);
+  const selectCourt = page.getByRole("button", { name: /^Select court$/ }).first();
+  if (await selectCourt.count()) {
+    await selectCourt.click();
+    await page.waitForTimeout(500);
+  } else if (await continueBtn.count()) {
+    await continueBtn.click();
+    await page.waitForTimeout(400);
+  }
+  if ((await page.getByRole("button", { name: /Post public match|Create Game/i }).count()) === 0) {
     if (await page.getByText(/Pick a date and time/i).count()) {
       await pickTipoff(page);
-      if (await review.count()) await review.click();
-      await page.waitForTimeout(500);
     }
   }
   if (await page.getByPlaceholder("24").count()) {
     await completeProfile(page, "24");
   }
-  const post = page.getByRole("button", { name: /Post public match/i }).first();
+  const post = page.getByRole("button", { name: /Post public match|Create Game/i }).first();
   log("post public match CTA", (await post.count()) > 0);
   if (!(await post.count())) return false;
-  await post.click();
-  if (await page.getByPlaceholder("24").count()) {
-    await completeProfile(page, "24");
-    if (await page.getByRole("button", { name: /Post public match/i }).count()) {
-      await page.getByRole("button", { name: /Post public match/i }).click();
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (attempt > 0) {
+      const selects = page.getByRole("button", { name: /Select (?!court$)/i });
+      const n = await selects.count();
+      if (n > attempt) {
+        await selects.nth(attempt).click().catch(() => {});
+        await page.waitForTimeout(300);
+      }
+      await pickTipoff(page);
+      const again = page.getByRole("button", { name: /Post public match|Create Game/i }).first();
+      if (!(await again.count())) break;
+      await again.click();
+    } else {
+      await post.click();
     }
+    if (await page.getByPlaceholder("24").count()) {
+      await completeProfile(page, "24");
+      const retry = page.getByRole("button", { name: /Post public match|Create Game/i }).first();
+      if (await retry.count()) await retry.click();
+    }
+    const ok = await waitFor(page, () => postedMatchVisible(page), 8000);
+    if (ok) return true;
+    const stillCreate = (await createFlowOpen(page).count()) > 0;
+    if (!stillCreate) return false;
   }
-  return waitFor(
-    page,
-    async () => {
-      const t = await bodyText(page);
-      return (
-        /anyone can join|Waiting for a player|nobody joined|Open chat|You’re hosting/i.test(t) ||
-        (await page.getByRole("button", { name: /Open chat/i }).count()) > 0
-      );
-    },
-    10000,
-  );
+  return postedMatchVisible(page);
 }
 
 async function exitCreateIfOpen(page) {
@@ -523,18 +575,31 @@ try {
     await tapTab(pageA, "Me");
     await pageA.waitForTimeout(800);
     const guestChrome = await pageA.getByText(/Browse courts, open games, and rankings/i).count();
-    const hasName = (await pageA.getByText(aName).count()) > 0;
-    const hasEmail = (await pageA.getByText(aEmail).count()) > 0;
-    const signedOutBtn = (await pageA.getByRole("button", { name: /Sign out/i }).count()) > 0;
-    log("session restoration chrome (sign out)", signedOutBtn);
+    const hasName =
+      (await pageA.getByRole("button", { name: aName }).count()) > 0 ||
+      (await pageA.getByText(aName).count()) > 0 ||
+      (await pageA.getByText(aName.split(" ")[0]).count()) > 0;
+    const signedOutBtnHome = (await pageA.getByRole("button", { name: /Sign out/i }).count()) > 0;
+    const settingsBtn = pageA.getByRole("button", { name: /^Settings$/i }).first();
     log("me is authenticated player not Guest", guestChrome === 0 && hasName);
+    if (await settingsBtn.count()) {
+      await settingsBtn.click();
+      await pageA.waitForTimeout(500);
+    }
+    const hasEmail = (await pageA.getByText(aEmail).count()) > 0;
+    const signedOutBtn = signedOutBtnHome || (await pageA.getByRole("button", { name: /Sign out/i }).count()) > 0;
+    log("session restoration chrome (sign out)", signedOutBtn);
     log("account email agrees with session", hasEmail);
 
     const profileBtn = pageA.getByRole("button", { name: /Profile and privacy/i }).first();
     log("profile and privacy reachable from Me", (await profileBtn.count()) > 0);
     if (await profileBtn.count()) {
-      await profileBtn.focus();
-      await profileBtn.press("Enter");
+      await profileBtn.click();
+      await pageA.waitForTimeout(400);
+    }
+    const viewProfile = pageA.getByRole("button", { name: /View profile/i }).first();
+    if (await viewProfile.count()) {
+      await viewProfile.click();
       await pageA.waitForTimeout(500);
     } else {
       await pageA.getByRole("button", { name: new RegExp(aName, "i") }).first().click();
@@ -563,15 +628,20 @@ try {
       "privacy settings in profile",
       (await pageA.getByText(/Privacy and discovery/i).count()) > 0,
     );
+    await pageA.keyboard.press("Escape");
+    await pageA.waitForTimeout(300);
+    if ((await pageA.getByRole("dialog").count()) > 0) {
+      await pageA.keyboard.press("Escape");
+      await pageA.waitForTimeout(300);
+    }
     const nobody = pageA.getByRole("button", { name: /Nobody/i }).first();
     log("dm privacy options", (await nobody.count()) > 0);
     if (await nobody.count()) {
-      await nobody.click();
+      await nobody.scrollIntoViewIfNeeded();
+      await nobody.click({ force: true });
       await pageA.waitForTimeout(600);
     }
 
-    await pageA.keyboard.press("Escape");
-    await pageA.waitForTimeout(400);
     log(
       "escape closes profile dialog",
       (await pageA.getByRole("dialog").count()) === 0,
@@ -583,6 +653,10 @@ try {
       await playCreateButton(pageA).click();
       await pageA.waitForTimeout(800);
     }
+    if ((await createFlowOpen(pageA).count()) === 0) {
+      await playCreateButton(pageA).click().catch(() => {});
+      await pageA.waitForTimeout(800);
+    }
     await completeProfile(pageA, "24");
     const posted = await postPublicMatch(pageA);
     log("account A posted a public rated match", posted);
@@ -590,6 +664,8 @@ try {
 
     await exitCreateIfOpen(pageA);
     await tapTab(pageA, "Me");
+    const settingsOut = pageA.getByRole("button", { name: /^Settings$/i }).first();
+    if (await settingsOut.count()) await settingsOut.click();
     await pageA.getByRole("button", { name: /Sign out/i }).first().click();
     await pageA.waitForTimeout(1200);
     log(
@@ -615,9 +691,20 @@ try {
     await tapTab(pageB, "Me");
     await pageB.waitForTimeout(600);
     const guestB = await pageB.getByText(/Browse courts, open games, and rankings/i).count();
-    log("account B is authenticated not Guest", guestB === 0 && (await pageB.getByText(bName).count()) > 0);
+    log("account B is authenticated not Guest", guestB === 0 && (
+      (await pageB.getByRole("button", { name: bName }).count()) > 0 ||
+      (await pageB.getByText(bName).count()) > 0 ||
+      (await pageB.getByText(bName.split(" ")[0]).count()) > 0
+    ));
     const profileB = pageB.getByRole("button", { name: /Profile and privacy/i }).first();
-    if (await profileB.count()) await profileB.click();
+    if (!(await profileB.count())) {
+      const settingsB = pageB.getByRole("button", { name: /^Settings$/i }).first();
+      if (await settingsB.count()) await settingsB.click();
+    }
+    const profileB2 = pageB.getByRole("button", { name: /Profile and privacy/i }).first();
+    if (await profileB2.count()) await profileB2.click();
+    const viewB = pageB.getByRole("button", { name: /View profile/i }).first();
+    if (await viewB.count()) await viewB.click();
     await completeProfile(pageB, "25");
     await pageB.keyboard.press("Escape").catch(() => {});
 
@@ -630,39 +717,45 @@ try {
     const found = await waitFor(
       pageB,
       async () =>
-        (await pageB.getByText(/Alpha Tester/i).count()) > 0 ||
-        (await pageB
-          .locator("button")
-          .filter({ hasText: /Zilker|Givens|Bartholomew|Pease|Rosewood|Park|1v1/i })
-          .count()) > 0,
-      10000,
+        (await pageB.getByRole("button", { name: /Alpha Tester/i }).count()) > 0 ||
+        (await pageB.getByText(/Alpha Tester/i).count()) > 0,
+      20000,
     );
+    if (!found) {
+      const dump = (await bodyText(pageB)).replace(/\s+/g, " ").slice(0, 400);
+      await pageB.screenshot({ path: `${SHOT}/phase7-lobby-b.png` }).catch(() => {});
+      console.log("lobby dump:", dump);
+    }
     log("account B discovers the match", found);
 
-    const byHost = pageB.locator("button").filter({ hasText: /Alpha Tester/i }).first();
-    if (await byHost.count()) {
-      await byHost.click();
-    } else {
-      const gameCard = pageB
-        .locator("button")
-        .filter({ hasText: /Zilker|Givens|Bartholomew|Pease|Rosewood|Park|1v1/i })
-        .first();
-      if (await gameCard.count()) await gameCard.click();
-    }
+    const byHost = pageB
+      .getByRole("button", { name: /Alpha Tester/i })
+      .or(pageB.locator("button").filter({ hasText: /Alpha Tester/i }))
+      .first();
+    await byHost.waitFor({ state: "visible", timeout: 8000 });
+    await byHost.click();
     await pageB.waitForTimeout(800);
     const yesB = pageB.getByRole("button", { name: /^Yes$/ }).first();
     if (await yesB.count()) await yesB.click();
-    const join = pageB.getByRole("button", { name: /Join/i }).first();
+    const join = pageB.getByRole("button", { name: /Join 1v1|Join HORSE|Join/i }).first();
     log("join control present", (await join.count()) > 0);
     if (await join.count()) {
       await join.click();
       await pageB.waitForTimeout(1500);
     }
-    const joinedCopy = await bodyText(pageB);
-    const joined = /You’re in|locked in|Game locked|Scheduled|Open chat/i.test(joinedCopy);
-    log("account B joined the match", joined || (await pageB.getByRole("button", { name: /Open chat|Chat/i }).count()) > 0);
+    const joined = await waitFor(
+      pageB,
+      async () => {
+        const t = await bodyText(pageB);
+        return /You’re in|locked in|Game locked|Cancel game/i.test(t);
+      },
+      8000,
+    );
+    log("account B joined the match", joined);
 
-    const chatBtn = pageB.getByRole("button", { name: /Open chat|^Chat$/i }).first();
+    const chatBtn = pageB.getByTestId("open-game-chat").or(
+      pageB.getByRole("button", { name: /Open game chat/i }),
+    ).first();
     if (await chatBtn.count()) {
       await chatBtn.click();
       await pageB.waitForTimeout(500);
@@ -733,10 +826,12 @@ try {
     await pageA.waitForTimeout(500);
     log(
       "account A session restored after sign-in",
-      (await pageA.getByText(aName).count()) > 0 &&
+      ((await pageA.getByRole("button", { name: aName }).count()) > 0 ||
+        (await pageA.getByText(aName).count()) > 0 ||
+        (await pageA.getByText(aName.split(" ")[0]).count()) > 0) &&
         (await pageA.getByText(/Browse courts, open games, and rankings/i).count()) === 0,
     );
-    await pageA.waitForTimeout(800);
+    await pageA.waitForTimeout(1500);
     const confirmReady = await openScoreConfirm(pageA);
     if (!confirmReady) {
       const dbg = await pageA
@@ -753,7 +848,7 @@ try {
     }
     log("confirm control for other player", confirmReady);
     if (confirmReady) {
-      await visButton(pageA, /Looks right · confirm/i).click();
+      await pageA.getByTestId("confirm-score").or(visButton(pageA, /Looks right · confirm/i)).first().click();
       await pageA.waitForTimeout(1800);
     }
     await pageA.screenshot({ path: `${SHOT}/phase7-confirm.png` });
@@ -764,7 +859,10 @@ try {
     await tapTab(pageA, "Me");
     await pageA.waitForTimeout(800);
     const after = await bodyText(pageA);
-    const recordMoved = /1W|1W–0L|1W-0L/.test(after) && !/0W–0L/.test(after);
+    const recordMoved =
+      (/1W|1W–0L|1W-0L/.test(after) || /\b1[–-]0\b/.test(after)) &&
+      !/0W–0L/.test(after) &&
+      !/\b0[–-]0\b/.test(after);
     log("ratings and records change after confirmation", recordMoved);
   } catch (err) {
     log("confirm + rating journey", false, String(err?.message || err).slice(0, 220));

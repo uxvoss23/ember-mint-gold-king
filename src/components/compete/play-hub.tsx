@@ -53,7 +53,7 @@ export const PlayHub = memo(function PlayHub({
   userLat,
   userLon,
   userLocationLabel,
-  onOpenProfile,
+  onOpenProfile: _onOpenProfile,
   onCreateMatch,
   onAcceptMatch,
   onOpenPlayer,

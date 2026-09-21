@@ -35,7 +35,7 @@ import {
   deleteAccountFn,
   joinGameFn,
 } from "@/lib/game/fns";
-import { mutationError, refreshCompetitiveSnapshot, refreshCompetitiveSnapshotSoon } from "@/lib/game/client-actions";
+import { mutationError, refreshCompetitiveSnapshotSoon } from "@/lib/game/client-actions";
 import { useCompetitiveSync } from "@/lib/game/use-competitive-sync";
 import { useRequireAuth } from "@/lib/game/use-require-auth";
 import { formatLocalWhen, useUpsetStore, clearAuthenticatedPlayer } from "@/lib/upset/store";
@@ -92,7 +92,7 @@ export function SceneShell({
   const store = useUpsetStore();
   const sync = useCompetitiveSync();
   const requireAuth = useRequireAuth();
-  const { user, isPending } = useCurrentUserState();
+  const { user } = useCurrentUserState();
   const signedIn = !!user;
   const tabsHidden = useTabBarGate((s) => s.hidden);
   useHydrateCourtSocial();
@@ -666,7 +666,7 @@ function YouSection({
   onOpenProfile,
   onOpenMatch,
   onOpenGameThread,
-  onGoPlay,
+  onGoPlay: _onGoPlay,
   onOpenMyGames,
   onFindGame,
   onCreateGame,
@@ -763,6 +763,9 @@ function YouSection({
           </h2>
           <span className="w-12" aria-hidden />
         </div>
+        {user?.primaryEmail ? (
+          <p className="mb-3 text-center text-[12px] text-fg-subtle">{user.primaryEmail}</p>
+        ) : null}
         <div className="mb-4 grid grid-cols-2 gap-1 rounded-xl bg-bg-elevated p-0.5">
           <button
             type="button"
@@ -933,7 +936,7 @@ function YouSection({
   );
 }
 
-function SettingsSubhead({
+function _SettingsSubhead({
   title,
   onBack,
   backLabel = "← Settings",
