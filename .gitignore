@@ -19,3 +19,7 @@ tmp/
 # OS / editor
 .DS_Store
 Thumbs.db
+
+# Durable local DB + court photos (workspace disk, not git)
+/data/pglite/
+/data/court-photos/

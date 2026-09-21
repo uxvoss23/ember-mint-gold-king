@@ -6,6 +6,7 @@ import { requireModerator } from "@/lib/auth/moderator.server";
 import { getSql, type Sql } from "@/lib/db";
 import type { CourtAdminOverride, CourtFieldOverride } from "@/lib/courts/admin-overrides";
 import type { CourtAmenity, CourtSurface } from "@/lib/courts/types";
+import { persistCourtPhoto, persistCourtPhotoList } from "@/lib/courts/photo-store";
 
 const photoSchema = z
   .string()
@@ -60,6 +61,15 @@ async function ensureSchema(sql: Sql) {
       gallery jsonb not null default '[]'::jsonb,
       updated_at timestamptz not null default now(),
       updated_by text
+    )
+  `);
+  await sql.query(`
+    create table if not exists court_photo (
+      id text primary key,
+      court_id text not null,
+      mime text not null,
+      bytes bytea not null,
+      created_at timestamptz not null default now()
     )
   `);
 }
@@ -185,9 +195,12 @@ export const setCourtPreviewFn = createServerFn({ method: "POST" })
     const sql = await getSql();
     await requireModerator(sql, context.userId);
     await ensureRow(sql, data.courtId, context.userId);
+    const stored = data.photoUrl
+      ? await persistCourtPhoto(sql, data.courtId, data.photoUrl)
+      : null;
     await sql.query(
       `update court_override set preview_url = $2, updated_at = now(), updated_by = $3 where court_id = $1`,
-      [data.courtId, data.photoUrl, context.userId],
+      [data.courtId, stored, context.userId],
     );
     return loadAll(sql);
   });
@@ -211,7 +224,8 @@ export const addCourtGalleryPhotosFn = createServerFn({ method: "POST" })
       [data.courtId],
     );
     const prev = Array.isArray(rows[0]?.gallery) ? (rows[0]!.gallery as string[]) : [];
-    const gallery = [...prev, ...data.photos].slice(0, 12);
+    const incoming = await persistCourtPhotoList(sql, data.courtId, data.photos);
+    const gallery = [...prev, ...incoming].slice(0, 12);
     await sql.query(
       `update court_override set gallery = $2::jsonb, updated_at = now(), updated_by = $3 where court_id = $1`,
       [data.courtId, JSON.stringify(gallery), context.userId],
@@ -239,7 +253,7 @@ export const replaceCourtGalleryPhotoFn = createServerFn({ method: "POST" })
     );
     const gallery = Array.isArray(rows[0]?.gallery) ? [...(rows[0]!.gallery as string[])] : [];
     if (data.index < 0 || data.index >= gallery.length) throw new Error("Photo not found.");
-    gallery[data.index] = data.photoUrl;
+    gallery[data.index] = await persistCourtPhoto(sql, data.courtId, data.photoUrl);
     await sql.query(
       `update court_override set gallery = $2::jsonb, updated_at = now(), updated_by = $3 where court_id = $1`,
       [data.courtId, JSON.stringify(gallery), context.userId],

@@ -10,6 +10,7 @@ import {
   MapPin,
   MessageCircle,
   Send,
+  Share2,
   Plus,
   Search,
   UserPlus,
@@ -19,6 +20,7 @@ import {
 import { CourtAboutSheet } from "@/components/compete/court-about-sheet";
 import { InviteReviewSheet } from "@/components/compete/invite-review-sheet";
 import { CreateGameStepBar } from "@/components/compete/create-game-step-bar";
+import { GameOverview, gameOverviewActive } from "@/components/compete/game-overview";
 import {
   CreateWhenPicker,
   parseLocalDateTime,
@@ -32,7 +34,6 @@ import {
   remindersCompleted,
 } from "@/lib/match-reminders";
 import { PlayerAvatar } from "@/components/compete/player-avatar";
-import { CourtMapCutout } from "@/components/court-map-cutout";
 import { CourtsMap } from "@/components/courts-map";
 import {
   CourtsMapCarousel,
@@ -72,9 +73,12 @@ import {
   proposeGameChangeFn,
   sendGameMessageFn,
   submitScoreFn,
+  reportPlayerFn,
 } from "@/lib/game/fns";
 import { useTabBarGate } from "@/lib/ui/tab-bar-gate";
-import { RATED_RULES_COPY } from "@/lib/game/rules";
+import { RATED_RULES_COPY, canAccessGameChat, chatThreadIds, messagesInThread } from "@/lib/game/rules";
+import { markInboxRead } from "@/lib/messages/inbox";
+import { collectBusySlots, conflictMessage, slotConflict } from "@/lib/game/schedule-conflict";
 
 type View = "explore" | "find" | "game" | "create" | "hoop_now" | "alerts_setup";
 type ExploreLane = "open" | "tonight" | "rated";
@@ -156,6 +160,11 @@ interface QuickMatchFlowProps {
   /** Opened this game from You / Upcoming — Back should return there. */
   gameBackTo?: "you" | null;
   onGameBack?: () => void;
+  /** Open Chat tab on this host↔player thread (same conversation as Messages inbox). */
+  focusChatThreadId?: string | null;
+  /** Me → My Games: force the existing Play / My Games desk. */
+  playDeskFocus?: "my_games" | "lobby" | "create" | null;
+  onPlayDeskFocusConsumed?: () => void;
 }
 
 function haversineMi(lat1: number, lon1: number, lat2: number, lon2: number) {
@@ -213,6 +222,9 @@ export function QuickMatchFlow({
   active = true,
   gameBackTo = null,
   onGameBack,
+  focusChatThreadId = null,
+  playDeskFocus = null,
+  onPlayDeskFocusConsumed,
 }: QuickMatchFlowProps) {
   const store = useUpsetStore();
   const requireAuth = useRequireAuth();
@@ -339,9 +351,8 @@ export function QuickMatchFlow({
   const [createBringingBall, setCreateBringingBall] = useState<boolean | null>(null);
   const [joinBringingBall, setJoinBringingBall] = useState<boolean | null>(null);
   const [createHood, setCreateHood] = useState("all");
-  const [createSorts, setCreateSorts] = useState<Set<string>>(() => new Set(["highest_rated", "nearest"]));
+  const [createSorts, setCreateSorts] = useState<Set<string>>(() => new Set());
   const [createRadiusMi, setCreateRadiusMi] = useState(50);
-  const [createPickMode, setCreatePickMode] = useState<"photos" | "map">("map");
   const [createFiltersOpen, setCreateFiltersOpen] = useState(false);
   const createMapMarked = useRef(false);
   const [courtInfoId, setCourtInfoId] = useState<string | null>(null);
@@ -357,14 +368,38 @@ export function QuickMatchFlow({
     "public",
   );
   const [chatDraft, setChatDraft] = useState("");
+  const [chatThreadPlayerId, setChatThreadPlayerId] = useState<string | null>(null);
   const [gameTab, setGameTab] = useState<"details" | "chat">("details");
+  const skipGameTabResetRef = useRef(false);
   useEffect(() => {
+    if (skipGameTabResetRef.current) {
+      skipGameTabResetRef.current = false;
+      setChatDraft("");
+      setChangeCourtOpen(false);
+      setChangeCourtId("");
+      setChangeWhen("");
+      return;
+    }
     setGameTab("details");
     setChatDraft("");
+    setChatThreadPlayerId(null);
     setChangeCourtOpen(false);
     setChangeCourtId("");
     setChangeWhen("");
   }, [selectedId]);
+
+  useEffect(() => {
+    if (view !== "game" || gameTab !== "chat" || !selectedId) return;
+    const selected =
+      matches.find((m) => m.id === selectedId) ??
+      store.matches.find((m) => m.id === selectedId);
+    if (!selected) return;
+    const pid = selected.hostId === me.id ? chatThreadPlayerId : me.id;
+    if (!pid) return;
+    const msgs = messagesInThread(selected.chat ?? [], pid, selected.opponentId);
+    const last = [...msgs].reverse().find((m) => !m.system) ?? msgs[msgs.length - 1];
+    markInboxRead(`game:${selected.id}:${pid}`, last?.id);
+  }, [view, gameTab, selectedId, chatThreadPlayerId, matches, store.matches, me.id]);
   const [changeCourtOpen, setChangeCourtOpen] = useState(false);
   const [changeCourtId, setChangeCourtId] = useState("");
   const [changeWhen, setChangeWhen] = useState("");
@@ -407,10 +442,16 @@ export function QuickMatchFlow({
     }
     setSelectedId(focusMatchId);
     setView("game");
-    setGameTab("details");
+    if (focusChatThreadId) {
+      skipGameTabResetRef.current = true;
+      setGameTab("chat");
+      setChatThreadPlayerId(focusChatThreadId);
+    } else {
+      setGameTab("details");
+    }
     setGameReturn(gameBackTo === "you" ? "you" : "find");
     onFocusMatchConsumed?.();
-  }, [focusMatchId, matches, store.matches, onFocusMatchConsumed, gameBackTo]);
+  }, [focusMatchId, matches, store.matches, onFocusMatchConsumed, gameBackTo, focusChatThreadId]);
 
   const parentOrigin = {
     lat: userLat ?? AUSTIN_CENTER.lat,
@@ -714,11 +755,34 @@ export function QuickMatchFlow({
     wasPlayActive.current = active;
     if (!justOpened || playAlerts === 0) return;
     if (focusMatchId) return;
+    if (playDeskFocus) return;
     if (view === "create" || view === "game" || view === "hoop_now") return;
     setExploreLane("open");
     setOpenDeskTab("scheduled");
     setView("find");
-  }, [active, playAlerts, view, focusMatchId]);
+  }, [active, playAlerts, view, focusMatchId, playDeskFocus]);
+
+  useEffect(() => {
+    if (!playDeskFocus) return;
+    if (playDeskFocus === "my_games") {
+      setExploreLane(null);
+      setOpenDeskTab("scheduled");
+      setView("find");
+      onImmersiveChange?.(false);
+    } else if (playDeskFocus === "lobby") {
+      setExploreLane(null);
+      setOpenDeskTab("open");
+      setView("find");
+      onImmersiveChange?.(false);
+    } else if (playDeskFocus === "create") {
+      try {
+        sessionStorage.setItem("uc-open-create", "1");
+      } catch {
+        /* ignore */
+      }
+    }
+    onPlayDeskFocusConsumed?.();
+  }, [playDeskFocus, onImmersiveChange, onPlayDeskFocusConsumed]);
 
   useEffect(() => {
     const on = (view === "game" && gameTab === "chat") || !!reviewInviteId;
@@ -892,7 +956,8 @@ export function QuickMatchFlow({
     setCreateInviteIds([]);
     setCreateInviteOpen(false);
     setCreateVisibility("public");
-    setCreateSorts(new Set(["highest_rated", "nearest"]));
+    setCreateHood("all");
+    setCreateSorts(new Set());
     setCreateFiltersOpen(false);
     setCourtInfoId(null);
     setCreateStep(1);
@@ -964,6 +1029,17 @@ export function QuickMatchFlow({
     if (!court) { setStatusMsg("Pick a court before posting."); return; }
     const whenDate = parseLocalDateTime(createWhen);
     if (whenDate.getTime() < Date.now() - 60_000) { setStatusMsg("Pick a time in the future."); return; }
+    const hit = slotConflict(
+      whenDate.getTime(),
+      collectBusySlots([...matches, ...store.matches], {
+        playerId: me.id,
+        courtId: court.id,
+      }),
+    );
+    if (hit) {
+      setStatusMsg(conflictMessage(hit.reason));
+      return;
+    }
     const formatLabel = createFormat === "horse" ? "HORSE" : "1v1";
     const inviteOnly = createVisibility === "invite_only";
     setPostingCreate(true);
@@ -1042,14 +1118,14 @@ export function QuickMatchFlow({
     }
   };
 
-  const sendMatchChat = async (gameId: string, text: string) => {
+  const sendMatchChat = async (gameId: string, text: string, threadWithId?: string) => {
     if (!requireAuth("message")) return;
     const body = text.trim();
     if (!body) return;
-    store.postMatchChat(gameId, text);
+    store.postMatchChat(gameId, text, threadWithId);
     if (isDemoMode()) return;
     try {
-      await sendGameMessageFn({ data: { gameId, text: body } });
+      await sendGameMessageFn({ data: { gameId, text: body, threadWithId } });
       refreshCompetitiveSnapshotSoon();
     } catch (err) {
       setStatusMsg(mutationError(err));
@@ -1069,7 +1145,10 @@ export function QuickMatchFlow({
         onSelectCourt={(id) => {
           chooseCreateCourt(id);
           setCourtInfoId(null);
+          setCreateCourtLocked(false);
+          setCreateStep(3);
         }}
+        confirmLabel="Select court"
         isSelected={createCourtId === courtInfoId}
         userLat={origin.lat}
         userLon={origin.lon}
@@ -1128,7 +1207,8 @@ export function QuickMatchFlow({
       .map((id) => playerById.get(id))
       .filter((p): p is Player => !!p);
     const mapImmersive =
-      createStep === 2 && createPickMode === "map" && !createCourtLocked;
+      createStep === 2 && !createCourtLocked;
+    const showOverview = gameOverviewActive(createCourtLocked, createStep);
     if (mapImmersive && !createMapMarked.current) {
       createMapMarked.current = true;
       ucMark("create:map-jsx");
@@ -1161,30 +1241,6 @@ export function QuickMatchFlow({
       createSorts.size + (createHood !== "all" ? 1 : 0);
     const filterSummary =
       filterParts.length > 0 ? filterParts.join(" · ") : "All courts";
-    const listMapToggle = (
-      <div className="flex shrink-0 rounded-full border border-border bg-bg-elevated p-0.5">
-        <button
-          type="button"
-          onClick={() => setCreatePickMode("photos")}
-          className={cn(
-            "rounded-full px-2.5 py-1 text-[11px] font-semibold",
-            createPickMode === "photos" ? "bg-fg text-bg" : "text-fg-muted",
-          )}
-        >
-          List
-        </button>
-        <button
-          type="button"
-          onClick={() => setCreatePickMode("map")}
-          className={cn(
-            "rounded-full px-2.5 py-1 text-[11px] font-semibold",
-            createPickMode === "map" ? "bg-fg text-bg" : "text-fg-muted",
-          )}
-        >
-          Map
-        </button>
-      </div>
-    );
 
     createPane = (
       <div
@@ -1229,57 +1285,22 @@ export function QuickMatchFlow({
         <h3 className="font-display text-lg font-semibold text-fg">Create 1v1</h3>
           </>
         )}
-        <CreateGameStepBar step={createStep} onStep={setCreateStep} compact={mapImmersive} />
-        {mapImmersive ? null : (
+        <CreateGameStepBar
+          step={createStep}
+          onStep={setCreateStep}
+          compact={mapImmersive}
+          courtLocked={createCourtLocked}
+        />
+        {createStep === 1 ? (
         <p className="text-[11px] text-fg-muted">
           Ranked 1v1 · best of 3 to 11 · win by 2. Public by default.
         </p>
-        )}
+        ) : null}
         </div>
 
-        {createStep === 2 ? (
+        {createStep === 2 && !createCourtLocked ? (
         <>
-        {createCourtLocked && selectedCreateCourt ? (
-          <div className="overflow-hidden rounded-2xl border border-court/40 bg-court/10">
-            {createImages.length > 0 ? (
-              <ImageCarousel
-                images={createImages}
-                alt={selectedCreateCourt.name}
-                className="w-full"
-                priority
-              />
-            ) : (
-              <div className="aspect-[16/10] w-full bg-bg-subtle" />
-            )}
-            <div className="space-y-1 px-3 py-2.5">
-              <p className="text-[10px] font-semibold tracking-wide text-court uppercase">
-                Court selected from map
-              </p>
-              <p className="font-display text-[16px] font-semibold text-fg">
-                {selectedCreateCourt.name}
-              </p>
-              <p className="text-[12px] text-fg-muted">
-                {selectedCreateCourt.neighborhood ?? "Austin"}
-                {"miles" in selectedCreateCourt && typeof (selectedCreateCourt as { miles?: number }).miles === "number"
-                  ? ` · ${formatMiles((selectedCreateCourt as { miles: number }).miles)}`
-                  : ""}
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setCreateCourtLocked(false);
-                  setCreateCourtId("");
-                  setCreateCourtTouched(false);
-                }}
-                className="text-[11px] font-semibold text-fg-subtle underline-offset-2 hover:underline"
-              >
-                Choose a different court
-              </button>
-            </div>
-          </div>
-        ) : (
-          <>
-        {selectedCreateCourt && !mapImmersive ? (
+          {selectedCreateCourt && !mapImmersive ? (
           <div className="overflow-hidden rounded-2xl border border-court/40 bg-court/10">
             {createImages.length > 0 ? (
               <ImageCarousel
@@ -1335,7 +1356,6 @@ export function QuickMatchFlow({
               </span>
             </span>
           </button>
-          {listMapToggle}
         </div>
         <div
           id="uc-create-filters"
@@ -1430,92 +1450,7 @@ export function QuickMatchFlow({
         </div>
         </div>
 
-        {createPickMode === "photos" ? (
-          <>
-            <div className="flex gap-2 overflow-x-auto pb-1 snap-x snap-mandatory [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {filteredCourts.map((c) => {
-                const thumb = imagesForCourt(c.id, 1, courtOverrides)[0];
-                const selected = c.id === createCourtId;
-                return (
-                  <div
-                    key={c.id}
-                    className={cn(
-                      "relative w-[44%] max-w-[10.5rem] shrink-0 snap-start overflow-hidden rounded-2xl border",
-                      selected
-                        ? "border-court ring-2 ring-court/50 shadow-md"
-                        : "border-border bg-bg-elevated",
-                    )}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => chooseCreateCourt(c.id)}
-                      className="w-full text-left"
-                      aria-label={`Select ${c.name}`}
-                    >
-                      <div className="relative aspect-[5/4] bg-bg-subtle">
-                        {thumb ? (
-                          <img
-                            src={thumb}
-                            alt=""
-                            className="h-full w-full object-cover"
-                            loading="lazy"
-                          />
-                        ) : null}
-                        <div className="absolute top-1.5 right-1.5 z-10 flex flex-col items-end gap-0.5">
-                          {selected ? (
-                            <span className="rounded-full bg-court px-1.5 py-0.5 text-[9px] font-bold text-white">
-                              ✓
-                            </span>
-                          ) : null}
-                          {isRecommendedCourt(c) ? (
-                            <span className="rounded-full bg-court px-1.5 py-0.5 text-[8px] font-bold text-white uppercase">
-                              Top
-                            </span>
-                          ) : null}
-                          {isShadedCourt(c) ? (
-                            <span className="rounded-full bg-black/55 px-1.5 py-0.5 text-[8px] font-bold text-white uppercase">
-                              Shade
-                            </span>
-                          ) : null}
-                        </div>
-                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-2 pb-1.5 pt-6">
-                          <p className="text-[10px] font-bold tracking-wide text-white uppercase">
-                            {c.neighborhood ?? "Austin"}
-                          </p>
-                          <p className="text-[10px] font-medium text-white/90">
-                            {formatMiles(c.miles)} away
-                          </p>
-                        </div>
-                      </div>
-                      <div className="px-2 py-1.5">
-                        <p className="line-clamp-1 text-[12px] font-semibold text-fg">
-                          {c.name.replace(/\s*Courts?\s*$/i, "") || c.name}
-                        </p>
-                      </div>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCourtInfoId(c.id)}
-                      className="absolute top-1.5 left-1.5 z-10 flex size-7 items-center justify-center rounded-full bg-black/55 text-white"
-                      aria-label={`About ${c.name}`}
-                    >
-                      <Info className="size-3.5" strokeWidth={2.25} />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-            {filteredCourts.length === 0 ? (
-              noMatchFilters
-            ) : !createCourtId ? (
-              <p className="text-center text-[11px] text-fg-muted">
-                Nearby highest-rated courts are shown first. Tap a court or ⓘ for more information.
-              </p>
-            ) : null}
-          </>
-        ) : (
-          <>
-          <div className="relative min-h-0 flex-1 overflow-hidden">
+        <div className="relative min-h-0 flex-1 overflow-hidden">
             <CourtsMap
               courts={filteredCourts}
               location={createMapLocation}
@@ -1551,11 +1486,6 @@ export function QuickMatchFlow({
               </div>
             </div>
           </div>
-          </>
-        )}
-
-                  </>
-        )}
         </>
         ) : null}
 
@@ -1578,7 +1508,14 @@ export function QuickMatchFlow({
 
         <div className="space-y-2 rounded-xl border border-border bg-bg-elevated p-3">
           <p className="text-[11px] font-bold text-fg">Date & time</p>
-          <CreateWhenPicker value={createWhen} onChange={setCreateWhen} />
+          <CreateWhenPicker
+            value={createWhen}
+            onChange={setCreateWhen}
+            busySlots={collectBusySlots([...matches, ...store.matches], {
+              playerId: me.id,
+              courtId: createCourtId || undefined,
+            })}
+          />
         </div>
 
         <div className="space-y-2 rounded-xl border border-border bg-bg-elevated p-3">
@@ -1703,41 +1640,48 @@ export function QuickMatchFlow({
         </>
         ) : null}
 
-        {createStep === 3 ? (
-          <div className="space-y-2.5">
-            <div className="rounded-2xl border border-border bg-bg-elevated p-3">
-              <p className="text-[10px] font-bold tracking-wide text-fg-subtle uppercase">Review</p>
-              <p className="mt-1 font-display text-[16px] font-semibold text-fg">
-                {selectedCreateCourt?.name ?? "Court"}
-              </p>
-              <p className="text-[12px] text-fg-muted">
-                {createWhen ? formatLocalWhen(parseLocalDateTime(createWhen).toISOString()) : "No time set"}
-              </p>
-              <ul className="mt-2 space-y-1 text-[12px] text-fg">
-                <li>{createFormat === "horse" ? "HORSE" : "Ranked 1v1 · best of 3 to 11 · win by 2"}</li>
-                <li>{createVisibility === "invite_only" ? "Private · invite only" : "Public match"}</li>
-                <li>{createBringingBall ? "You’re bringing a ball" : "You’re not bringing a ball"}</li>
-                {createNotes.trim() ? <li>Notes: {createNotes.trim()}</li> : null}
-                {invitedPlayers.length > 0 ? (
-                  <li>Invites: {invitedPlayers.map((p) => p.name).join(", ")}</li>
-                ) : null}
-              </ul>
-              <div className="mt-3 flex gap-2">
-                <button type="button" onClick={() => setCreateStep(1)} className="text-[11px] font-semibold text-court">
-                  Edit details
-                </button>
-                <button type="button" onClick={() => setCreateStep(2)} className="text-[11px] font-semibold text-court">
-                  Edit court
-                </button>
-              </div>
-            </div>
-          </div>
+        {showOverview && selectedCreateCourt ? (
+          <GameOverview
+            court={selectedCreateCourt}
+            images={createImages}
+            distanceMi={
+              "miles" in selectedCreateCourt &&
+              typeof (selectedCreateCourt as { miles?: number }).miles === "number"
+                ? (selectedCreateCourt as { miles: number }).miles
+                : haversineMi(
+                    origin.lat,
+                    origin.lon,
+                    selectedCreateCourt.lat,
+                    selectedCreateCourt.lon,
+                  )
+            }
+            format={createFormat}
+            whenValue={createWhen}
+            bringingBall={createBringingBall}
+            inviteOnly={createVisibility === "invite_only"}
+            notes={createNotes}
+            me={me}
+            invited={invitedPlayers}
+            onChangeCourt={() => {
+              setCreateCourtLocked(false);
+              setCreateStep(2);
+            }}
+          />
         ) : null}
 
         {aboutSheet}
       </div>
 
       <div className="relative z-30 shrink-0 border-t border-border bg-bg px-4 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] pointer-events-auto">
+        {showOverview ? (
+          <button
+            type="button"
+            onClick={() => setCreateStep(1)}
+            className="mb-2 w-full py-1 text-center text-[13px] font-semibold text-fg-muted"
+          >
+            Edit details
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={() => {
@@ -1760,6 +1704,10 @@ export function QuickMatchFlow({
               return;
             }
             if (createStep === 2) {
+              if (createCourtLocked) {
+                void submitCreate();
+                return;
+              }
               if (!selectedCreateCourt) {
                 setStatusMsg("Pick a court.");
                 return;
@@ -1770,6 +1718,13 @@ export function QuickMatchFlow({
             void submitCreate();
           }}
           disabled={postingCreate}
+          aria-label={
+            showOverview
+              ? createVisibility === "invite_only"
+                ? "Post private match"
+                : "Post public match"
+              : undefined
+          }
           className={cn(
             "uc-press w-full rounded-full py-3 text-sm font-semibold",
             postingCreate
@@ -1781,15 +1736,11 @@ export function QuickMatchFlow({
             ? "Posting…"
             : createStep === 1
               ? "Continue"
-              : createStep === 2
+              : createStep === 2 && !createCourtLocked
                 ? selectedCreateCourt
-                  ? "Continue"
+                  ? "Select court"
                   : "Pick a court"
-                : createVisibility === "invite_only"
-                  ? `Post private match · ${createInviteIds.length} invite${createInviteIds.length === 1 ? "" : "s"}`
-                  : createInviteIds.length
-                    ? `Post public match · ${createInviteIds.length} invite${createInviteIds.length === 1 ? "" : "s"}`
-                    : "Post public match"}
+                : "Create Game"}
         </button>
       </div>
       <div className="h-4 shrink-0" aria-hidden />
@@ -1846,7 +1797,6 @@ export function QuickMatchFlow({
     const court = resolveCourt(selected, courts);
     const images = imagesForCourt(court.id, 4, courtOverrides);
     const mapsHref = directionsUrl(court.lat, court.lon, court.name);
-    const canInvite = selected.hostId === me.id && selected.status === "open";
     const canCancel =
       (selected.hostId === me.id || selected.opponentId === me.id) &&
       (selected.status === "open" || selected.status === "matched" || selected.status === "scheduled");
@@ -1859,20 +1809,55 @@ export function QuickMatchFlow({
     const hostEmptyCancel = isHostView && !someoneJoined;
     const opp = selected.opponentId ? playerById.get(selected.opponentId) : null;
     const { day, time } = whenParts(selected.scheduledAt ?? selected.preferredAt);
+    const isHostChat = selected.hostId === me.id;
+    const threadIds = chatThreadIds(selected.chat ?? []);
+    const inboxIds = [
+      ...new Set([
+        ...threadIds,
+        ...(selected.guestInviteIds ?? []),
+        ...(selected.opponentId ? [selected.opponentId] : []),
+      ]),
+    ].filter((id) => id && id !== selected.hostId);
+    const extraInquiries = inboxIds.filter((id) => id !== selected.opponentId);
+    const activeThreadId = isHostChat ? chatThreadPlayerId : me.id;
+    const threadChat = activeThreadId
+      ? messagesInThread(selected.chat ?? [], activeThreadId, selected.opponentId)
+      : [];
+    const threadPlayer = activeThreadId ? playerById.get(activeThreadId) : undefined;
+    const showInbox = gameTab === "chat" && isHostChat && !chatThreadPlayerId;
+    const canPostThisThread = canAccessGameChat({
+      hostId: selected.hostId,
+      opponentId: selected.opponentId,
+      actorId: me.id,
+      inviteeIds: selected.guestInviteIds,
+      inviteOnly: selected.inviteOnly,
+    });
+    const openGameChat = () => {
+      setGameTab("chat");
+      if (isHostChat) {
+        if (selected.opponentId && extraInquiries.length === 0) {
+          setChatThreadPlayerId(selected.opponentId);
+        } else {
+          setChatThreadPlayerId(null);
+        }
+      } else {
+        setChatThreadPlayerId(null);
+      }
+    };
 
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div
-        className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 pt-2 touch-pan-y [-webkit-overflow-scrolling:touch]"
+        className="min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain px-4 pt-1 touch-pan-y [-webkit-overflow-scrolling:touch]"
         style={{
           paddingBottom:
             keyboardInset > 0
               ? keyboardInset + 24
-              : "max(1.5rem, env(safe-area-inset-bottom, 0px))",
+              : "max(1.25rem, env(safe-area-inset-bottom, 0px))",
         }}
       >
         <button type="button" onClick={closeGame}
-          className="relative z-30 min-h-11 -ml-1 px-1 text-left text-xs font-semibold text-fg-muted pointer-events-auto">
+          className="relative z-30 -ml-1 min-h-9 px-1 py-1 text-left text-[12px] font-medium text-fg-subtle pointer-events-auto">
           {gameReturn === "you"
             ? "← Upcoming"
             : gameReturn === "explore"
@@ -1881,12 +1866,12 @@ export function QuickMatchFlow({
         </button>
 
         {/* Details | Chat */}
-        <div className="grid grid-cols-2 gap-1 rounded-2xl border border-border bg-bg-elevated p-1">
+        <div className="grid grid-cols-2 gap-0.5 rounded-xl bg-bg-elevated p-0.5">
           <button
             type="button"
             onClick={() => setGameTab("details")}
             className={cn(
-              "rounded-xl py-2 text-center text-[12px] font-semibold",
+              "rounded-lg py-1.5 text-center text-[12px] font-semibold",
               gameTab === "details" ? "bg-fg text-bg" : "text-fg-muted",
             )}
           >
@@ -1894,9 +1879,9 @@ export function QuickMatchFlow({
           </button>
           <button
             type="button"
-            onClick={() => setGameTab("chat")}
+            onClick={openGameChat}
             className={cn(
-              "relative rounded-xl py-2 text-center text-[12px] font-semibold",
+              "relative rounded-lg py-1.5 text-center text-[12px] font-semibold",
               gameTab === "chat" ? "bg-fg text-bg" : "text-fg-muted",
             )}
           >
@@ -1925,7 +1910,15 @@ export function QuickMatchFlow({
             }}
           >
             <div className="flex shrink-0 items-center gap-2.5 border-b border-border pb-2.5">
-              {host ? (
+              {showInbox ? (
+                <div className="flex size-11 items-center justify-center rounded-full bg-court/15 text-court">
+                  <MessageCircle className="size-5" />
+                </div>
+              ) : threadPlayer ? (
+                <button type="button" onClick={() => onOpenPlayer?.(threadPlayer)}>
+                  <PlayerAvatar player={threadPlayer} size="sm" className="!size-11" />
+                </button>
+              ) : host ? (
                 <button type="button" onClick={() => onOpenPlayer?.(host)}>
                   <PlayerAvatar player={host} size="sm" className="!size-11" />
                 </button>
@@ -1934,26 +1927,52 @@ export function QuickMatchFlow({
               )}
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[15px] font-semibold text-fg">
-                  {host && opp
-                    ? `${host.name.split(" ")[0]} · ${opp.name.split(" ")[0]}`
-                    : host
-                      ? `Host · ${host.name}`
-                      : "Game chat"}
+                  {showInbox
+                    ? "Messages"
+                    : isHostChat && threadPlayer
+                      ? threadPlayer.name.split(" ")[0]
+                      : host && opp
+                        ? `${host.name.split(" ")[0]} · ${opp.name.split(" ")[0]}`
+                        : host
+                          ? `Host · ${host.name}`
+                          : "Game chat"}
                 </p>
                 <p className="truncate text-[11px] text-fg-muted">
-                  {selected.courtName} · {day} {time}
+                  {showInbox
+                    ? inboxIds.length
+                      ? `${inboxIds.length} private conversation${inboxIds.length === 1 ? "" : "s"}`
+                      : "Private — only you and each player"
+                    : `${selected.courtName} · ${day} ${time}`}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setGameTab("details")}
-                className="shrink-0 rounded-full border border-border px-2.5 py-1.5 text-[11px] font-semibold text-fg-muted"
-              >
-                Details
-              </button>
+              {showInbox ? (
+                <button
+                  type="button"
+                  onClick={() => setGameTab("details")}
+                  className="shrink-0 rounded-full border border-border px-2.5 py-1.5 text-[11px] font-semibold text-fg-muted"
+                >
+                  Details
+                </button>
+              ) : isHostChat && (extraInquiries.length > 0 || selected.status === "open") ? (
+                <button
+                  type="button"
+                  onClick={() => setChatThreadPlayerId(null)}
+                  className="shrink-0 rounded-full border border-border px-2.5 py-1.5 text-[11px] font-semibold text-fg-muted"
+                >
+                  ← Inbox
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setGameTab("details")}
+                  className="shrink-0 rounded-full border border-border px-2.5 py-1.5 text-[11px] font-semibold text-fg-muted"
+                >
+                  Details
+                </button>
+              )}
             </div>
 
-            {host && opp ? (
+            {!showInbox && host && opp && activeThreadId === selected.opponentId ? (
               <div className="mt-3 flex items-center justify-center gap-2">
                 <PlayerAvatar player={host} size="sm" className="!size-9 ring-2 ring-court/30" />
                 <span className="text-[10px] font-black text-court">VS</span>
@@ -1961,20 +1980,69 @@ export function QuickMatchFlow({
               </div>
             ) : null}
 
+            {showInbox ? (
+              <div className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain">
+                {inboxIds.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center px-6 py-14 text-center">
+                    <MessageCircle className="size-8 text-fg-subtle" />
+                    <p className="mt-3 text-sm font-semibold text-fg">No one has asked yet</p>
+                    <p className="mt-1 text-[12px] text-fg-muted">
+                      When someone asks or requests to play, their conversation shows up here — private, one player at a time.
+                    </p>
+                  </div>
+                ) : (
+                  inboxIds.map((pid) => {
+                    const p = playerById.get(pid);
+                    const msgs = messagesInThread(selected.chat ?? [], pid, selected.opponentId);
+                    const last = [...msgs].reverse().find((m) => !m.system) ?? msgs[msgs.length - 1];
+                    const joined = selected.opponentId === pid;
+                    const filledOut = !!selected.opponentId && !joined;
+                    return (
+                      <button
+                        key={pid}
+                        type="button"
+                        onClick={() => setChatThreadPlayerId(pid)}
+                        className="flex w-full items-center gap-3 rounded-2xl border border-border bg-bg-elevated px-3 py-3 text-left"
+                      >
+                        {p ? (
+                          <PlayerAvatar player={p} size="sm" className="!size-11" />
+                        ) : (
+                          <div className="size-11 rounded-full bg-bg-subtle" />
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[13px] font-semibold text-fg">
+                            {p?.name ?? "Player"}
+                          </p>
+                          <p className="truncate text-[11px] text-fg-muted">
+                            {last?.text ??
+                              (joined ? "Joined this game" : "Asked about this game")}
+                          </p>
+                        </div>
+                        <span className="shrink-0 rounded-full bg-bg px-2 py-0.5 text-[10px] font-bold text-fg-muted">
+                          {joined ? "Joined" : filledOut ? "Filled" : "Asked"}
+                        </span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            ) : (
             <div
               className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain"
               style={{ WebkitOverflowScrolling: "touch" }}
             >
-              {(selected.chat ?? []).length === 0 ? (
+              {threadChat.length === 0 ? (
                 <div className="flex flex-col items-center justify-center px-6 py-14 text-center">
                   <MessageCircle className="size-8 text-fg-subtle" />
                   <p className="mt-3 text-sm font-semibold text-fg">No messages yet</p>
                   <p className="mt-1 text-[12px] text-fg-muted">
-                    Coordinate parking, ball, or a court change here.
+                    {isHostChat
+                      ? "This conversation is only between you and this player."
+                      : "Only you and the host will see this. Ask about the court, time, or how they play."}
                   </p>
                 </div>
               ) : (
-                (selected.chat ?? []).map((c) => {
+                (threadChat).map((c) => {
                   if (c.kind === "proposal" && c.proposal) {
                     const prop = c.proposal;
                     const pending = prop.status === "pending";
@@ -2137,7 +2205,9 @@ export function QuickMatchFlow({
                 })
               )}
             </div>
+            )}
 
+            {!showInbox ? (
             <div
               ref={chatComposerRef}
               className={cn(
@@ -2145,6 +2215,7 @@ export function QuickMatchFlow({
                 keyboardInset > 0 && "sticky bottom-0 z-30 bg-bg",
               )}
             >
+              {canPostThisThread ? (
               <div className="flex items-end gap-2">
                 <PlayerAvatar player={me} size="xs" className="mb-0.5 !size-8 shrink-0" showRank={false} />
                 <input
@@ -2157,7 +2228,11 @@ export function QuickMatchFlow({
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();
                       if (!chatDraft.trim()) return;
-                      void sendMatchChat(selected.id, chatDraft);
+                      void sendMatchChat(
+                        selected.id,
+                        chatDraft,
+                        isHostChat ? activeThreadId ?? undefined : me.id,
+                      );
                       setChatDraft("");
                       chatInputRef.current?.focus();
                       revealChatComposer();
@@ -2165,14 +2240,24 @@ export function QuickMatchFlow({
                   }}
                   enterKeyHint="send"
                   autoComplete="off"
-                  placeholder="Message…"
+                  placeholder={
+                    isHostChat && threadPlayer
+                      ? `Message ${threadPlayer.name.split(" ")[0]}…`
+                      : host
+                        ? `Message ${host.name.split(" ")[0]}…`
+                        : "Message…"
+                  }
                   className="min-w-0 flex-1 rounded-full border border-border bg-bg-elevated px-4 py-2.5 text-base outline-none focus:border-court"
                 />
                 <button
                   type="button"
                   onClick={() => {
                     if (!chatDraft.trim()) return;
-                    void sendMatchChat(selected.id, chatDraft);
+                    void sendMatchChat(
+                      selected.id,
+                      chatDraft,
+                      isHostChat ? activeThreadId ?? undefined : me.id,
+                    );
                     setChatDraft("");
                     chatInputRef.current?.focus();
                     revealChatComposer();
@@ -2189,7 +2274,20 @@ export function QuickMatchFlow({
                   <Send className="size-4" />
                 </button>
               </div>
+              ) : (
+                <p className="px-1 py-2 text-center text-[12px] leading-snug text-fg-muted">
+                  {selected.inviteOnly &&
+                  me.id !== selected.hostId &&
+                  me.id !== selected.opponentId &&
+                  !(selected.guestInviteIds ?? []).includes(me.id)
+                    ? "This game is invite only."
+                    : selected.opponentId && me.id !== selected.opponentId && me.id !== selected.hostId
+                      ? "This game filled. Your messages stay between you and the host."
+                      : "You can’t message this game."}
+                </p>
+              )}
             </div>
+            ) : null}
           </div>
         ) : (
         <>
@@ -2251,60 +2349,64 @@ export function QuickMatchFlow({
         />
         ) : null}
 
-        <div className="overflow-hidden rounded-2xl border border-border shadow-card">
+        <div className="overflow-hidden rounded-[1.25rem]">
           <div className="relative">
-            <ImageCarousel images={images} alt={court.name} className="aspect-[16/9] w-full" priority />
-            <div className="absolute top-1.5 left-1.5 z-20">
-              <CourtMapCutout lat={court.lat} lon={court.lon} name={court.name}
-                address={"address" in court ? court.address : undefined} size={56} zoom={12} />
-            </div>
-            <div className="absolute top-2 right-2 z-20 rounded-full bg-black/55 px-2 py-0.5 text-[9px] font-semibold tracking-wide text-white uppercase">
+            <ImageCarousel
+              images={images}
+              alt={court.name}
+              className="aspect-[16/9] w-full"
+              priority
+              quietControls
+            />
+            <div className="absolute top-2.5 right-2.5 z-20 text-[10px] font-semibold tracking-wide text-white/85 drop-shadow-[0_1px_3px_rgba(0,0,0,0.65)]">
               {selected.format === "horse" ? "HORSE" : "Rated 1v1"}
                 {selected.status === "open"
                   ? selected.inviteOnly
-                    ? " · private"
-                    : " · public"
+                    ? " · Private"
+                    : " · Public"
                   : ""}
             </div>
-            <div className="absolute inset-x-0 bottom-2.5 z-20 flex items-center justify-center gap-3">
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/60 via-black/25 to-transparent pt-12 pb-5">
+              <div className="pointer-events-auto flex items-center justify-center gap-3">
               <button type="button" onClick={() => host && onOpenPlayer?.(host)} disabled={!host} className="shrink-0">
-                {host ? <PlayerAvatar player={host} size="md" className="!size-11 shadow-md ring-2 ring-white" />
+                {host ? <PlayerAvatar player={host} size="md" className="!size-11 shadow-md ring-2 ring-white/90" />
                   : <div className="size-11 rounded-full bg-black/40 ring-2 ring-white/70" />}
               </button>
-              <span className="font-display text-sm font-black tracking-[0.18em] text-court drop-shadow-[0_2px_4px_rgba(0,0,0,0.85)]">VS</span>
+              <span className="font-display text-[11px] font-black tracking-[0.18em] text-court">VS</span>
               <button type="button" onClick={() => opp && onOpenPlayer?.(opp)} disabled={!opp} className="shrink-0">
-                {opp ? <PlayerAvatar player={opp} size="md" className="!size-11 shadow-md ring-2 ring-white" />
-                  : <div className="flex size-11 items-center justify-center rounded-full border-2 border-dashed border-white/70 bg-black/35">
-                      <span className="text-[8px] font-bold text-white uppercase">Open</span>
+                {opp ? <PlayerAvatar player={opp} size="md" className="!size-11 shadow-md ring-2 ring-white/90" />
+                  : <div className="flex size-11 items-center justify-center rounded-full border border-dashed border-white/70 bg-black/30">
+                      <span className="text-[8px] font-bold tracking-wide text-white/90 uppercase">Open</span>
                     </div>}
               </button>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="space-y-2.5 rounded-2xl border border-border bg-bg-elevated p-3.5">
+        <div className="space-y-2 px-0.5 pt-0.5">
           <div>
-            <h3 className="font-display text-base font-semibold text-fg">{court.name}</h3>
-            <p className="mt-0.5 text-xs font-medium text-court">
-              {formatMiles(miles)} away
-              {"neighborhood" in court && court.neighborhood ? (
-                <span className="font-normal text-fg-muted"> · {court.neighborhood}</span>
-              ) : null}
+            <h3 className="font-display text-[18px] font-semibold leading-tight tracking-tight text-fg">{court.name}</h3>
+            <p className="mt-0.5 text-[13px] text-fg-muted">
+              {"neighborhood" in court && court.neighborhood ? `${court.neighborhood} · ` : ""}
+              {formatMiles(miles)}
             </p>
           </div>
-          <div className="inline-flex items-center gap-1.5 rounded-lg bg-fg px-2.5 py-1.5 text-bg">
-            <span className="text-xs font-bold tabular-nums">{day}</span>
-            <span className="text-[10px] opacity-50">·</span>
-            <span className="text-xs font-bold tabular-nums">{time}</span>
-          </div>
-          <p className="text-sm font-semibold text-fg">
-            {selected.format === "horse"
-              ? "HORSE · outdoor · clean calls"
-              : RATED_RULES_COPY}
+          <p className="flex items-baseline gap-3 text-[15px] font-semibold tabular-nums tracking-tight text-fg">
+            <span>{day.toUpperCase()}</span>
+            <span className="text-fg-subtle">·</span>
+            <span>{time}</span>
           </p>
+          {selected.format === "horse" ? (
+            <p className="text-[12px] text-fg-muted">HORSE · outdoor · clean calls</p>
+          ) : (
+            <p className="text-[12px] text-fg-muted">
+              Best of 3 · To 11 · Win by 2 · Make-it-take-it
+            </p>
+          )}
           {"address" in court && court.address ? (
-            <a href={mapsHref} target="_blank" rel="noopener noreferrer" className="flex items-start gap-1 text-sm text-fg-muted">
-              <MapPin className="mt-0.5 size-3.5 shrink-0 opacity-70" />
+            <a href={mapsHref} target="_blank" rel="noopener noreferrer" className="flex items-start gap-1.5 text-[12px] text-fg-subtle">
+              <MapPin className="mt-0.5 size-3 shrink-0 opacity-70" />
               <span className="line-clamp-2">{court.address}</span>
             </a>
           ) : null}
@@ -2326,6 +2428,15 @@ export function QuickMatchFlow({
               notes: selected.notes,
             }}
             onDone={() => setReminderTick((n) => n + 1)}
+          />
+        ) : null}
+
+        {selected.status === "open" && selected.hostId === me.id ? (
+          <GetOpponentCard
+            courtName={selected.courtName}
+            matchId={selected.id}
+            whenLabel={`${day} · ${time}`}
+            onInvite={() => setInviteOpen(true)}
           />
         ) : null}
 
@@ -2416,7 +2527,15 @@ export function QuickMatchFlow({
                   <p className="mb-1.5 text-[10px] font-bold tracking-wide text-fg-subtle uppercase">
                     Date & time
                   </p>
-                  <CreateWhenPicker value={changeWhen} onChange={setChangeWhen} />
+                  <CreateWhenPicker
+                    value={changeWhen}
+                    onChange={setChangeWhen}
+                    busySlots={collectBusySlots([...matches, ...store.matches], {
+                      playerId: me.id,
+                      courtId: changeCourtId || selected.courtId,
+                      ignoreGameId: selected.id,
+                    })}
+                  />
                 </div>
                 <button
                   type="button"
@@ -2557,18 +2676,31 @@ export function QuickMatchFlow({
 
         <button
           type="button"
-          onClick={() => setGameTab("chat")}
+          onClick={openGameChat}
+          aria-label="Open chat"
           className="flex w-full items-center gap-3 rounded-2xl border border-border bg-bg-elevated px-3 py-3 text-left"
         >
           <span className="flex size-10 items-center justify-center rounded-full bg-court/15 text-court">
             <MessageCircle className="size-5" />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-[13px] font-semibold text-fg">Open chat</p>
+            <p className="text-[13px] font-semibold text-fg">
+              {isHostChat
+                ? "Messages"
+                : selected.opponentId === me.id
+                  ? "Open chat"
+                  : "Ask the host"}
+            </p>
             <p className="truncate text-[11px] text-fg-muted">
-              {(selected.chat ?? []).filter((c) => !c.system).length > 0
-                ? `${(selected.chat ?? []).filter((c) => !c.system).length} messages · tap to continue`
-                : "Coordinate with your opponent in a clean chat"}
+              {isHostChat
+                ? inboxIds.length > 0
+                  ? `${inboxIds.length} private conversation${inboxIds.length === 1 ? "" : "s"}`
+                  : "Players who ask show up here — one private thread each"
+                : selected.opponentId === me.id
+                  ? (selected.chat ?? []).filter((c) => !c.system).length > 0
+                    ? `${(selected.chat ?? []).filter((c) => !c.system).length} messages · tap to continue`
+                    : "Coordinate with the host — only you two see this"
+                  : "Ask the host — only you two will see it"}
             </p>
           </div>
           <ChevronRight className="size-4 shrink-0 text-fg-subtle" />
@@ -2594,14 +2726,30 @@ export function QuickMatchFlow({
               </button>
             </div>
           ) : null}
-          {canInvite ? (
-            <button type="button" onClick={() => setInviteOpen(true)}
-              className="min-w-[40%] flex-1 rounded-full border border-border bg-bg-elevated py-3 text-sm font-semibold">Invite opponent</button>
-          ) : null}
           {canCancel ? (
             <button type="button" onClick={() => { setCancelOpen(true); setCancelReason(""); setCancelError(null); }}
               className="min-w-[40%] flex-1 rounded-full border border-danger/40 bg-danger/10 py-3 text-sm font-semibold text-danger">
               {hostEmptyCancel ? "Close listing" : "Cancel game"}
+            </button>
+          ) : null}
+          {selected.hostId === me.id || selected.opponentId === me.id || selected.status === "open" ? (
+            <button
+              type="button"
+              onClick={() => {
+                const reason = window.prompt("Report this game or incident (short reason):");
+                if (!reason?.trim()) return;
+                void reportPlayerFn({
+                  data: {
+                    kind: "game",
+                    gameId: selected.id,
+                    targetId: selected.hostId === me.id ? selected.opponentId : selected.hostId,
+                    reason: reason.trim(),
+                  },
+                }).then(() => setStatusMsg("Report filed for review."));
+              }}
+              className="min-w-[40%] flex-1 rounded-full border border-border py-3 text-sm font-semibold text-fg-muted"
+            >
+              Report
             </button>
           ) : null}
         </div>
@@ -3667,25 +3815,30 @@ function HostScouting({
   }, [reviews, host]);
   const avgStars = hostReviews.length > 0
     ? hostReviews.reduce((s, r) => s + r.stars, 0) / hostReviews.length : null;
+  const notesText = (match.notes ?? "").replace(/^Best of 3\s*[·•]\s*games to 11\s*[·•]\s*make it take it\.?\s*/i, "").trim();
+  const hasNotes = notesText.length > 0;
 
   return (
     <div className="space-y-2.5">
-      <div className="rounded-xl border border-border bg-bg-elevated p-3">
+      <div className={cn(
+        "rounded-xl bg-bg-elevated",
+        hasNotes || editingNotes || isHost ? "px-3 py-2.5" : "px-3 py-2",
+      )}>
         <div className="flex items-center justify-between gap-2">
-          <p className="text-[10px] font-bold tracking-wide text-fg-subtle uppercase">Host notes · who they want</p>
+          <p className="text-[13px] font-semibold text-fg">Host notes</p>
           {isHost ? (
             <button type="button" onClick={() => {
               if (editingNotes) { onSaveNotes(noteDraft); setEditingNotes(false); }
               else setEditingNotes(true);
-            }} className="text-[11px] font-semibold text-court">{editingNotes ? "Save" : "Edit"}</button>
+            }} className="text-[12px] font-medium text-fg-subtle">{editingNotes ? "Save" : "Edit"}</button>
           ) : null}
         </div>
         {editingNotes && isHost ? (
           <textarea value={noteDraft} onChange={(e) => setNoteDraft(e.target.value)} rows={3}
             className="mt-2 w-full rounded-xl border border-border bg-bg px-3 py-2 text-sm" />
         ) : (
-          <p className="mt-1.5 text-sm leading-snug text-fg">
-            {(match.notes ?? "").replace(/^Best of 3\s*[·•]\s*games to 11\s*[·•]\s*make it take it\.?\s*/i, "").trim() || "No notes yet."}
+          <p className={cn("text-[13px] leading-snug", hasNotes ? "mt-1 text-fg" : "mt-0.5 text-fg-subtle")}>
+            {hasNotes ? notesText : "No notes added."}
           </p>
         )}
       </div>
@@ -4225,6 +4378,68 @@ function InviteSheet({
           </button>
         </div>
         ) : null}
+      </div>
+    </div>
+  );
+}
+
+function GetOpponentCard({
+  courtName,
+  matchId,
+  whenLabel,
+  onInvite,
+}: {
+  courtName: string;
+  matchId: string;
+  whenLabel: string;
+  onInvite: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  const share = async () => {
+    const url = `${window.location.origin}/?g=${encodeURIComponent(matchId)}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: "Upset City 1v1",
+          text: `${courtName} · ${whenLabel}`,
+          url,
+        });
+        return;
+      }
+    } catch {
+      /* copy instead */
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  return (
+    <div className="rounded-2xl bg-bg-elevated px-3.5 py-3.5">
+      <p className="text-[14px] font-semibold text-fg">Waiting for an opponent</p>
+      <p className="mt-0.5 text-[12px] text-fg-muted">
+        Invite a player or share this game. The first person to join locks in.
+      </p>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={onInvite}
+          className="h-11 rounded-full bg-court text-[12px] font-semibold text-white"
+        >
+          Invite
+        </button>
+        <button
+          type="button"
+          onClick={() => void share()}
+          className="inline-flex h-11 items-center justify-center gap-1.5 rounded-full border border-border text-[12px] font-semibold text-fg"
+        >
+          <Share2 className="size-3.5" />
+          {copied ? "Copied" : "Share"}
+        </button>
       </div>
     </div>
   );

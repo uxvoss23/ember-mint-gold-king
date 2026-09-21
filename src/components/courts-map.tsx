@@ -3,6 +3,11 @@ import type { Court, UserLocation } from "@/lib/courts/types";
 import type { Player } from "@/lib/upset/types";
 import { ucMark } from "@/lib/perf/uc-mark";
 import { cn } from "@/lib/utils";
+import { acquireMap, parkMap, takeWarmMap } from "@/lib/maps/engine";
+import {
+  bindCourtLayerClicks,
+  hydrateCourtLayers,
+} from "@/lib/maps/court-layers";
 
 interface CourtsMapProps {
   courts: Court[];
@@ -217,57 +222,46 @@ export function CourtsMap({
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      if (!containerRef.current || mapRef.current) return;
-      ucMark("map:init-start");
-      const maplibregl = maplibreMod ?? (await import("maplibre-gl"));
-      maplibreMod = maplibregl;
-      await import("maplibre-gl/dist/maplibre-gl.css");
-      if (cancelled || !containerRef.current) return;
+    const el = containerRef.current;
+    if (!el) return;
+    ucMark("map:init-start");
 
-      const map = new maplibregl.Map({
-        container: containerRef.current,
-        style: streetStyle(),
-        center: [location.lon, location.lat],
-        zoom: 10.4,
-        minZoom: 9,
-        maxZoom: 16,
-        attributionControl: { compact: true },
-        dragRotate: false,
-        pitchWithRotate: false,
-        fadeDuration: 0,
-        pixelRatio: constrainedMobile() ? 1 : undefined,
-        maxTileCacheSize: constrainedMobile() ? 80 : undefined,
-      });
-      map.addControl(
-        new maplibregl.NavigationControl({ showCompass: false }),
-        "bottom-right",
+    const attach = (warm: { map: import("maplibre-gl").Map; maplibregl: typeof import("maplibre-gl") }) => {
+      if (cancelled || !warm?.map) return;
+      maplibreMod = warm.maplibregl;
+      mapRef.current = warm.map;
+      setReady(true);
+      ucMark("map:adopt");
+      const valid = courtsRef.current.filter(
+        (c) => Number.isFinite(c.lat) && Number.isFinite(c.lon),
       );
-      mapRef.current = map;
-      const readyFailsafe = window.setTimeout(() => {
-        if (!cancelled) setReady(true);
-      }, 1400);
-      map.on("error", () => {
-        if (!cancelled) setTileError(true);
+      console.info("[uc-debug] map:adopt", {
+        courts: courtsRef.current.length,
+        valid: valid.length,
+        canvasInEl: el.contains(warm.map.getCanvas()),
+        center: warm.map.getCenter(),
+        zoom: warm.map.getZoom(),
+        size: `${el.clientWidth}x${el.clientHeight}`,
       });
-      map.on("load", () => {
-        if (!cancelled) {
-          window.clearTimeout(readyFailsafe);
-          ucMark("map:tiles");
-          setReady(true);
-          setTileError(false);
-          requestAnimationFrame(() => {
-            map.resize();
-            requestAnimationFrame(() => map.resize());
-          });
-        }
+      try {
+        hydrateCourtLayers(warm.map);
+        bindCourtLayerClicks(warm.map, (id) => {
+          const c = courtsRef.current.find((x) => x.id === id);
+          if (c) onSelectRef.current(c);
+        });
+      } catch {
+        /* style still loading — engine load handler hydrates */
+      }
+      const map = warm.map;
+      map.on("error", (e: { error?: { message?: string } }) => {
+        console.info("[uc-debug] map:error", e?.error?.message ?? e);
+        if (!cancelled) setTileError(true);
       });
       map.on("zoomend", () => {
         if (fittingRef.current) return;
         const next = map.getZoom() < 11.5 && courtsRef.current.length > 8;
         setClusterMode((prev) => (prev === next ? prev : next));
       });
-
       let resizeRaf = 0;
       const ro = new ResizeObserver(() => {
         if (resizeRaf) return;
@@ -276,13 +270,37 @@ export function CourtsMap({
           try {
             map.resize();
           } catch {
-            /* map already gone */
+            /* map parked */
           }
         });
       });
-      if (containerRef.current) ro.observe(containerRef.current);
+      ro.observe(el);
       (map as unknown as { __ro?: ResizeObserver }).__ro = ro;
-    })();
+      requestAnimationFrame(() => {
+        try {
+          map.resize();
+          map.triggerRepaint();
+        } catch {
+          /* parked */
+        }
+      });
+    };
+
+    const existing = takeWarmMap(el);
+    if (existing) {
+      attach(existing);
+    } else {
+      void acquireMap(el)
+        .then((warm) => {
+          if (!cancelled) attach(warm);
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setTileError(true);
+            setReady(true);
+          }
+        });
+    }
 
     return () => {
       cancelled = true;
@@ -295,7 +313,7 @@ export function CourtsMap({
         | (import("maplibre-gl").Map & { __ro?: ResizeObserver })
         | null;
       map?.__ro?.disconnect();
-      map?.remove();
+      parkMap(el);
       mapRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -324,7 +342,6 @@ export function CourtsMap({
       ([entry]) => {
         if (!entry) return;
         if (entry.isIntersecting && entry.intersectionRatio > 0.05) resume();
-        else pause();
       },
       { threshold: [0, 0.05, 0.2] },
     );
@@ -340,15 +357,25 @@ export function CourtsMap({
     };
   }, [ready]);
 
+  const styleBootRef = useRef(true);
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
+    if (styleBootRef.current) {
+      styleBootRef.current = false;
+      return;
+    }
     const center = map.getCenter();
     const zoom = map.getZoom();
     map.setStyle(style === "satellite" ? SATELLITE_STYLE : streetStyle());
     map.once("style.load", () => {
       map.setCenter(center);
       map.setZoom(zoom);
+      try {
+        hydrateCourtLayers(map);
+      } catch {
+        /* ignore */
+      }
     });
   }, [style, ready]);
 
@@ -370,6 +397,15 @@ export function CourtsMap({
       markersRef.current.forEach((m) => m.remove());
       markersRef.current = [];
       pinElsRef.current.clear();
+      try {
+        if (map.getLayer("uc-courts-pin")) {
+          map.setLayoutProperty("uc-courts-pin", "visibility", "none");
+        }
+        const bag = map as { __ucPill?: HTMLDivElement };
+        if (bag.__ucPill) bag.__ucPill.hidden = true;
+      } catch {
+        /* layer may not exist yet */
+      }
       const placed: import("maplibre-gl").Marker[] = [];
       const placeMarker = (marker: import("maplibre-gl").Marker) => {
         if (pinGenRef.current !== gen) {
@@ -595,6 +631,12 @@ export function CourtsMap({
       youNode.classList.add("uc-you-wrap");
       youNode.style.zIndex = "10000";
       youNode.style.pointerEvents = "none";
+      console.info("[uc-debug] map:pins", {
+        html: pinElsRef.current.size,
+        markers: markersRef.current.length,
+        geoLayer: !!map.getLayer("uc-courts-pin"),
+        zoom: map.getZoom(),
+      });
 
       if (courts.length > 0 && !frameSelection && !didOverviewRef.current) {
         didOverviewRef.current = true;
@@ -733,7 +775,10 @@ export function CourtsMap({
         )}
       />
       {!ready && (
-        <div className="absolute inset-0 z-[1] flex flex-col items-center justify-center gap-2 bg-bg-elevated">
+        <div
+          data-uc-map-pending
+          className="absolute inset-0 z-[1] flex flex-col items-center justify-center gap-2 bg-bg-elevated"
+        >
           <div className="h-8 w-8 animate-pulse rounded-full bg-bg-subtle" />
           <p className="text-[11px] font-medium text-fg-muted">Loading map…</p>
         </div>
@@ -741,6 +786,24 @@ export function CourtsMap({
       {tileError && ready ? (
         <div className="absolute bottom-16 left-3 right-3 z-10 rounded-xl border border-border bg-bg/95 px-3 py-2 text-[11px] text-fg-muted shadow-soft">
           Map tiles didn’t load. The court list still works.
+          <button
+            type="button"
+            className="ml-2 font-semibold text-court underline-offset-2 hover:underline"
+            onClick={() => {
+              const map = mapRef.current;
+              if (!map) return;
+              setTileError(false);
+              try {
+                map.resize();
+                map.triggerRepaint();
+                hydrateCourtLayers(map);
+              } catch {
+                setTileError(true);
+              }
+            }}
+          >
+            Retry map
+          </button>
         </div>
       ) : null}
       <div className={cn("absolute top-3 left-3 z-10 flex rounded-full border border-border bg-bg/90 p-0.5 shadow-soft backdrop-blur-md", styleToggleClassName)}>

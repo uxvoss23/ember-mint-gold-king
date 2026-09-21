@@ -15,6 +15,7 @@ import type {
   Match,
   MatchGame,
   Player,
+  PlayerNotice,
   PlayerReview,
   UpsetState,
 } from "@/lib/upset/types";
@@ -575,6 +576,7 @@ function emptyState(): UpsetState {
     playerReviews: [],
     cancelLog: [],
     seedVersion: SEED_VERSION,
+    notices: [],
   };
 }
 
@@ -594,6 +596,7 @@ function defaultState(): UpsetState {
     playerReviews: seedReviews(),
     cancelLog: [],
     seedVersion: SEED_VERSION,
+    notices: [],
   };
 }
 
@@ -650,6 +653,7 @@ function load(): UpsetState {
       leagueChat: Array.isArray(parsed.leagueChat) ? parsed.leagueChat : [],
       meId: parsed.meId || "p-you",
       seedVersion: SEED_VERSION,
+      notices: [],
     };
   } catch {
     return defaultState();
@@ -742,6 +746,7 @@ function snapshotKey(s: {
   meId: string;
   friendIds?: string[];
   dmThreads?: DirectThread[];
+  notices?: PlayerNotice[];
 }): string {
   let k = `${s.meId}|${(s.friendIds ?? []).join(",")}|`;
   for (const p of s.players) {
@@ -756,6 +761,10 @@ function snapshotKey(s: {
   for (const t of s.dmThreads ?? []) {
     k += `${t.id}:${t.messages.length}:${t.updatedAt};`;
   }
+  k += "#";
+  for (const n of s.notices ?? []) {
+    k += `${n.id}:${n.readAt ?? ""};`;
+  }
   return k;
 }
 
@@ -768,6 +777,7 @@ export function applyServerSnapshot(snap: {
   meId: string;
   friendIds?: string[];
   dmThreads?: DirectThread[];
+  notices?: PlayerNotice[];
 }) {
   const matches = mergeOptimisticChat(state.matches, snap.matches);
   const incomingMe = snap.meId ?? "";
@@ -784,6 +794,7 @@ export function applyServerSnapshot(snap: {
     meId,
     friendIds: snap.friendIds ?? state.friendIds,
     dmThreads: snap.dmThreads ?? state.dmThreads,
+    notices: snap.notices ?? state.notices,
   };
   const key = snapshotKey(next);
   if (key === lastSnapshotKey) return;
@@ -1113,6 +1124,7 @@ export function useUpsetStore() {
                 : "Game locked in.",
           at: new Date().toISOString(),
           system: true,
+          threadWithId: s.meId,
         });
         if (neither) {
           chat.push({
@@ -1121,6 +1133,22 @@ export function useUpsetStore() {
             text: "Neither of you is bringing a basketball — figure it out in chat so tip-off isn’t empty-handed.",
             at: new Date().toISOString(),
             system: true,
+            threadWithId: s.meId,
+          });
+        }
+        const closed = new Set(
+          chat
+            .map((c) => c.threadWithId)
+            .filter((id): id is string => !!id && id !== s.meId),
+        );
+        for (const pid of closed) {
+          chat.push({
+            id: uid("sys"),
+            authorName: "Upset City",
+            text: "This game filled. Your messages stay between you and the host.",
+            at: new Date().toISOString(),
+            system: true,
+            threadWithId: pid,
           });
         }
         return {
@@ -2219,30 +2247,34 @@ export function useUpsetStore() {
   }, []);
 
 
-  const postMatchChat = useCallback((matchId: string, text: string) => {
+  const postMatchChat = useCallback((matchId: string, text: string, threadWithId?: string) => {
     const body = text.trim();
     if (!body) return;
     setState((s) => {
       const meP = s.players.find((p) => p.id === s.meId);
       return {
         ...s,
-        matches: s.matches.map((m) =>
-          m.id !== matchId
-            ? m
-            : {
-                ...m,
-                chat: [
-                  ...m.chat,
-                  {
-                    id: uid("mc"),
-                    authorId: s.meId,
-                    authorName: meP?.name ?? "You",
-                    text: body,
-                    at: new Date().toISOString(),
-                  },
-                ],
+        matches: s.matches.map((m) => {
+          if (m.id !== matchId) return m;
+          const thread =
+            threadWithId ||
+            (m.hostId === s.meId ? m.opponentId : s.meId);
+          if (!thread) return m;
+          return {
+            ...m,
+            chat: [
+              ...m.chat,
+              {
+                id: uid("mc"),
+                authorId: s.meId,
+                authorName: meP?.name ?? "You",
+                text: body,
+                at: new Date().toISOString(),
+                threadWithId: thread,
               },
-        ),
+            ],
+          };
+        }),
       };
     });
   }, []);

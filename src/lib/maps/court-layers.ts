@@ -1,4 +1,4 @@
-/** MapLibre GeoJSON court pins — teardrop basketball markers. */
+/** MapLibre GeoJSON court pins — circular finder markers. */
 
 import type { Court } from "@/lib/courts/types";
 import { catalogNear } from "@/lib/courts/catalog";
@@ -10,8 +10,8 @@ const LAYER_SHADOW = "uc-courts-shadow";
 const LAYER_RING = "uc-courts-ring";
 const LAYER_HALO = "uc-courts-halo";
 const LAYER_LABEL = "uc-courts-label";
-const ICON_IDLE = "uc-pin-idle-v13";
-const ICON_SEL = "uc-pin-sel-v13";
+const ICON_IDLE = "uc-pin-idle-v14-circle";
+const ICON_SEL = "uc-pin-sel-v14-circle";
 
 const AUSTIN = { lat: 30.2672, lon: -97.7431 };
 const SEED_RADIUS_M = 50 * 1609.34;
@@ -127,13 +127,13 @@ export function ensureCourtLayers(map: import("maplibre-gl").Map) {
         "icon-size": 1,
         "icon-allow-overlap": true,
         "icon-ignore-placement": true,
-        "icon-anchor": "bottom",
+        "icon-anchor": "center",
         "icon-padding": 0,
       },
     });
   } else {
     try {
-      map.setLayoutProperty(LAYER_PIN, "icon-anchor", "bottom");
+      map.setLayoutProperty(LAYER_PIN, "icon-anchor", "center");
       map.setLayoutProperty(LAYER_PIN, "icon-image", [
         "case",
         ["==", ["get", "selected"], 1],
@@ -188,7 +188,7 @@ function positionPill(map: MapBag) {
   if (text && text.textContent !== court.name) text.textContent = court.name;
   el.title = court.name;
   const pt = map.project([court.lon, court.lat]);
-  el.style.transform = `translate(${Math.round(pt.x)}px, ${Math.round(pt.y)}px) translate(-50%, calc(-100% - 40px))`;
+  el.style.transform = `translate(${Math.round(pt.x)}px, ${Math.round(pt.y)}px) translate(-50%, 28px)`;
 }
 
 export function setCourtFeatures(
@@ -222,7 +222,11 @@ export function bindCourtLayerClicks(
   map: import("maplibre-gl").Map,
   onSelect: (id: string) => void,
 ) {
-  const bag = map as unknown as { __ucPinClick?: boolean };
+  const bag = map as unknown as {
+    __ucPinClick?: boolean;
+    __ucPinOnSelect?: (id: string) => void;
+  };
+  bag.__ucPinOnSelect = onSelect;
   if (bag.__ucPinClick) return;
   bag.__ucPinClick = true;
   const hit = (e: {
@@ -230,7 +234,7 @@ export function bindCourtLayerClicks(
   }) => {
     const f = e.features?.[0];
     const id = f?.properties?.id ?? (typeof f?.id === "string" ? f.id : undefined);
-    if (typeof id === "string" && id) onSelect(id);
+    if (typeof id === "string" && id) bag.__ucPinOnSelect?.(id);
   };
   map.on("click", LAYER_PIN, hit as never);
   map.on("mouseenter", LAYER_PIN, () => {

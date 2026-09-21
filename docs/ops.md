@@ -13,6 +13,10 @@ Canonical env list: `env.example` (keep `.env.example` identical if you keep a l
 | `VITE_MATCH_MODE` | client | on | `"false"` hides Match Mode. Likes persist on the server. |
 | `VITE_PUBLIC_HOSTNAME` | inject | — | Set on publish. Do not invent a local `.env` for it. |
 | `MODERATOR_EMAILS` | server | unset | Extra emails granted `player.role = moderator` on first admin action. |
+| `RESEND_API_KEY` | server | unset | Sends password-reset, verification, and game-alert email. |
+| `MAIL_FROM` | server | `Upset City <noreply@upsetcity.app>` | Verified Resend from-address. |
+| `VAPID_PUBLIC_KEY` | server | unset | Web Push public key. Required for iPhone PWA push in production. |
+| `VAPID_PRIVATE_KEY` | server | unset | Web Push private key. Never put in `VITE_*`. |
 
 Admin court editing uses `player.role = moderator` (migration `0011_moderator_role.sql`). Bootstrap emails: `seanvoss23@gmail.com` plus `MODERATOR_EMAILS`. Enforced in `requireModerator` (`src/lib/auth/moderator.server.ts`). Regular accounts never see the pencil. Role is omitted from public player payloads.
 
@@ -35,6 +39,12 @@ Additive SQL in `migrations/`, applied in name order.
 | `0011_moderator_role.sql` | `player.role` moderator |
 | `0012_match_mode.sql` | Match Mode availability + likes |
 | `0013_rate_limit.sql` | Application rate-limit counters |
+| `0014_court_photo.sql` | Court photo blobs (`court_photo`) |
+| `0015_test_users.sql` | Admin test users + impersonation |
+| `0016_game_chat_threads.sql` | Private host↔player game threads |
+| `0017_notices.sql` | In-app alerts: invite, opponent lock-in, score confirm, DM |
+| `0018_safety.sql` | Report kind / game / message refs |
+| `0019_push.sql` | Web push subscriptions |
 
 Federated OAuth secrets live in `GROK_AUTH_CLIENT_SECRET` (or `GROK_PREVIEW_CLIENT_SECRET`). They are never committed. If unset, Google/X is disabled. Rotate any previously leaked preview secret as an owner action.
 

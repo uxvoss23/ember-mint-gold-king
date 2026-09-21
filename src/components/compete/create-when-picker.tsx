@@ -3,6 +3,10 @@ import { ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SoftTimeBand } from "@/lib/upset/hoop-now";
 import { SOFT_TIME_BANDS } from "@/lib/upset/hoop-now";
+import {
+  slotConflict,
+  type BusySlot,
+} from "@/lib/game/schedule-conflict";
 
 function pad2(n: number) {
   return String(n).padStart(2, "0");
@@ -67,6 +71,7 @@ export function CreateWhenPicker({
   guide,
   roomy,
   variant = "default",
+  busySlots = [],
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -75,6 +80,8 @@ export function CreateWhenPicker({
   roomy?: boolean;
   /** Plan screen: always open, no legend, orange selected time */
   variant?: "default" | "plan";
+  /** Existing games that occupy a 90-minute window */
+  busySlots?: BusySlot[];
 }) {
   const isPlan = variant === "plan";
   const [open, setOpen] = useState(() => isPlan);
@@ -105,6 +112,29 @@ export function CreateWhenPicker({
   );
   const firstName = guide?.opponentName?.split(" ")[0] ?? "They";
 
+  const busyOnDay = (day: Date) => {
+    const start = new Date(day);
+    start.setHours(0, 0, 0, 0);
+    const end = start.getTime() + 24 * 60 * 60 * 1000;
+    return busySlots.filter((b) => b.atMs >= start.getTime() && b.atMs < end);
+  };
+
+  const slotMsFor = (day: Date, h: number, m: number) => {
+    const next = new Date(day);
+    next.setHours(h, m, 0, 0);
+    return next.getTime();
+  };
+
+  const remainingOpenSlots = (day: Date) => {
+    const now = Date.now();
+    const isToday = sameCalendarDay(day, new Date());
+    return TIME_SLOTS.filter((slot) => {
+      const ms = slotMsFor(day, slot.h, slot.m);
+      if (isToday && ms <= now) return false;
+      return !slotConflict(ms, busySlots);
+    }).length;
+  };
+
   const blockedLabels = useMemo(() => {
     return (guide?.blockedDates ?? [])
       .slice()
@@ -119,6 +149,7 @@ export function CreateWhenPicker({
         });
       });
   }, [guide?.blockedDates]);
+  void blockedLabels;
 
   const preferredLabels = (guide?.preferredBands ?? [])
     .map((id) => SOFT_TIME_BANDS.find((b) => b.id === id)?.label ?? id)
@@ -127,9 +158,16 @@ export function CreateWhenPicker({
   const setDay = (day: Date) => {
     const key = dateKey(day);
     if (blocked.has(key)) return;
+    if (remainingOpenSlots(day) === 0) return;
     if (selected) {
       const next = new Date(day);
       next.setHours(selected.getHours(), selected.getMinutes(), 0, 0);
+      if (slotConflict(next.getTime(), busySlots)) {
+        const d = new Date(day);
+        d.setHours(0, 0, 0, 0);
+        setDayDraft(d);
+        return;
+      }
       onChange(toLocalDateTimeValue(next));
     } else {
       const d = new Date(day);
@@ -143,6 +181,7 @@ export function CreateWhenPicker({
     if (blocked.has(dateKey(base))) return;
     const next = new Date(base);
     next.setHours(h, m, 0, 0);
+    if (slotConflict(next.getTime(), busySlots)) return;
     onChange(toLocalDateTimeValue(next));
     setDayDraft(null);
     if (!isPlan) setOpen(false);
@@ -167,10 +206,12 @@ export function CreateWhenPicker({
         });
 
   // Fit check for current selection
-  let fit: "good" | "blocked" | "offband" | "unknown" | null = null;
+  let fit: "good" | "blocked" | "offband" | "unknown" | "busy" | null = null;
   if (selected) {
     const key = dateKey(selected);
+    const hit = slotConflict(selected.getTime(), busySlots);
     if (blocked.has(key)) fit = "blocked";
+    else if (hit) fit = "busy";
     else if (preferred.size === 0) fit = "unknown";
     else if (preferred.has(hourToBand(selected.getHours()))) fit = "good";
     else fit = "offband";
@@ -215,6 +256,10 @@ export function CreateWhenPicker({
             <p className="mt-0.5 text-[11px] font-semibold text-rose-600">
               They marked this day not available
             </p>
+          ) : fit === "busy" ? (
+            <p className="mt-0.5 text-[11px] font-semibold text-fg-muted">
+              That slot is already booked
+            </p>
           ) : fit === "offband" ? (
             <p className="mt-0.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
               Outside their usual free times
@@ -241,23 +286,28 @@ export function CreateWhenPicker({
             {days.map((d) => {
               const key = dateKey(d);
               const isBlocked = blocked.has(key);
+              const dayBusy = busyOnDay(d);
+              const noOpen = remainingOpenSlots(d) === 0;
+              const dayLocked = isBlocked || noOpen;
               const isSel = activeDay ? sameCalendarDay(d, activeDay) : false;
               const isToday = sameCalendarDay(d, new Date());
               return (
                 <button
                   key={d.toISOString()}
                   type="button"
-                  disabled={isBlocked}
+                  disabled={dayLocked}
                   onClick={() => setDay(d)}
                   title={
                     isBlocked
                       ? `${firstName} not available`
-                      : d.toLocaleDateString()
+                      : noOpen
+                        ? "Already booked"
+                        : d.toLocaleDateString()
                   }
                   className={cn(
                     "relative flex h-14 w-12 shrink-0 flex-col items-center justify-center rounded-xl border",
-                    isBlocked
-                      ? "cursor-not-allowed border-rose-500/40 bg-rose-500/10 text-rose-700/80 opacity-90 dark:text-rose-300"
+                    dayLocked
+                      ? "cursor-not-allowed border-border bg-bg-subtle text-fg-subtle opacity-45"
                       : isSel
                         ? "border-court bg-court text-white"
                         : "border-border bg-bg-elevated text-fg",
@@ -266,8 +316,8 @@ export function CreateWhenPicker({
                   <span
                     className={cn(
                       "text-[8px] font-bold uppercase leading-none",
-                      isBlocked
-                        ? "text-rose-600 dark:text-rose-400"
+                      dayLocked
+                        ? "text-fg-subtle"
                         : isSel
                           ? "text-white/80"
                           : "text-fg-subtle",
@@ -281,9 +331,20 @@ export function CreateWhenPicker({
                     {d.getDate()}
                   </span>
                   {isBlocked ? (
-                    <span className="mt-0.5 text-[7px] font-black tracking-wide text-rose-600 uppercase dark:text-rose-400">
+                    <span className="mt-0.5 text-[7px] font-black tracking-wide text-fg-subtle uppercase">
                       Off
                     </span>
+                  ) : noOpen ? (
+                    <span className="mt-0.5 text-[7px] font-black tracking-wide text-fg-subtle uppercase">
+                      Booked
+                    </span>
+                  ) : dayBusy.length > 0 ? (
+                    <span
+                      className={cn(
+                        "mt-0.5 size-1 rounded-full",
+                        isSel ? "bg-white/70" : "bg-fg-subtle",
+                      )}
+                    />
                   ) : preferred.size > 0 ? (
                     <span
                       className={cn(
@@ -318,13 +379,14 @@ export function CreateWhenPicker({
               )}
               {!isPlan ? (
                 <p className="text-[10px] text-fg-subtle">
-                  <span className="font-semibold text-rose-600 dark:text-rose-400">
-                    Red days
-                  </span>{" "}
-                  = not available · green times = best chance they accept
+                  Grey slots are already booked · green times = best chance they accept
                 </p>
               ) : null}
             </div>
+          ) : busySlots.length > 0 ? (
+            <p className="text-[10px] text-fg-subtle">
+              Grey times are already booked — pick an open slot.
+            </p>
           ) : null}
 
           {isPlan ? (
@@ -365,17 +427,28 @@ export function CreateWhenPicker({
               const dayBlocked = activeDay
                 ? blocked.has(dateKey(activeDay))
                 : false;
+              const hit = activeDay
+                ? slotConflict(slotMsFor(activeDay, slot.h, slot.m), busySlots)
+                : undefined;
+              const taken = dayBlocked || Boolean(hit);
               return (
                 <button
                   key={`${slot.h}-${slot.m}`}
                   type="button"
-                  disabled={dayBlocked}
+                  disabled={taken}
+                  title={
+                    hit?.reason === "yours"
+                      ? "You already have a game then"
+                      : hit?.reason === "court"
+                        ? "Court already booked then"
+                        : undefined
+                  }
                   onClick={() => setTime(slot.h, slot.m)}
                   className={cn(
                     "relative rounded-lg border font-semibold tabular-nums",
                     isPlan ? "h-11 text-[13px]" : "h-9 text-[11px]",
-                    dayBlocked
-                      ? "cursor-not-allowed border-border bg-bg-subtle text-fg-subtle opacity-40"
+                    taken
+                      ? "cursor-not-allowed border-border bg-bg-subtle text-fg-subtle/70 line-through opacity-45"
                       : active
                         ? "border-court bg-court text-white"
                         : inPref
@@ -384,7 +457,7 @@ export function CreateWhenPicker({
                   )}
                 >
                   {slot.label}
-                  {inPref && !active && !dayBlocked ? (
+                  {inPref && !active && !taken ? (
                     <span className="absolute top-0.5 right-0.5 size-1 rounded-full bg-emerald-500" />
                   ) : null}
                 </button>
@@ -393,7 +466,7 @@ export function CreateWhenPicker({
           </div>
           {!hasValue && !isPlan ? (
             <p className="text-center text-[10px] text-fg-subtle">
-              Pick an open day, then a green time slot
+              Pick an open day, then an open time
             </p>
           ) : null}
         </div>

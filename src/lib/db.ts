@@ -107,12 +107,16 @@ function createNeonSql(): Promise<Sql> {
 }
 
 async function createPgliteSql(): Promise<Sql> {
-  // Embedded Postgres, imported on demand so it never loads on the Neon path.
-  // One in-memory instance per process, shared across HMR module instances, so
-  // data survives source edits (it resets on dev-server restart).
+  // Embedded Postgres. dataDir is on disk so court edits/photos survive
+  // process restart in this workspace. Production uses DATABASE_URL (Neon).
   globalRef.__pgliteInstance__ ??= (async () => {
+    const { mkdir } = await import("node:fs/promises");
+    const { join } = await import("node:path");
+    const dataDir = join(process.cwd(), "data", "pglite");
+    await mkdir(dataDir, { recursive: true });
     const { PGlite } = await import("@electric-sql/pglite");
     const pg = new PGlite({
+      dataDir,
       parsers: {
         [OID_INT8]: Number,
         [OID_DATE]: identity,
@@ -199,7 +203,7 @@ async function createSql(): Promise<Sql> {
       process.exit(1);
     }
     console.warn(
-      "[db] DATABASE_URL is not set — using ephemeral PGLite (development/preview only). This is not production data.",
+      "[db] DATABASE_URL is not set — using disk-backed PGLite at data/pglite (development/preview). Production should set DATABASE_URL.",
     );
   }
   return dbSource === "neon" ? createNeonSql() : createPgliteSql();

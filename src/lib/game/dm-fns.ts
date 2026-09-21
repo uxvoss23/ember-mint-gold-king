@@ -6,6 +6,7 @@ import { newId } from "@/lib/game/map";
 import type { DirectThread } from "@/lib/upset/types";
 import { canMessagePlayer, type DmPrivacy } from "@/lib/game/privacy";
 import { consumeRateLimit } from "@/lib/game/rate-limit";
+import { notifySoon } from "@/lib/game/notices";
 
 async function requireNamedPlayer(sql: Sql, userId: string) {
   const rows = await sql.query<{ id: string; name: string }>(
@@ -221,5 +222,12 @@ export const sendDmFn = createServerFn({ method: "POST" })
       [newId("dm"), threadId, me.id, me.name, data.text],
     );
     await sql.query(`update dm_thread set updated_at = now() where id = $1`, [threadId]);
+    notifySoon(sql, {
+      playerId: data.targetId,
+      kind: "dm",
+      title: `${me.name} sent you a message`,
+      body: data.text.slice(0, 120),
+      fromPlayerId: me.id,
+    });
     return loadFriendsAndDms(sql, me.id);
   });

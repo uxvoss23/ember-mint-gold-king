@@ -16,6 +16,8 @@ interface ImageCarouselProps {
   allowFullscreen?: boolean;
   /** Fill a parent with an explicit height instead of using aspect padding */
   fill?: boolean;
+  /** Smaller, more transparent arrows/dots for photo-forward heroes */
+  quietControls?: boolean;
 }
 
 /**
@@ -33,6 +35,7 @@ export function ImageCarousel({
   compact = false,
   allowFullscreen = false,
   fill = false,
+  quietControls = false,
 }: ImageCarouselProps) {
   const [index, setIndex] = useState(0);
   const [fullscreen, setFullscreen] = useState(false);
@@ -305,8 +308,14 @@ export function ImageCarousel({
 
       {count > 1 ? (
         <>
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] h-7 bg-gradient-to-t from-black/35 to-transparent" />
-          <div className="absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1">
+          <div className={cn(
+            "pointer-events-none absolute inset-x-0 bottom-0 z-[1] bg-gradient-to-t from-black/35 to-transparent",
+            quietControls ? "h-5" : "h-7",
+          )} />
+          <div className={cn(
+            "absolute left-1/2 z-30 flex -translate-x-1/2 items-center gap-1",
+            quietControls ? "bottom-1.5" : "bottom-2",
+          )}>
             {images.map((_, i) => (
               <button
                 key={i}
@@ -317,8 +326,11 @@ export function ImageCarousel({
                   goTo(i, true);
                 }}
                 className={cn(
-                  "size-1.5 rounded-full transition-all",
-                  i === index ? "w-3 bg-white" : "bg-white/45",
+                  "rounded-full transition-all",
+                  quietControls ? "size-1" : "size-1.5",
+                  i === index
+                    ? quietControls ? "w-2.5 bg-white/90" : "w-3 bg-white"
+                    : "bg-white/45",
                 )}
               />
             ))}
@@ -332,9 +344,14 @@ export function ImageCarousel({
                   e.stopPropagation();
                   go(-1);
                 }}
-                className="absolute top-1/2 left-0 z-20 flex h-11 w-7 -translate-y-1/2 items-center justify-start rounded-r-full bg-black/30 pl-0.5 text-white/90"
+                className={cn(
+                  "absolute top-1/2 left-0 z-20 flex -translate-y-1/2 items-center justify-start text-white",
+                  quietControls
+                    ? "h-9 w-6 rounded-r-full bg-black/15 pl-0.5 text-white/70"
+                    : "h-11 w-7 rounded-r-full bg-black/30 pl-0.5 text-white/90",
+                )}
               >
-                <ChevronLeft className="size-4" strokeWidth={2.5} />
+                <ChevronLeft className={quietControls ? "size-3.5" : "size-4"} strokeWidth={2.5} />
               </button>
               <button
                 type="button"
@@ -343,9 +360,14 @@ export function ImageCarousel({
                   e.stopPropagation();
                   go(1);
                 }}
-                className="absolute top-1/2 right-0 z-20 flex h-11 w-7 -translate-y-1/2 items-center justify-end rounded-l-full bg-black/30 pr-0.5 text-white/90"
+                className={cn(
+                  "absolute top-1/2 right-0 z-20 flex -translate-y-1/2 items-center justify-end text-white",
+                  quietControls
+                    ? "h-9 w-6 rounded-l-full bg-black/15 pr-0.5 text-white/70"
+                    : "h-11 w-7 rounded-l-full bg-black/30 pr-0.5 text-white/90",
+                )}
               >
-                <ChevronRight className="size-4" strokeWidth={2.5} />
+                <ChevronRight className={quietControls ? "size-3.5" : "size-4"} strokeWidth={2.5} />
               </button>
             </>
           ) : null}

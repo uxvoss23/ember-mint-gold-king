@@ -1,45 +1,55 @@
+import { BarChart3, Calendar, ChevronRight, Crown, MessageCircle } from "lucide-react";
 import { useState } from "react";
-import { Crown, MessageSquare } from "lucide-react";
 import { PlayerAvatar } from "@/components/compete/player-avatar";
 import { cityRankOf } from "@/lib/upset/city-rank";
 import { displayRating } from "@/lib/rating/engine";
-import { applyFriendsAndDms, formatLocalWhen, useUpsetStore } from "@/lib/upset/store";
-import type { DirectThread, Match, Player } from "@/lib/upset/types";
+import { formatLocalWhen } from "@/lib/upset/store";
+import type { Match, Player } from "@/lib/upset/types";
 import { cn } from "@/lib/utils";
 import { isProfileComplete, isUnderagePlayer, UNDERAGE_PLAY_MESSAGE } from "@/lib/game/profile";
-import { sendDmFn } from "@/lib/game/dm-fns";
-import { mutationError } from "@/lib/game/client-actions";
+import { imagesForCourt } from "@/lib/courts/images";
+import { useCourtAdmin } from "@/lib/courts/admin-overrides";
 
 export function YouHome({
   me,
   signedIn,
   accountName,
   matches,
-  players,
+  unreadCount,
+  upcomingCount,
   onOpenProfile,
   onOpenMatch,
-  onGoPlay,
+  onOpenMessages,
+  onOpenMyGames,
+  onOpenStats,
+  onFindGame,
+  onCreateGame,
 }: {
   me: Player;
   signedIn: boolean;
   accountName?: string;
   matches: Match[];
-  players: Player[];
+  unreadCount: number;
+  upcomingCount: number;
   onOpenProfile: () => void;
   onOpenMatch: (id: string) => void;
-  onGoPlay: () => void;
+  onOpenMessages: () => void;
+  onOpenMyGames: () => void;
+  onOpenStats: () => void;
+  onFindGame: () => void;
+  onCreateGame: () => void;
 }) {
-  if (!signedIn) return null;
-
   const rank = cityRankOf(me.id);
   const isKing = rank === 1;
-  const playerById = (id: string) => players.find((p) => p.id === id);
   const displayName = accountName?.trim() || me.name;
+  const overrides = useCourtAdmin((s) => s.overrides);
+
+  if (!signedIn) return null;
 
   const mine = matches.filter(
     (m) => m.hostId === me.id || m.opponentId === me.id,
   );
-  const upcoming = mine
+  const nextGame = mine
     .filter(
       (m) =>
         m.status === "open" ||
@@ -51,50 +61,55 @@ export function YouHome({
       (a.scheduledAt ?? a.preferredAt).localeCompare(
         b.scheduledAt ?? b.preferredAt,
       ),
-    )
-    .slice(0, 4);
-  const recent = mine
-    .filter((m) => m.status === "confirmed" && m.scores?.length)
-    .sort((a, b) =>
-      (b.scheduledAt ?? b.preferredAt).localeCompare(
-        a.scheduledAt ?? a.preferredAt,
-      ),
-    )
-    .slice(0, 5);
+    )[0];
+
+  const thumb = nextGame
+    ? imagesForCourt(nextGame.courtId, 1, overrides)[0]
+    : null;
+  const when = nextGame
+    ? formatLocalWhen(nextGame.scheduledAt ?? nextGame.preferredAt)
+    : "";
+  const waiting = nextGame && !nextGame.opponentId;
+  const [verifyUrl] = useState(() => {
+    try {
+      return sessionStorage.getItem("uc-verify-url");
+    } catch {
+      return null;
+    }
+  });
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-6">
       <button
         type="button"
         onClick={onOpenProfile}
-        className="flex w-full items-center gap-3 rounded-2xl border border-border bg-bg-elevated p-4 text-left"
-        aria-label={`Profile and privacy, ${displayName}`}
+        className="flex w-full items-center gap-3.5 text-left"
       >
-        <PlayerAvatar player={me} size="lg" showElite />
+        <PlayerAvatar player={me} size="lg" showElite className="!size-[4.25rem]" />
         <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-1.5 truncate text-base font-semibold text-fg">
-            {displayName}
+          <p className="flex items-center gap-1.5 truncate text-[22px] font-semibold tracking-tight text-fg">
+            {displayName.split(" ")[0]}
             {isKing ? <Crown className="size-4 shrink-0 text-gold" /> : null}
           </p>
-          <p className="mt-0.5 text-sm tabular-nums text-fg-muted">
-            {rank ? `#${rank} Austin` : "Unranked"}
-            {" · "}
-            {displayRating(me.rating)}
+          <p className="mt-0.5 text-[13px] text-fg-muted">
+            {rank ? `#${rank}` : "Unranked"} · Austin
           </p>
-          <p className="text-[12px] tabular-nums text-fg-subtle">
-            {me.wins}W–{me.losses}L
-            {me.streak > 0 ? ` · ${me.streak} streak` : ""}
-            {me.gamesPlayed ? ` · ${me.gamesPlayed} rated` : ""}
+          <p className="text-[13px] tabular-nums text-fg-subtle">
+            {displayRating(me.rating)} Rating · {me.wins}–{me.losses}
+          </p>
+          <p className="mt-1.5 inline-flex items-center text-[12px] font-medium text-fg-muted">
+            View profile
+            <ChevronRight className="size-3.5" />
           </p>
         </div>
       </button>
 
-      {signedIn && isUnderagePlayer(me) ? (
-        <div className="w-full rounded-2xl border border-border bg-bg-elevated px-4 py-3 text-left">
+      {isUnderagePlayer(me) ? (
+        <div className="rounded-2xl bg-bg-elevated px-4 py-3">
           <p className="text-sm font-semibold text-fg">Not eligible to play yet</p>
           <p className="mt-0.5 text-xs text-fg-muted">{UNDERAGE_PLAY_MESSAGE}</p>
         </div>
-      ) : signedIn && !isProfileComplete(me) ? (
+      ) : !isProfileComplete(me) ? (
         <button
           type="button"
           onClick={onOpenProfile}
@@ -102,297 +117,245 @@ export function YouHome({
         >
           <p className="text-sm font-semibold text-fg">Finish your profile</p>
           <p className="mt-0.5 text-xs text-fg-muted">
-            Age, weight, gender, and ethnicity are required before you can post
-            or join a 1v1.
+            Required before you can post or join a 1v1.
           </p>
         </button>
       ) : null}
 
-      <button
-        type="button"
-        onClick={onOpenProfile}
-        className="w-full rounded-2xl border border-border bg-bg-elevated px-4 py-3 text-left"
-      >
-        <p className="text-sm font-semibold text-fg">Profile and privacy</p>
-        <p className="mt-0.5 text-xs text-fg-muted">
-          Age, DMs, discovery. Other players never see your age, gender, or ethnicity.
-        </p>
-      </button>
+      {verifyUrl ? (
+        <a
+          href={verifyUrl}
+          className="block rounded-2xl border border-court/40 bg-court/10 px-4 py-3"
+        >
+          <p className="text-sm font-semibold text-fg">Verify your email</p>
+          <p className="mt-0.5 text-xs text-fg-muted">
+            Mail isn’t configured on this preview — tap to confirm this account.
+          </p>
+        </a>
+      ) : null}
 
       <div className="grid grid-cols-3 gap-2">
-        {(
-          [
-            ["Rating", String(displayRating(me.rating))],
-            ["Record", `${me.wins}–${me.losses}`],
-            ["Streak", me.streak > 0 ? `${me.streak}W` : "—"],
-          ] as const
-        ).map(([l, v]) => (
-          <div
-            key={l}
-            className="rounded-xl border border-border bg-bg-elevated px-2 py-2.5 text-center"
-          >
-            <p className="text-[10px] font-medium tracking-wide text-fg-subtle uppercase">
-              {l}
-            </p>
-            <p className="mt-0.5 text-sm font-semibold tabular-nums text-fg">{v}</p>
-          </div>
-        ))}
+        <DashTile
+          icon={MessageCircle}
+          title="Messages"
+          meta="View & reply"
+          badge={unreadCount}
+          onClick={onOpenMessages}
+        />
+        <DashTile
+          icon={Calendar}
+          title="My Games"
+          meta={upcomingCount > 0 ? "Upcoming" : "Games"}
+          onClick={onOpenMyGames}
+        />
+        <DashTile
+          icon={BarChart3}
+          title="My Stats"
+          meta="Rankings"
+          onClick={onOpenStats}
+        />
       </div>
 
-      <MessagesCard me={me} players={players} />
-
-      <section className="rounded-2xl border border-border bg-bg-elevated p-3.5">
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-[10px] font-bold tracking-wide text-fg-subtle uppercase">
-            Upcoming
-          </p>
+      <section>
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-[13px] font-semibold text-fg">Up next</p>
           <button
             type="button"
-            onClick={onGoPlay}
-            className="text-[11px] font-semibold text-court"
+            onClick={onOpenMyGames}
+            className="text-[12px] font-semibold text-court"
           >
-            Find a game
+            View all
           </button>
         </div>
-        {upcoming.length === 0 ? (
-          <p className="mt-2 text-[12px] text-fg-muted">
-            No locked-in games. Post or join a 1v1 on Play.
-          </p>
-        ) : (
-          <ul className="mt-2 space-y-1.5">
-            {upcoming.map((m) => {
-              const oppId = m.hostId === me.id ? m.opponentId : m.hostId;
-              const opp = oppId ? playerById(oppId) : null;
-              const when = formatLocalWhen(m.scheduledAt ?? m.preferredAt);
-              const label =
-                m.status === "open"
-                  ? "Open"
-                  : m.status === "played_pending"
+        {nextGame ? (
+          <button
+            type="button"
+            onClick={() => onOpenMatch(nextGame.id)}
+            className="flex w-full items-center gap-3 rounded-2xl bg-bg-elevated p-2.5 text-left"
+          >
+            <div className="size-[4.25rem] shrink-0 overflow-hidden rounded-xl bg-bg-subtle">
+              {thumb ? (
+                <img src={thumb} alt="" className="h-full w-full object-cover" />
+              ) : null}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[14px] font-semibold text-fg">{nextGame.courtName}</p>
+              <p className="truncate text-[12px] text-fg-muted">{when}</p>
+              <p className="mt-0.5 truncate text-[12px] text-fg-subtle">
+                {waiting
+                  ? "Waiting for opponent"
+                  : nextGame.status === "played_pending"
                     ? "Score pending"
-                    : "Scheduled";
-              return (
-                <li key={m.id}>
-                  <button
-                    type="button"
-                    onClick={() => onOpenMatch(m.id)}
-                    aria-label={
-                      opp
-                        ? `${label} vs ${opp.name}`
-                        : `${label}, waiting for opponent`
-                    }
-                    className="flex w-full items-center justify-between gap-2 rounded-xl border border-border bg-bg px-3 py-2 text-left"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-[13px] font-semibold text-fg">
-                        {m.courtName}
-                      </p>
-                      <p className="truncate text-[11px] text-fg-muted">
-                        {opp ? `vs ${opp.name}` : "Waiting for opponent"}
-                        {" · "}
-                        {when}
-                      </p>
-                    </div>
-                    <span className="shrink-0 text-[10px] font-bold tracking-wide text-court uppercase">
-                      {label}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
-
-      <section className="rounded-2xl border border-border bg-bg-elevated p-3.5">
-        <p className="text-[10px] font-bold tracking-wide text-fg-subtle uppercase">
-          Recent results
-        </p>
-        {recent.length === 0 ? (
-          <p className="mt-2 text-[12px] text-fg-muted">
-            Confirmed 1v1s show here after dual-confirm.
-          </p>
+                    : "Locked in"}
+              </p>
+            </div>
+            <span className="shrink-0 rounded-full border border-court px-2.5 py-1 text-[10px] font-bold tracking-wide text-court uppercase">
+              {nextGame.status === "open" ? "Open" : nextGame.status === "played_pending" ? "Score" : "Set"}
+            </span>
+          </button>
         ) : (
-          <ul className="mt-2 space-y-1.5">
-            {recent.map((m) => {
-              const hostIsMe = m.hostId === me.id;
-              const oppId = hostIsMe ? m.opponentId : m.hostId;
-              const opp = oppId ? playerById(oppId) : null;
-              const delta = hostIsMe ? m.ratingDeltaHost : m.ratingDeltaOpp;
-              const score = (m.scores ?? [])
-                .map((g) => (hostIsMe ? `${g.a}–${g.b}` : `${g.b}–${g.a}`))
-                .join(", ");
-              return (
-                <li key={m.id}>
-                  <button
-                    type="button"
-                    onClick={() => onOpenMatch(m.id)}
-                    className="flex w-full items-center justify-between gap-2 rounded-xl border border-border bg-bg px-3 py-2 text-left"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-[13px] font-semibold text-fg">
-                        vs {opp?.name ?? "Opponent"}
-                      </p>
-                      <p className="truncate text-[11px] tabular-nums text-fg-muted">
-                        {score}
-                        {" · "}
-                        {m.courtName}
-                      </p>
-                    </div>
-                    {delta != null ? (
-                      <span
-                        className={cn(
-                          "shrink-0 text-[12px] font-bold tabular-nums",
-                          delta >= 0 ? "text-success" : "text-danger",
-                        )}
-                      >
-                        {delta >= 0 ? "+" : ""}
-                        {Math.round(delta)}
-                      </span>
-                    ) : null}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+          <div className="rounded-2xl bg-bg-elevated px-3.5 py-3.5">
+            <p className="text-[13px] font-semibold text-fg">No upcoming games</p>
+            <p className="mt-0.5 text-[12px] text-fg-muted">Ready to hoop?</p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={onFindGame}
+                className="h-10 rounded-full border border-border text-[12px] font-semibold text-fg"
+              >
+                Find a Game
+              </button>
+              <button
+                type="button"
+                onClick={onCreateGame}
+                className="h-10 rounded-full bg-court text-[12px] font-semibold text-white"
+              >
+                Create Game
+              </button>
+            </div>
+          </div>
         )}
       </section>
     </div>
   );
 }
 
-function MessagesCard({ me, players }: { me: Player; players: Player[] }) {
-  const store = useUpsetStore();
-  const threads = store.dmThreads ?? [];
-  const [openId, setOpenId] = useState<string | null>(null);
-  const open = threads.find((t) => t.id === openId) ?? null;
-  const otherOf = (t: DirectThread) => {
-    const oid = t.participantIds.find((id) => id !== me.id);
-    return players.find((p) => p.id === oid) ?? null;
-  };
+export function YouStats({
+  me,
+  matches,
+  players,
+  onBack,
+  onOpenMatch,
+}: {
+  me: Player;
+  matches: Match[];
+  players: Player[];
+  onBack: () => void;
+  onOpenMatch: (id: string) => void;
+}) {
+  const rank = cityRankOf(me.id);
+  const recent = matches
+    .filter(
+      (m) =>
+        (m.hostId === me.id || m.opponentId === me.id) &&
+        m.status === "confirmed" &&
+        m.scores?.length,
+    )
+    .sort((a, b) =>
+      (b.scheduledAt ?? b.preferredAt).localeCompare(a.scheduledAt ?? a.preferredAt),
+    )
+    .slice(0, 8);
 
   return (
-    <section className="rounded-2xl border border-border bg-bg-elevated p-3.5">
-      <p className="text-[10px] font-bold tracking-wide text-fg-subtle uppercase">
-        Messages
-      </p>
-      {threads.length === 0 ? (
-        <p className="mt-2 text-[12px] text-fg-muted">
-          DMs from player profiles show up here.
-        </p>
+    <div className="min-h-0 flex-1 overflow-y-auto pb-8">
+      <div className="flex items-center gap-2 pb-3">
+        <button
+          type="button"
+          onClick={onBack}
+          className="min-h-11 px-1 text-[13px] font-medium text-fg-muted"
+        >
+          ← Me
+        </button>
+        <h2 className="flex-1 text-center font-display text-[17px] font-semibold text-fg">
+          My Stats
+        </h2>
+        <span className="w-12" aria-hidden />
+      </div>
+      <div className="grid grid-cols-4 gap-2 rounded-2xl bg-bg-elevated px-2 py-3">
+        {(
+          [
+            [rank ? `#${rank}` : "—", "Rank"],
+            [String(displayRating(me.rating)), "Rating"],
+            [`${me.wins}–${me.losses}`, "Record"],
+            [me.streak > 0 ? `${me.streak}W` : "—", "Streak"],
+          ] as const
+        ).map(([v, l]) => (
+          <div key={l} className="text-center">
+            <p className="text-[15px] font-semibold tabular-nums text-fg">{v}</p>
+            <p className="mt-0.5 text-[10px] text-fg-muted">{l}</p>
+          </div>
+        ))}
+      </div>
+      <p className="mb-2 mt-5 text-[13px] font-semibold text-fg">Recent results</p>
+      {recent.length === 0 ? (
+        <p className="text-[13px] text-fg-muted">Confirmed 1v1s show here after dual-confirm.</p>
       ) : (
-        <ul className="mt-2 space-y-1.5">
-          {threads.map((t) => {
-            const other = otherOf(t);
-            const last = t.messages[t.messages.length - 1];
+        <ul className="space-y-1.5">
+          {recent.map((m) => {
+            const hostIsMe = m.hostId === me.id;
+            const oppId = hostIsMe ? m.opponentId : m.hostId;
+            const opp = players.find((p) => p.id === oppId);
+            const delta = hostIsMe ? m.ratingDeltaHost : m.ratingDeltaOpp;
+            const score = (m.scores ?? [])
+              .map((g) => (hostIsMe ? `${g.a}–${g.b}` : `${g.b}–${g.a}`))
+              .join(", ");
             return (
-              <li key={t.id}>
+              <li key={m.id}>
                 <button
                   type="button"
-                  onClick={() => setOpenId(t.id)}
-                  className="flex w-full items-center gap-2 rounded-xl border border-border bg-bg px-3 py-2 text-left"
+                  onClick={() => onOpenMatch(m.id)}
+                  className="flex w-full items-center justify-between gap-2 rounded-2xl bg-bg-elevated px-3 py-2.5 text-left"
                 >
-                  {other ? <PlayerAvatar player={other} size="sm" /> : (
-                    <MessageSquare className="size-4 text-fg-muted" />
-                  )}
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-0">
                     <p className="truncate text-[13px] font-semibold text-fg">
-                      {other?.name ?? "Player"}
+                      vs {opp?.name ?? "Opponent"}
                     </p>
-                    <p className="truncate text-[11px] text-fg-muted">
-                      {last?.text ?? "No messages yet"}
+                    <p className="truncate text-[11px] tabular-nums text-fg-muted">
+                      {score} · {m.courtName}
                     </p>
                   </div>
+                  {delta != null ? (
+                    <span
+                      className={cn(
+                        "shrink-0 text-[12px] font-bold tabular-nums",
+                        delta >= 0 ? "text-success" : "text-danger",
+                      )}
+                    >
+                      {delta >= 0 ? "+" : ""}
+                      {Math.round(delta)}
+                    </span>
+                  ) : null}
                 </button>
               </li>
             );
           })}
         </ul>
       )}
-      {open ? (
-        <DmSheet
-          me={me}
-          other={otherOf(open)}
-          thread={open}
-          onClose={() => setOpenId(null)}
-        />
-      ) : null}
-    </section>
-  );
-}
-
-function DmSheet({
-  me,
-  other,
-  thread,
-  onClose,
-}: {
-  me: Player;
-  other: Player | null;
-  thread: DirectThread;
-  onClose: () => void;
-}) {
-  const [draft, setDraft] = useState("");
-  const [err, setErr] = useState<string | null>(null);
-  const targetId = other?.id ?? thread.participantIds.find((id) => id !== me.id);
-
-  const send = async () => {
-    if (!targetId || !draft.trim()) return;
-    try {
-      applyFriendsAndDms(
-        await sendDmFn({ data: { targetId, text: draft.trim() } }),
-      );
-      setDraft("");
-      setErr(null);
-    } catch (e) {
-      setErr(mutationError(e));
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-[70] flex items-end justify-center sm:items-center">
-      <button
-        type="button"
-        className="absolute inset-0 bg-bg/70 backdrop-blur-sm"
-        onClick={onClose}
-        aria-label="Dismiss"
-      />
-      <div className="slide-up relative z-10 flex max-h-[82dvh] w-full max-w-lg flex-col rounded-t-3xl border border-border bg-bg-elevated p-4 shadow-soft sm:rounded-3xl">
-        <p className="text-sm font-semibold text-fg">{other?.name ?? "Message"}</p>
-        <div className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto">
-          {thread.messages.map((m) => (
-            <div
-              key={m.id}
-              className={cn(
-                "max-w-[85%] rounded-2xl px-3 py-2 text-[13px]",
-                m.authorId === me.id
-                  ? "ml-auto bg-court text-white"
-                  : "bg-bg-subtle text-fg",
-              )}
-            >
-              {m.text}
-            </div>
-          ))}
-        </div>
-        {err ? (
-          <p className="mt-2 text-center text-[12px] text-danger">{err}</p>
-        ) : null}
-        <div className="mt-3 flex gap-2">
-          <input
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder="Message…"
-            className="h-11 flex-1 rounded-xl border border-border bg-bg-subtle px-3 text-sm text-fg outline-none"
-          />
-          <button
-            type="button"
-            onClick={() => void send()}
-            className="h-11 rounded-xl bg-accent px-4 text-sm font-semibold text-accent-fg"
-          >
-            Send
-          </button>
-        </div>
-      </div>
     </div>
   );
 }
 
+function DashTile({
+  icon: Icon,
+  title,
+  meta,
+  badge,
+  onClick,
+}: {
+  icon: typeof MessageCircle;
+  title: string;
+  meta: string;
+  badge?: number;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="relative rounded-2xl bg-bg-elevated px-2.5 py-3 text-left"
+    >
+      <span className="flex items-center justify-between">
+        <Icon className="size-4 text-fg" strokeWidth={1.75} />
+        {badge && badge > 0 ? (
+          <span className="inline-flex min-w-[1.15rem] items-center justify-center rounded-full bg-court px-1.5 py-0.5 text-[10px] font-bold text-white">
+            {badge > 9 ? "9+" : badge}
+          </span>
+        ) : (
+          <ChevronRight className="size-3.5 text-fg-subtle" />
+        )}
+      </span>
+      <p className="mt-2 text-[13px] font-semibold text-fg">{title}</p>
+      <p className="mt-0.5 truncate text-[11px] text-fg-muted">{meta}</p>
+    </button>
+  );
+}

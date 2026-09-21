@@ -1,23 +1,31 @@
 import { cn } from "@/lib/utils";
 
-const STEPS = [
+const PICK_STEPS = [
   { n: 1 as const, label: "Details" },
   { n: 2 as const, label: "Court" },
-  { n: 3 as const, label: "Review" },
+  { n: 3 as const, label: "Overview" },
+];
+
+const PRESET_STEPS = [
+  { n: 1 as const, label: "Details" },
+  { n: 2 as const, label: "Overview" },
 ];
 
 export function CreateGameStepBar({
   step,
   onStep,
   compact = false,
+  courtLocked = false,
 }: {
   step: 1 | 2 | 3;
   onStep: (n: 1 | 2 | 3) => void;
   compact?: boolean;
+  courtLocked?: boolean;
 }) {
+  const steps = courtLocked ? PRESET_STEPS : PICK_STEPS;
   return (
     <ol className="flex items-center gap-1" aria-label="Create game steps">
-      {STEPS.map((s, i) => {
+      {steps.map((s, i) => {
         const done = step > s.n;
         const current = step === s.n;
         return (
@@ -56,7 +64,7 @@ export function CreateGameStepBar({
                 {s.label}
               </span>
             </button>
-            {i < STEPS.length - 1 ? (
+            {i < steps.length - 1 ? (
               <span className="h-px flex-1 bg-border" aria-hidden />
             ) : null}
           </li>

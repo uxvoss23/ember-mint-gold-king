@@ -81,38 +81,25 @@ export function streetStyle(): import("maplibre-gl").StyleSpecification {
       carto: {
         type: "raster",
         tiles: [
-          "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+          "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
         ],
         tileSize: 256,
         attribution: "Tiles © Esri",
       },
-      labels: {
-        type: "raster",
-        tiles: [
-          "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}",
-        ],
-        tileSize: 256,
-      },
     },
     layers: [
-      { id: "bg", type: "background", paint: { "background-color": "#1a1d21" } },
+      { id: "bg", type: "background", paint: { "background-color": "#e8e0d4" } },
       {
         id: "carto",
         type: "raster",
         source: "carto",
         paint: {
-          "raster-saturation": 0.08,
-          "raster-contrast": 0.1,
-          "raster-brightness-min": 0,
-          "raster-brightness-max": 0.56,
-          "raster-opacity": 1,
+          "raster-saturation": -0.35,
+          "raster-contrast": -0.08,
+          "raster-brightness-min": 0.04,
+          "raster-brightness-max": 0.9,
+          "raster-opacity": 0.94,
         },
-      },
-      {
-        id: "labels",
-        type: "raster",
-        source: "labels",
-        paint: { "raster-opacity": 0.82 },
       },
     ],
   };
@@ -202,6 +189,15 @@ function rehome(warm: WarmMap, next: HTMLElement) {
   } catch {
     /* size may still be 0 */
   }
+  window.setTimeout(() => {
+    try {
+      map.resize();
+      map.triggerRepaint();
+      if (map.isStyleLoaded()) hydrateCourtLayers(map);
+    } catch {
+      /* map parked */
+    }
+  }, 60);
 }
 
 export function bindWarmMap(maplibregl: MapLibreNS) {

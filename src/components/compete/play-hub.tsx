@@ -36,6 +36,9 @@ interface PlayHubProps {
   active?: boolean;
   gameBackTo?: "you" | null;
   onGameBack?: () => void;
+  focusChatThreadId?: string | null;
+  playDeskFocus?: "my_games" | "lobby" | "create" | null;
+  onPlayDeskFocusConsumed?: () => void;
 }
 
 /**
@@ -62,6 +65,9 @@ export const PlayHub = memo(function PlayHub({
   active = true,
   gameBackTo = null,
   onGameBack,
+  focusChatThreadId = null,
+  playDeskFocus = null,
+  onPlayDeskFocusConsumed,
 }: PlayHubProps) {
   const [immersive, setImmersive] = useState(false);
   const setImmersiveBoth = useCallback((v: boolean) => {
@@ -96,6 +102,9 @@ export const PlayHub = memo(function PlayHub({
         active={active}
         gameBackTo={gameBackTo}
         onGameBack={onGameBack}
+        focusChatThreadId={focusChatThreadId}
+        playDeskFocus={playDeskFocus}
+        onPlayDeskFocusConsumed={onPlayDeskFocusConsumed}
       />
       </div>
     </div>

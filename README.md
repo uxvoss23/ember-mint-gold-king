@@ -24,6 +24,7 @@ Auth-off PGLite (`VITE_AUTH_ENABLED=false`) seeds a `dev-user` auth row so games
 See `env.example` and `docs/ops.md`. Server secrets never go in `VITE_*`.
 
 Required for production: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `GROK_AUTH_CLIENT_ID`, `GROK_AUTH_CLIENT_SECRET`.
+Password reset / verification: `RESEND_API_KEY` and a verified `MAIL_FROM`.
 
 ## Migrations
 
@@ -55,6 +56,6 @@ Production (`NODE_ENV=production` or `VERCEL`) without `DATABASE_URL` fails clos
 ## Security / privacy owner actions
 
 - Rotate and revoke the previously committed OAuth preview secret. Inject the new secret via env only.
-- Choose and configure an email provider for reset / verification (not in-repo).
+- Set `RESEND_API_KEY` and a verified `MAIL_FROM` so password reset and email verification actually send.
 - Legal review of Privacy, Terms, and Safety pages before public launch.
 - Add WAF / bot protection at the host.

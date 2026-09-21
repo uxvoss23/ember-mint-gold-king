@@ -102,6 +102,8 @@ export interface ChatMessage {
   /** Match Mode / scheduled change cards */
   kind?: "text" | "proposal" | "proposal_update";
   proposal?: MatchChangeProposal;
+  /** Non-host player this private host↔player thread is with */
+  threadWithId?: string;
 }
 
 export interface MatchGame {
@@ -219,6 +221,24 @@ export interface CancelLogEntry {
   kind: "host_empty" | "host_after_join" | "player";
 }
 
+export type NoticeKind =
+  | "dm"
+  | "game_chat"
+  | "invite"
+  | "opponent_locked"
+  | "score_pending";
+
+export type PlayerNotice = {
+  id: string;
+  kind: NoticeKind;
+  title: string;
+  body: string;
+  matchId?: string;
+  fromPlayerId?: string;
+  readAt?: string;
+  createdAt: string;
+};
+
 export interface UpsetState {
   players: Player[];
   matches: Match[];
@@ -232,4 +252,5 @@ export interface UpsetState {
   playerReviews: PlayerReview[];
   cancelLog: CancelLogEntry[];
   seedVersion: number;
+  notices: PlayerNotice[];
 }

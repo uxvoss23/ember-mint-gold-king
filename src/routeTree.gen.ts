@@ -13,7 +13,13 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as SplatRouteImport } from './routes/$'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MapV2RouteImport } from './routes/map-v2'
+import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as SafetyRouteImport } from './routes/safety'
+import { Route as TermsRouteImport } from './routes/terms'
+import { Route as AdminTestUsersRouteImport } from './routes/admin.test-users'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiCourtPhotosIdRouteImport } from './routes/api/court-photos.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -35,9 +41,39 @@ const MapV2Route = MapV2RouteImport.update({
   path: '/map-v2',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SafetyRoute = SafetyRouteImport.update({
+  id: '/safety',
+  path: '/safety',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminTestUsersRoute = AdminTestUsersRouteImport.update({
+  id: '/admin/test-users',
+  path: '/admin/test-users',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCourtPhotosIdRoute = ApiCourtPhotosIdRouteImport.update({
+  id: '/api/court-photos/$id',
+  path: '/api/court-photos/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -46,14 +82,26 @@ export interface FileRoutesByFullPath {
   '/$': typeof SplatRoute
   '/login': typeof LoginRoute
   '/map-v2': typeof MapV2Route
+  '/privacy': typeof PrivacyRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/safety': typeof SafetyRoute
+  '/terms': typeof TermsRoute
+  '/admin/test-users': typeof AdminTestUsersRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/court-photos/$id': typeof ApiCourtPhotosIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/login': typeof LoginRoute
   '/map-v2': typeof MapV2Route
+  '/privacy': typeof PrivacyRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/safety': typeof SafetyRoute
+  '/terms': typeof TermsRoute
+  '/admin/test-users': typeof AdminTestUsersRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/court-photos/$id': typeof ApiCourtPhotosIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -61,14 +109,54 @@ export interface FileRoutesById {
   '/$': typeof SplatRoute
   '/login': typeof LoginRoute
   '/map-v2': typeof MapV2Route
+  '/privacy': typeof PrivacyRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/safety': typeof SafetyRoute
+  '/terms': typeof TermsRoute
+  '/admin/test-users': typeof AdminTestUsersRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/court-photos/$id': typeof ApiCourtPhotosIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/$' | '/login' | '/map-v2' | '/api/auth/$'
+  fullPaths:
+    | '/'
+    | '/$'
+    | '/login'
+    | '/map-v2'
+    | '/privacy'
+    | '/reset-password'
+    | '/safety'
+    | '/terms'
+    | '/admin/test-users'
+    | '/api/auth/$'
+    | '/api/court-photos/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/$' | '/login' | '/map-v2' | '/api/auth/$'
-  id: '__root__' | '/' | '/$' | '/login' | '/map-v2' | '/api/auth/$'
+  to:
+    | '/'
+    | '/$'
+    | '/login'
+    | '/map-v2'
+    | '/privacy'
+    | '/reset-password'
+    | '/safety'
+    | '/terms'
+    | '/admin/test-users'
+    | '/api/auth/$'
+    | '/api/court-photos/$id'
+  id:
+    | '__root__'
+    | '/'
+    | '/$'
+    | '/login'
+    | '/map-v2'
+    | '/privacy'
+    | '/reset-password'
+    | '/safety'
+    | '/terms'
+    | '/admin/test-users'
+    | '/api/auth/$'
+    | '/api/court-photos/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -76,7 +164,13 @@ export interface RootRouteChildren {
   SplatRoute: typeof SplatRoute
   LoginRoute: typeof LoginRoute
   MapV2Route: typeof MapV2Route
+  PrivacyRoute: typeof PrivacyRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
+  SafetyRoute: typeof SafetyRoute
+  TermsRoute: typeof TermsRoute
+  AdminTestUsersRoute: typeof AdminTestUsersRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiCourtPhotosIdRoute: typeof ApiCourtPhotosIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -109,11 +203,53 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MapV2RouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/safety': {
+      id: '/safety'
+      path: '/safety'
+      fullPath: '/safety'
+      preLoaderRoute: typeof SafetyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/test-users': {
+      id: '/admin/test-users'
+      path: '/admin/test-users'
+      fullPath: '/admin/test-users'
+      preLoaderRoute: typeof AdminTestUsersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
       fullPath: '/api/auth/$'
       preLoaderRoute: typeof ApiAuthSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/court-photos/$id': {
+      id: '/api/court-photos/$id'
+      path: '/api/court-photos/$id'
+      fullPath: '/api/court-photos/$id'
+      preLoaderRoute: typeof ApiCourtPhotosIdRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -124,7 +260,13 @@ const rootRouteChildren: RootRouteChildren = {
   SplatRoute: SplatRoute,
   LoginRoute: LoginRoute,
   MapV2Route: MapV2Route,
+  PrivacyRoute: PrivacyRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
+  SafetyRoute: SafetyRoute,
+  TermsRoute: TermsRoute,
+  AdminTestUsersRoute: AdminTestUsersRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiCourtPhotosIdRoute: ApiCourtPhotosIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

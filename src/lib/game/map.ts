@@ -81,6 +81,7 @@ export type MessageRow = {
   created_at: string;
   kind?: string | null;
   payload?: unknown;
+  thread_with_id?: string | null;
 };
 
 function num(v: unknown, fallback = 0): number {
@@ -202,6 +203,7 @@ export function rowToMessage(row: MessageRow): ChatMessage {
     system: bool(row.system, false),
     kind,
     proposal,
+    threadWithId: row.thread_with_id || undefined,
   };
 }
 

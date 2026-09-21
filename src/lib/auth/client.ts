@@ -37,6 +37,7 @@ export const authEnabled = import.meta.env.VITE_AUTH_ENABLED !== "false";
 export { GROK_PROVIDERS };
 
 const BEARER_KEY = "grok-auth.bearer-token";
+const ADMIN_BEARER_KEY = "uc-admin-session";
 
 /** The stored preview bearer token, or null. */
 export function getBearerToken(): string | null {
@@ -48,7 +49,7 @@ export function getBearerToken(): string | null {
   }
 }
 
-function setBearerToken(token: string | null): void {
+export function setBearerToken(token: string | null): void {
   if (typeof window === "undefined") return;
   try {
     if (token) window.sessionStorage.setItem(BEARER_KEY, token);
@@ -240,6 +241,7 @@ export async function signOut(): Promise<void> {
   setBearerToken(null);
   try {
     window.sessionStorage.removeItem(BEARER_KEY);
+    window.sessionStorage.removeItem(ADMIN_BEARER_KEY);
     window.localStorage.removeItem(BEARER_KEY);
   } catch {
     /* ignore */
@@ -249,4 +251,27 @@ export async function signOut(): Promise<void> {
   } catch {
     /* session store will settle on next read */
   }
+}
+
+/** Swap into a test-user session while keeping the admin token to restore. */
+export function beginImpersonation(adminToken: string, userToken: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(ADMIN_BEARER_KEY, adminToken);
+  } catch {
+    /* ignore */
+  }
+  setBearerToken(userToken);
+}
+
+export function endImpersonation(adminToken?: string | null): void {
+  if (typeof window === "undefined") return;
+  let stored: string | null = null;
+  try {
+    stored = window.sessionStorage.getItem(ADMIN_BEARER_KEY);
+    window.sessionStorage.removeItem(ADMIN_BEARER_KEY);
+  } catch {
+    /* ignore */
+  }
+  setBearerToken(adminToken || stored);
 }

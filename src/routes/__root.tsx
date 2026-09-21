@@ -1,6 +1,7 @@
 import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
 import { AuthProvider } from "@/lib/auth/provider";
 import { CreatedWithGrokBanner } from "@/components/created-with-grok-banner";
+import { ImpersonationBanner } from "@/components/impersonation-banner";
 import { PREMIUM_BOOT_CSS, PremiumBootHost } from "@/components/premium-boot";
 import { NotFoundPage } from "@/components/not-found";
 import appCss from "../styles.css?url";
@@ -89,6 +90,7 @@ function RootDocument() {
         <script dangerouslySetInnerHTML={{ __html: BOOT_SCRIPT }} />
         <CreatedWithGrokBanner />
         <AuthProvider>
+          <ImpersonationBanner />
           <Outlet />
         </AuthProvider>
         <Scripts />

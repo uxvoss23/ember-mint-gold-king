@@ -15,7 +15,9 @@ import {
   canDisputeScore,
   canEnterScore,
   canJoinGame,
+  chatThreadIds,
   compareLadder,
+  messagesInThread,
   validateScores,
 } from "./rules.ts";
 
@@ -114,10 +116,33 @@ function run(): string[] {
       opponentId: null,
       actorId: "stranger",
       inviteeIds: ["invitee"],
+      inviteOnly: true,
     }),
     "uninvited cannot chat",
   );
+  assert(
+    canAccessGameChat({
+      hostId: "h",
+      opponentId: null,
+      actorId: "stranger",
+      inviteOnly: false,
+    }),
+    "public open game: signed-in player can inquire",
+  );
   logs.push("chat privacy ok");
+
+  const threaded = [
+    { threadWithId: "a", text: "from A" },
+    { threadWithId: "b", text: "from B" },
+    { text: "legacy" },
+  ];
+  assert(chatThreadIds(threaded).join(",") === "a,b", "thread ids unique");
+  assert(messagesInThread(threaded, "a").length === 1, "player A only sees A");
+  assert(
+    messagesInThread(threaded, "o", "o").length === 1,
+    "legacy rows land on opponent thread",
+  );
+  logs.push("chat threads ok");
 
   assert(
     isBlockedPair("a", "b", [{ actorId: "b", targetId: "a" }]),

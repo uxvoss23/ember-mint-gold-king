@@ -21,6 +21,7 @@ import {
   CreateWhenPicker,
   parseLocalDateTime,
 } from "@/components/compete/create-when-picker";
+import { collectBusySlots, conflictMessage, slotConflict } from "@/lib/game/schedule-conflict";
 import { ImageCarousel } from "@/components/image-carousel";
 import { CourtsMap } from "@/components/courts-map";
 import { CourtAboutSheet } from "@/components/compete/court-about-sheet";
@@ -501,6 +502,17 @@ export function HoopNowFlow({
     const when = parseLocalDateTime(lockWhen);
     if (Number.isNaN(when.getTime()) || when.getTime() < Date.now() - 60_000) {
       setLockMsg("Pick a time in the future.");
+      return;
+    }
+    const hit = slotConflict(
+      when.getTime(),
+      collectBusySlots(store.matches, {
+        playerId: me.id,
+        courtId: court.id,
+      }),
+    );
+    if (hit) {
+      setLockMsg(conflictMessage(hit.reason));
       return;
     }
     hoop.submitHoopProposal({
@@ -1054,6 +1066,10 @@ export function HoopNowFlow({
               value={lockWhen}
               onChange={setLockWhen}
               roomy
+              busySlots={collectBusySlots(store.matches, {
+                playerId: me.id,
+                courtId: lockCourtId || undefined,
+              })}
               guide={{
                 opponentName: firstName,
                 blockedDates: theirSoft?.blockedDates,

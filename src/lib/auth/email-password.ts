@@ -1,11 +1,55 @@
 /**
  * Local email/password sign-in (this app's Better Auth DB — not the broker).
  *
- * Off by default. To enable: set `emailAndPasswordEnabled` to `true` below,
- * then build sign-up / sign-in forms with `authClient.signUp.email` /
- * `authClient.signIn.email` from `@/lib/auth/client` (see the auth skill).
- *
- * Do NOT edit `server.ts` for this — that file is frozen pre-wired config.
+ * Flip `emailAndPasswordEnabled` only. Password reset + verification mail
+ * live here so `server.ts` stays a thin wire-up.
  */
+import { appMailUrl, sendAppEmail } from "./mail";
+
 export const emailAndPasswordEnabled = true;
 
+export function emailPasswordOptions() {
+  return {
+    enabled: true as const,
+    minPasswordLength: 8,
+    resetPasswordTokenExpiresIn: 60 * 60,
+    requireEmailVerification: false,
+    sendResetPassword: async ({
+      user,
+      url,
+      token,
+    }: {
+      user: { email: string };
+      url: string;
+      token: string;
+    }) => {
+      await sendAppEmail({
+        to: user.email,
+        kind: "reset",
+        url: appMailUrl(url, token, "reset"),
+      });
+    },
+  };
+}
+
+export function emailVerificationOptions() {
+  return {
+    sendOnSignUp: true,
+    autoSignInAfterVerification: true,
+    sendVerificationEmail: async ({
+      user,
+      url,
+      token,
+    }: {
+      user: { email: string };
+      url: string;
+      token: string;
+    }) => {
+      await sendAppEmail({
+        to: user.email,
+        kind: "verify",
+        url: appMailUrl(url, token, "verify"),
+      });
+    },
+  };
+}

@@ -7,12 +7,13 @@ import { applyFriendsAndDms, formatLocalWhen, upsertPlayer, useUpsetStore } from
 import type { Player } from "@/lib/upset/types";
 import { cn, formatHeightInches } from "@/lib/utils";
 import { isDemoMode } from "@/lib/config";
-import { challengePlayerFn, blockPlayerFn, reportPlayerFn, updatePrivacyFn } from "@/lib/game/fns";
+import { challengePlayerFn, blockPlayerFn, reportPlayerFn, updatePrivacyFn, updatePlayerPhotoFn, updatePlayerBodyFn } from "@/lib/game/fns";
 import { addFriendFn, removeFriendFn, sendDmFn } from "@/lib/game/dm-fns";
 import { GUEST_PLAYER_ID } from "@/lib/game/guest";
 import { mutationError, refreshCompetitiveSnapshot } from "@/lib/game/client-actions";
 import { useRequireAuth } from "@/lib/game/use-require-auth";
 import { ProfileCompleteForm } from "@/components/compete/profile-complete-form";
+import { ProfilePhotoEditor } from "@/components/profile-photo-editor";
 import { isProfileComplete, PROFILE_PRIVACY_NOTE } from "@/lib/game/profile";
 import { DM_PRIVACY_OPTIONS, type DmPrivacy } from "@/lib/game/privacy";
 import { useDialogFocus } from "@/hooks/use-dialog-focus";
@@ -32,6 +33,7 @@ export function PlayerProfile({
   const isMe = live.id === store.me.id && store.me.id !== GUEST_PLAYER_ID;
   const [msg, setMsg] = useState("");
   const [status, setStatus] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const close = useCallback(() => onClose(), [onClose]);
   useDialogFocus(panelRef, close);
@@ -195,7 +197,7 @@ export function PlayerProfile({
         </button>
 
         <div className="flex items-center gap-4">
-          <PlayerAvatar player={player} size="xl" />
+          <PlayerAvatar player={live} size="xl" />
           <div className="min-w-0">
             <h3 id="player-profile-title" className="font-display text-xl font-semibold text-fg">
               {player.name}
@@ -210,6 +212,40 @@ export function PlayerProfile({
               </p>
           </div>
         </div>
+
+        {isMe ? (
+          editing ? (
+            <div className="mt-5 space-y-3 rounded-2xl border border-border bg-bg-subtle p-4">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-fg">Edit profile</p>
+                <button
+                  type="button"
+                  onClick={() => setEditing(false)}
+                  className="text-[12px] font-semibold text-fg-muted"
+                >
+                  Done
+                </button>
+              </div>
+              <ProfilePhotoEditor
+                currentUrl={live.photoUrl}
+                onSave={async (photo) => {
+                  const saved = await updatePlayerPhotoFn({ data: { photo } });
+                  upsertPlayer(saved);
+                  void refreshCompetitiveSnapshot();
+                }}
+              />
+              <ProfileBodyEditor me={live} />
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className="mt-5 h-11 w-full rounded-xl border border-border text-sm font-semibold text-fg"
+            >
+              Edit profile
+            </button>
+          )
+        ) : null}
 
         {isMe && !isProfileComplete(live) ? (
           <div className="mt-5 rounded-2xl border border-border bg-bg-subtle p-4">
@@ -365,7 +401,95 @@ export function PlayerProfile({
   );
 }
 
-function PrivacyAndDiscovery({ me }: { me: Player }) {
+function ProfileBodyEditor({ me }: { me: Player }) {
+  const height = me.heightIn || 72;
+  const [feet, setFeet] = useState(String(Math.floor(height / 12)));
+  const [inches, setInches] = useState(String(height % 12));
+  const [weightLb, setWeightLb] = useState(me.weightLb ? String(me.weightLb) : "");
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+
+  const save = async () => {
+    const ft = Number(feet);
+    const inch = Number(inches);
+    const wt = Number(weightLb);
+    const heightIn = ft * 12 + inch;
+    setNote(null);
+    setBusy(true);
+    try {
+      const saved = await updatePlayerBodyFn({ data: { heightIn, weightLb: wt } });
+      upsertPlayer(saved);
+      void refreshCompetitiveSnapshot();
+      setNote("Saved.");
+    } catch (err) {
+      setNote(mutationError(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-2">
+        <label className="block">
+          <span className="text-[10px] font-bold tracking-wide text-fg-subtle uppercase">
+            Height
+          </span>
+          <div className="mt-1 flex gap-1.5">
+            <select
+              aria-label="Height feet"
+              value={feet}
+              onChange={(e) => setFeet(e.target.value)}
+              className="h-11 flex-1 rounded-xl border border-border bg-bg px-2 text-sm text-fg"
+            >
+              {[4, 5, 6, 7].map((n) => (
+                <option key={n} value={n}>
+                  {n} ft
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label="Height inches"
+              value={inches}
+              onChange={(e) => setInches(e.target.value)}
+              className="h-11 flex-1 rounded-xl border border-border bg-bg px-2 text-sm text-fg"
+            >
+              {Array.from({ length: 12 }, (_, n) => (
+                <option key={n} value={n}>
+                  {n} in
+                </option>
+              ))}
+            </select>
+          </div>
+        </label>
+        <label className="block">
+          <span className="text-[10px] font-bold tracking-wide text-fg-subtle uppercase">
+            Weight (lb)
+          </span>
+          <input
+            inputMode="numeric"
+            aria-label="Weight in pounds"
+            value={weightLb}
+            onChange={(e) => setWeightLb(e.target.value.replace(/\D/g, "").slice(0, 3))}
+            className="mt-1 h-11 w-full rounded-xl border border-border bg-bg px-3 text-sm text-fg outline-none"
+            placeholder="180"
+          />
+        </label>
+      </div>
+      {note ? <p className="text-[11px] text-fg-muted">{note}</p> : null}
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => void save()}
+        className="h-11 w-full rounded-xl bg-court text-sm font-semibold text-white disabled:opacity-60"
+      >
+        {busy ? "Saving…" : "Save height & weight"}
+      </button>
+    </div>
+  );
+}
+
+export function PrivacyAndDiscovery({ me }: { me: Player }) {
   const [dmPrivacy, setDmPrivacy] = useState<DmPrivacy>(me.dmPrivacy);
   const [hideFromCatalog, setHideFromCatalog] = useState(me.hideFromCatalog);
   const [openToChallenges, setOpenToChallenges] = useState(me.openToChallenges);

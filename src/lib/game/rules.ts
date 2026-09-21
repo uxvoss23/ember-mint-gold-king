@@ -119,11 +119,40 @@ export function canAccessGameChat(input: {
   opponentId?: string | null;
   actorId: string | null | undefined;
   inviteeIds?: readonly string[];
+  /** When false, any signed-in player may inquire on an open public game. */
+  inviteOnly?: boolean;
 }): boolean {
   if (!input.actorId) return false;
   if (input.actorId === input.hostId || input.actorId === input.opponentId) return true;
   if (input.opponentId) return false;
+  if (input.inviteOnly === false) return true;
   return (input.inviteeIds ?? []).includes(input.actorId);
+}
+
+/** Messages in one host↔player thread. Legacy unthreaded rows stay on the opponent thread. */
+export function messagesInThread<T extends { threadWithId?: string }>(
+  chat: ReadonlyArray<T>,
+  threadWithId: string,
+  opponentId?: string | null,
+): T[] {
+  return chat.filter((m) => {
+    if (m.threadWithId) return m.threadWithId === threadWithId;
+    return !!opponentId && threadWithId === opponentId;
+  });
+}
+
+export function chatThreadIds(
+  chat: ReadonlyArray<{ threadWithId?: string }>,
+): string[] {
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  for (const m of chat) {
+    const id = m.threadWithId;
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids;
 }
 
 export function isBlockedPair(

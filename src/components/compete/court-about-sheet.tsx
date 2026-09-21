@@ -84,6 +84,7 @@ export function CourtAboutSheet({
   onSelectCourt,
   onPlay,
   isSelected = false,
+  confirmLabel,
   userLat,
   userLon,
 }: {
@@ -92,6 +93,7 @@ export function CourtAboutSheet({
   onSelectCourt?: (id: string) => void;
   onPlay?: () => void;
   isSelected?: boolean;
+  confirmLabel?: string;
   userLat?: number;
   userLon?: number;
 }) {
@@ -343,25 +345,13 @@ export function CourtAboutSheet({
 
         <div className="relative z-10 shrink-0 border-t border-border bg-bg p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           {onSelectCourt ? (
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={onClose}
-                className="flex-1 rounded-full border border-border py-2.5 text-sm font-semibold text-fg"
-              >
-                Close
-              </button>
-              <button
-                type="button"
-                onClick={() => onSelectCourt(court.id)}
-                className={cn(
-                  "flex-1 rounded-full py-2.5 text-sm font-semibold",
-                  isSelected ? "bg-fg text-bg" : "bg-court text-white",
-                )}
-              >
-                {isSelected ? "Selected ✓" : "Select this court"}
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => onSelectCourt(court.id)}
+              className="w-full rounded-full bg-court py-3 text-sm font-semibold text-white"
+            >
+              {confirmLabel ?? (isSelected ? "Selected ✓" : "Select this court")}
+            </button>
           ) : onPlay ? (
             <div className="flex gap-2">
               <button

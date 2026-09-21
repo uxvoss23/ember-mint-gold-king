@@ -9,26 +9,32 @@ import {
   needsOAuthPopup,
   signIn,
 } from "@/lib/auth/client";
-import { getAuthProvidersFn } from "@/lib/auth/status-fn";
+import { getAuthProvidersFn, peekAuthMailFn } from "@/lib/auth/status-fn";
 import { safeReturnTo } from "@/lib/auth/return-to";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { consumeAuthIntent, peekAuthIntent } from "@/lib/game/guest";
 import { authReasonCopy } from "@/lib/game/use-require-auth";
 
 export const Route = createFileRoute("/login")({
-  validateSearch: (s: Record<string, unknown>): { next?: string; reason?: string; signedout?: boolean } => ({
+  validateSearch: (s: Record<string, unknown>): {
+    next?: string;
+    reason?: string;
+    signedout?: boolean;
+    verified?: boolean;
+  } => ({
     next: typeof s.next === "string" ? safeReturnTo(s.next) : undefined,
     reason: typeof s.reason === "string" ? s.reason : undefined,
     signedout: s.signedout === true || s.signedout === "true" || s.signedout === "1",
+    verified: s.verified === true || s.verified === "true" || s.verified === "1",
   }),
   component: Login,
 });
 
-type Mode = "signin" | "signup";
+type Mode = "signin" | "signup" | "forgot";
 
 function Login() {
   const navigate = useNavigate();
-  const { next, reason: searchReason, signedout } = Route.useSearch();
+  const { next, reason: searchReason, signedout, verified } = Route.useSearch();
   const reason = searchReason ?? peekAuthIntent()?.action;
   const { user, isPending } = useCurrentUserState();
   const [mode, setMode] = useState<Mode>("signin");
@@ -40,6 +46,9 @@ function Login() {
   const [oauthBusy, setOauthBusy] = useState<string | null>(null);
   const [showWindowFallback, setShowWindowFallback] = useState(false);
   const [oauthLive, setOauthLive] = useState(false);
+  const [resetEmail, setResetEmail] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
+  const [previewResetUrl, setPreviewResetUrl] = useState<string | null>(null);
   const popupEnv = typeof window !== "undefined" && needsOAuthPopup();
   const ios = typeof window !== "undefined" && isLikelyIosSafari();
 
@@ -65,9 +74,15 @@ function Login() {
   useEffect(() => {
     let cancelled = false;
     void getAuthProvidersFn().then((s) => {
-      if (!cancelled) setOauthLive(s.oauth);
+      if (!cancelled) {
+        setOauthLive(s.oauth);
+        setResetEmail(s.resetEmail);
+      }
     }).catch(() => {
-      if (!cancelled) setOauthLive(false);
+      if (!cancelled) {
+        setOauthLive(false);
+        setResetEmail(false);
+      }
     });
     return () => {
       cancelled = true;
@@ -86,6 +101,16 @@ function Login() {
           name: name.trim() || email.split("@")[0] || "Player",
         });
         if (err) throw new Error(err.message ?? "Sign-up failed");
+        if (!resetEmail) {
+          try {
+            const peeked = await peekAuthMailFn({
+              data: { email: email.trim(), kind: "verify" },
+            });
+            if (peeked.url) sessionStorage.setItem("uc-verify-url", peeked.url);
+          } catch {
+            /* preview-only */
+          }
+        }
       } else {
         const { error: err } = await authClient.signIn.email({
           email: email.trim(),
@@ -97,6 +122,30 @@ function Login() {
       goAfterAuth();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onForgotSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setForgotSent(false);
+    setPreviewResetUrl(null);
+    setBusy(true);
+    try {
+      const { error: err } = await authClient.requestPasswordReset({
+        email: email.trim(),
+        redirectTo: "/reset-password",
+      });
+      if (err) throw new Error(err.message ?? "Could not send reset email");
+      setForgotSent(true);
+      if (!resetEmail) {
+        const peeked = await peekAuthMailFn({ data: { email: email.trim(), kind: "reset" } });
+        setPreviewResetUrl(peeked.url);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not send reset email");
     } finally {
       setBusy(false);
     }
@@ -148,17 +197,31 @@ function Login() {
           Upset City
         </p>
         <h1 className="font-display text-3xl font-semibold tracking-tight text-fg">
-          {mode === "signin" ? "Sign in" : "Create account"}
+          {mode === "signin"
+            ? "Sign in"
+            : mode === "signup"
+              ? "Create account"
+              : "Reset password"}
         </h1>
         <p className="mt-2 max-w-sm text-sm leading-relaxed text-fg-muted">
-          {reason
-            ? authReasonCopy(reason)
-            : oauthLive
-              ? "Google, X, or email + password. An account is required to post games, chat, and confirm scores."
-              : "Use email and password. An account is required to post games, chat, and confirm scores."}
+          {mode === "forgot"
+            ? resetEmail
+              ? "We’ll email a link to choose a new password. The link expires in one hour."
+              : "Password reset isn’t configured on this server yet. Use Google/X, or contact Upset City."
+            : reason
+              ? authReasonCopy(reason)
+              : oauthLive
+                ? "Google, X, or email + password. An account is required to post games, chat, and confirm scores."
+                : "Use email and password. An account is required to post games, chat, and confirm scores."}
         </p>
 
-        {authEnabled && oauthLive ? (
+        {verified ? (
+          <p className="mt-4 rounded-xl border border-court/30 bg-court/10 px-3 py-2 text-[13px] font-medium text-fg">
+            Email verified. You can sign in.
+          </p>
+        ) : null}
+
+        {mode === "forgot" ? null : authEnabled && oauthLive ? (
         <div className="mt-8 space-y-3">
           {GROK_PROVIDERS.map((p) => (
               <button
@@ -182,7 +245,7 @@ function Login() {
           <p className="mt-8 text-sm text-fg-muted">Sign-in is disabled.</p>
         )}
 
-        {oauthLive && (showWindowFallback || (popupEnv && ios)) ? (
+        {mode !== "forgot" && oauthLive && (showWindowFallback || (popupEnv && ios)) ? (
           <div className="mt-3 space-y-2">
             <button
               type="button"
@@ -208,6 +271,7 @@ function Login() {
           </p>
         ) : null}
 
+        {mode !== "forgot" ? (
         <div className="my-6 flex items-center gap-3">
           <div className="h-px flex-1 bg-border" />
           <span className="text-[11px] font-medium text-fg-subtle uppercase">
@@ -215,7 +279,50 @@ function Login() {
           </span>
           <div className="h-px flex-1 bg-border" />
         </div>
+        ) : <div className="mt-6" />}
 
+        {mode === "forgot" ? (
+          <form onSubmit={(e) => void onForgotSubmit(e)} className="space-y-3">
+            <label className="block text-[11px] font-medium text-fg-muted">
+              Email
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                autoComplete="email"
+                className="mt-1 h-11 w-full rounded-xl border border-border bg-bg-elevated px-3 text-sm text-fg outline-none focus:border-court"
+                placeholder="you@email.com"
+              />
+            </label>
+            {forgotSent ? (
+              <div className="space-y-2 rounded-xl border border-court/30 bg-court/10 px-3 py-2">
+                <p className="text-[13px] font-medium text-fg">
+                  {resetEmail
+                    ? "If that email is in Upset City, check it for a reset link."
+                    : previewResetUrl
+                      ? "Email sending isn’t configured on this preview. Use the reset link below."
+                      : "If that email is in Upset City, a reset was created. Email sending isn’t configured here, so check this screen again in a moment."}
+                </p>
+                {previewResetUrl ? (
+                  <a
+                    href={previewResetUrl}
+                    className="inline-flex h-10 items-center justify-center rounded-full bg-court px-4 text-[12px] font-semibold text-white"
+                  >
+                    Choose a new password
+                  </a>
+                ) : null}
+              </div>
+            ) : null}
+            <button
+              type="submit"
+              disabled={busy || !authEnabled}
+              className="flex h-12 w-full items-center justify-center rounded-xl bg-court text-sm font-semibold text-white active:scale-[0.98] disabled:opacity-60"
+            >
+              {busy ? "Sending…" : "Send reset link"}
+            </button>
+          </form>
+        ) : (
         <form onSubmit={(e) => void onEmailSubmit(e)} className="space-y-3">
           {mode === "signup" ? (
             <label className="block text-[11px] font-medium text-fg-muted">
@@ -256,6 +363,19 @@ function Login() {
               placeholder="At least 8 characters"
             />
           </label>
+          {mode === "signin" ? (
+            <button
+              type="button"
+              onClick={() => {
+                setMode("forgot");
+                setError(null);
+                setForgotSent(false);
+              }}
+              className="text-[12px] font-semibold text-court"
+            >
+              Forgot password?
+            </button>
+          ) : null}
 
           <button
             type="submit"
@@ -269,6 +389,25 @@ function Login() {
                 : "Create account"}
           </button>
         </form>
+        )}
+
+        {mode === "signup" ? (
+          <p className="mt-4 text-center text-[11px] leading-relaxed text-fg-subtle">
+            By creating an account you agree to the{" "}
+            <Link to="/terms" className="font-semibold text-fg">
+              Terms
+            </Link>
+            ,{" "}
+            <Link to="/privacy" className="font-semibold text-fg">
+              Privacy Policy
+            </Link>
+            , and{" "}
+            <Link to="/safety" className="font-semibold text-fg">
+              Community Guidelines
+            </Link>
+            . Players must be 17+.
+          </p>
+        ) : null}
 
         <p className="mt-5 text-center text-sm text-fg-muted">
           {mode === "signin" ? (
@@ -287,12 +426,13 @@ function Login() {
             </>
           ) : (
             <>
-              Already have one?{" "}
+              {mode === "forgot" ? "Remember it?" : "Already have one?"}{" "}
               <button
                 type="button"
                 onClick={() => {
                   setMode("signin");
                   setError(null);
+                  setForgotSent(false);
                 }}
                 className="font-semibold text-court"
               >

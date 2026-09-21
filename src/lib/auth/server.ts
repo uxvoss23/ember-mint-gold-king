@@ -35,7 +35,7 @@ import { getCookie } from "@tanstack/react-start/server";
 import { randomBytes } from "node:crypto";
 import { Pool } from "pg";
 import { ensureDbReady, getPglite } from "../db";
-import { emailAndPasswordEnabled } from "./email-password";
+import { emailAndPasswordEnabled, emailPasswordOptions, emailVerificationOptions } from "./email-password";
 import { GROK_PROVIDERS } from "./providers";
 import { pgliteDialect } from "./pglite-dialect";
 import {
@@ -100,6 +100,8 @@ export const oauthConfigured = authSurface.oauth;
 // preview allowlist, which makes the OAuth `redirect_uri` the concrete preview URL
 // the broker's preview client accepts.
 const explicitBaseURL = env("BETTER_AUTH_URL");
+const publicHost = env("VITE_PUBLIC_HOSTNAME")?.replace(/^https?:\/\//, "");
+const publicOrigin = publicHost ? `https://${publicHost}` : undefined;
 // Explicit `string[]` (not a readonly tuple) — Better Auth's DynamicBaseURLConfig
 // requires a mutable `allowedHosts: string[]`.
 const previewAllowedHosts: string[] = [...PREVIEW_ALLOWED_HOSTS];
@@ -111,27 +113,28 @@ const LOCAL_DEV_ORIGINS: string[] = [
   "http://127.0.0.1:8080",
   "http://[::1]:8080",
 ];
-const baseURL = explicitBaseURL ?? {
-  // Include loopback hosts so dynamic baseURL resolves for local email/password
-  // (not only the preview wildcard).
-  allowedHosts: [...previewAllowedHosts, "localhost", "127.0.0.1", "[::1]"],
-  // `auto` → trust both http:// and https:// expansions of allowedHosts
-  // (preview is https; local dev is http).
-  protocol: "auto" as const,
-  fallback: "http://localhost:8080",
-};
+const baseURL =
+  explicitBaseURL ??
+  (env("DATABASE_URL") && publicOrigin
+    ? publicOrigin
+    : {
+        allowedHosts: [...previewAllowedHosts, "localhost", "127.0.0.1", "[::1]"],
+        protocol: "auto" as const,
+        fallback: "http://localhost:8080",
+      });
 
 // Origins Better Auth accepts on credentialed POSTs (sign-up/sign-in, etc.).
 // Missing entries here surface as FORBIDDEN "Invalid origin".
 const trustedOrigins: string[] = explicitBaseURL
   ? [explicitBaseURL, ...LOCAL_DEV_ORIGINS]
   : [
-      // Host wildcards (matched against Origin's host)
       ...previewAllowedHosts,
-      // Full-origin wildcards (matched against Origin)
       ...previewAllowedHosts.flatMap((host) => [`https://${host}`, `http://${host}`]),
       ...LOCAL_DEV_ORIGINS,
     ];
+if (publicOrigin && !trustedOrigins.includes(publicOrigin)) {
+  trustedOrigins.push(publicOrigin);
+}
 
 const databaseUrl = env("DATABASE_URL");
 
@@ -212,8 +215,13 @@ export const auth = betterAuth({
   // `session_data` cookie for up to 5 minutes after the session row was gone.
   session: { cookieCache: { enabled: false } },
 
-  // Local email/password — toggled only via `./email-password` (not a plugin).
-  ...(emailAndPasswordEnabled ? { emailAndPassword: { enabled: true } } : {}),
+  // Local email/password + reset/verify mail — toggled via `./email-password`.
+  ...(emailAndPasswordEnabled
+    ? {
+        emailAndPassword: emailPasswordOptions(),
+        emailVerification: emailVerificationOptions(),
+      }
+    : {}),
 
   // `__Host-` prefixed cookies: the browser REFUSES any same-named cookie that
   // carries a `Domain` attribute, so a sibling `*.grok.me` app cannot "toss" a

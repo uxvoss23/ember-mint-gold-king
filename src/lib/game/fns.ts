@@ -4,7 +4,7 @@ import { authMiddleware } from "@/lib/auth/middleware";
 import { optionalAuthMiddleware } from "@/lib/auth/optional-middleware";
 import { STARTING_RATING } from "@/lib/config";
 import { getSql, withTransaction, type Sql } from "@/lib/db";
-import { applyConfirmedResult, canAccessGameChat, canApplyScoreSubmission, canCancelGame, canConfirmScore, canDisputeScore, canEnterScore, canJoinGame, validateScores } from "@/lib/game/rules";
+import { applyConfirmedResult, canAccessGameChat, canApplyScoreSubmission, canCancelGame, canConfirmScore, canDisputeScore, canEnterScore, canJoinGame, messagesInThread, validateScores } from "@/lib/game/rules";
 import { canCheckIn, canReportNoShow } from "@/lib/game/checkin";
 import {
   handleFromName,
@@ -17,7 +17,13 @@ import {
   type PlayerRow,
 } from "@/lib/game/map";
 import type { DirectThread, Match, MatchGame, Player } from "@/lib/upset/types";
+import { persistCourtPhoto } from "@/lib/courts/photo-store";
 import { appLog } from "@/lib/log";
+import {
+  collectBusySlots,
+  conflictMessage,
+  slotConflict,
+} from "@/lib/game/schedule-conflict";
 import {
   isProfileComplete,
   isUnderagePlayer,
@@ -28,6 +34,7 @@ import {
 } from "@/lib/game/profile";
 import { loadFriendsAndDms } from "@/lib/game/dm-fns";
 import { consumeRateLimit } from "@/lib/game/rate-limit";
+import { loadNotices, notifySoon, type PlayerNotice } from "@/lib/game/notices";
 
 const scoreSchema = z.object({ a: z.number().int().min(0).max(50), b: z.number().int().min(0).max(50) });
 
@@ -37,6 +44,7 @@ type Snapshot = {
   meId: string;
   friendIds: string[];
   dmThreads: DirectThread[];
+  notices: PlayerNotice[];
 };
 
 async function loadPlayer(sql: Sql, id: string): Promise<PlayerRow | null> {
@@ -96,7 +104,7 @@ async function createPlayerForUser(sql: Sql, userId: string): Promise<PlayerRow>
      values ($1, $1, $2, $3, $4, $5, $5)
      on conflict (user_id) do update set
        name = excluded.name,
-       photo_url = coalesce(excluded.photo_url, player.photo_url),
+       photo_url = coalesce(player.photo_url, excluded.photo_url),
        updated_at = now()
      returning *`,
     [userId, name, handle, u?.image ?? null, STARTING_RATING],
@@ -140,20 +148,34 @@ async function loadMessages(sql: Sql, gameIds: string[]): Promise<Map<string, Re
 async function hydrateMatches(sql: Sql, games: GameRow[], meId: string | null): Promise<Match[]> {
   const ids = games.map((g) => g.id);
   const invites = await loadInvites(sql, ids);
+  const threadGameIds = new Set<string>();
+  if (meId) {
+    const extra = await sql.query<{ game_id: string }>(
+      `select distinct game_id from game_message where thread_with_id = $1`,
+      [meId],
+    );
+    for (const r of extra) threadGameIds.add(r.game_id);
+  }
   const chatIds = meId
     ? games
         .filter(
           (g) =>
             g.host_id === meId ||
             g.opponent_id === meId ||
-            (invites.get(g.id) ?? []).includes(meId),
+            (invites.get(g.id) ?? []).includes(meId) ||
+            threadGameIds.has(g.id),
         )
         .map((g) => g.id)
     : [];
   const chat = await loadMessages(sql, chatIds);
-  return games.map((g) =>
-    rowToMatch(g, { invites: invites.get(g.id) ?? [], chat: chat.get(g.id) ?? [] }),
-  );
+  return games.map((g) => {
+    const all = chat.get(g.id) ?? [];
+    const visible =
+      !meId || g.host_id === meId
+        ? all
+        : (messagesInThread(all, meId, g.opponent_id) as typeof all);
+    return rowToMatch(g, { invites: invites.get(g.id) ?? [], chat: visible });
+  });
 }
 
 async function isBlocked(sql: Sql, a: string, b: string): Promise<boolean> {
@@ -166,10 +188,55 @@ async function isBlocked(sql: Sql, a: string, b: string): Promise<boolean> {
   return rows.length > 0;
 }
 
-async function addSystemMessage(sql: Sql, gameId: string, text: string) {
+async function findScheduleConflict(
+  sql: Sql,
+  opts: { playerId: string; courtId: string; when: Date; ignoreGameId?: string },
+) {
+  const rows = await sql.query<{
+    id: string;
+    host_id: string;
+    opponent_id: string | null;
+    court_id: string;
+    status: string;
+    preferred_at: string | Date;
+    scheduled_at: string | Date | null;
+  }>(
+    `select id, host_id, opponent_id, court_id, status, preferred_at, scheduled_at
+       from game
+      where status in ('open','matched','scheduled','played_pending')
+        and ($2::text is null or id <> $2)
+        and (host_id = $1 or opponent_id = $1 or court_id = $3)`,
+    [opts.playerId, opts.ignoreGameId ?? null, opts.courtId],
+  );
+  const busy = collectBusySlots(
+    rows.map((r) => ({
+      id: r.id,
+      hostId: r.host_id,
+      opponentId: r.opponent_id,
+      courtId: r.court_id,
+      status: r.status,
+      preferredAt: String(r.preferred_at),
+      scheduledAt: r.scheduled_at ? String(r.scheduled_at) : null,
+    })),
+    {
+      playerId: opts.playerId,
+      courtId: opts.courtId,
+      ignoreGameId: opts.ignoreGameId,
+    },
+  );
+  return slotConflict(opts.when.getTime(), busy);
+}
+
+async function addSystemMessage(
+  sql: Sql,
+  gameId: string,
+  text: string,
+  threadWithId?: string | null,
+) {
   await sql.query(
-    `insert into game_message (id, game_id, author_name, body, system) values ($1, $2, $3, $4, true)`,
-    [newId("msg"), gameId, "Upset City", text],
+    `insert into game_message (id, game_id, author_name, body, system, thread_with_id)
+     values ($1, $2, $3, $4, true, $5)`,
+    [newId("msg"), gameId, "Upset City", text, threadWithId ?? null],
   );
 }
 
@@ -223,6 +290,7 @@ async function buildSnapshot(sql: Sql, meId: string | null): Promise<Snapshot> {
   const social = meId
     ? await loadFriendsAndDms(sql, meId)
     : { friendIds: [] as string[], dmThreads: [] as DirectThread[] };
+  const notices = meId ? await loadNotices(sql, meId) : [];
   return {
     players: playerRows.map((row) => {
       const p = rowToPlayer(row);
@@ -232,6 +300,7 @@ async function buildSnapshot(sql: Sql, meId: string | null): Promise<Snapshot> {
     meId: meId ?? "",
     friendIds: social.friendIds,
     dmThreads: social.dmThreads,
+    notices,
   };
 }
 
@@ -256,15 +325,14 @@ export const ensureMyPlayer = createServerFn({ method: "POST" })
   .handler(async ({ context, data }): Promise<Player> => {
     const sql = await getSql();
     const row = await requirePlayer(sql, context.userId);
-    if (data.name || data.image) {
+    if (data.name) {
       const updated = await sql.query<PlayerRow>(
         `update player set
            name = coalesce($2, name),
-           photo_url = coalesce($3, photo_url),
            updated_at = now()
          where id = $1
          returning *`,
-        [row.id, data.name?.trim() || null, data.image || null],
+        [row.id, data.name.trim() || null],
       );
       return rowToPlayer(updated[0] ?? row);
     }
@@ -307,6 +375,70 @@ export const completeProfileFn = createServerFn({ method: "POST" })
       ],
     );
     appLog("profile.complete", { playerId: me.id });
+    return rowToPlayer(rows[0] ?? me);
+  });
+
+async function writePlayerPhoto(
+  sql: Sql,
+  playerId: string,
+  userId: string,
+  photo: string | null,
+): Promise<PlayerRow> {
+  let next: string | null = null;
+  if (photo && photo.trim()) {
+    next = await persistCourtPhoto(sql, `player-${playerId}`, photo.trim());
+  }
+  const rows = await sql.query<PlayerRow>(
+    `update player set photo_url = $2, updated_at = now() where id = $1 returning *`,
+    [playerId, next],
+  );
+  await sql.query(
+    `update "user" set image = $2, "updatedAt" = now() where id = $1`,
+    [userId, next],
+  );
+  const row = rows[0];
+  if (!row) throw new Error("Couldn’t save that photo.");
+  appLog("profile.photo", { ok: true, removed: !next });
+  return row;
+}
+
+export const updatePlayerPhotoFn = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((raw: unknown) =>
+    z
+      .object({
+        photo: z.string().max(280_000).nullable(),
+      })
+      .parse(raw),
+  )
+  .handler(async ({ context, data }): Promise<Player> => {
+    const sql = await getSql();
+    const me = await requirePlayer(sql, context.userId);
+    return rowToPlayer(await writePlayerPhoto(sql, me.id, context.userId, data.photo));
+  });
+
+export const updatePlayerBodyFn = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((raw: unknown) =>
+    z
+      .object({
+        heightIn: z.number().int().min(48).max(90),
+        weightLb: z.number().int().min(80).max(400),
+      })
+      .parse(raw),
+  )
+  .handler(async ({ context, data }): Promise<Player> => {
+    const sql = await getSql();
+    const me = await requirePlayer(sql, context.userId);
+    const rows = await sql.query<PlayerRow>(
+      `update player set
+         height_in = $2,
+         weight_lb = $3,
+         updated_at = now()
+       where id = $1
+       returning *`,
+      [me.id, data.heightIn, data.weightLb],
+    );
     return rowToPlayer(rows[0] ?? me);
   });
 
@@ -367,6 +499,12 @@ export const createGameFn = createServerFn({ method: "POST" })
     const sql = await getSql();
     const me = await requirePlayer(sql, context.userId);
     assertProfileComplete(me);
+    const clash = await findScheduleConflict(sql, {
+      playerId: me.id,
+      courtId: data.courtId,
+      when,
+    });
+    if (clash) throw new Error(conflictMessage(clash.reason));
     await consumeRateLimit(sql, "createGame", me.id);
     const id = newId("g");
     const invites = data.guestInviteIds.filter((x) => x && x !== me.id);
@@ -395,6 +533,14 @@ export const createGameFn = createServerFn({ method: "POST" })
         `insert into game_invite (game_id, player_id) values ($1, $2) on conflict do nothing`,
         [id, pid],
       );
+      notifySoon(sql, {
+        playerId: pid,
+        kind: "invite",
+        title: `${me.name} invited you to a 1v1`,
+        body: `${data.courtName} — open Upset City to join or decline.`,
+        matchId: id,
+        fromPlayerId: me.id,
+      });
     }
     const ballLine = data.hostBringingBall
       ? "Host is bringing a ball."
@@ -452,6 +598,14 @@ export const joinGameFn = createServerFn({ method: "POST" })
         return { ok: false as const, reason: "filled" as const };
       }
       if (game.opponent_id === me.id) return { ok: true as const };
+      const tip = new Date(game.scheduled_at ?? game.preferred_at);
+      const clash = await findScheduleConflict(sql, {
+        playerId: me.id,
+        courtId: game.court_id,
+        when: tip,
+        ignoreGameId: game.id,
+      });
+      if (clash) throw new Error(conflictMessage(clash.reason));
       const updated = await sql.query<GameRow>(
         `update game set
            opponent_id = $2,
@@ -470,17 +624,40 @@ export const joinGameFn = createServerFn({ method: "POST" })
         sql,
         data.gameId,
         data.bringingBall ? "Challenger is bringing a ball." : "Challenger is not bringing a ball.",
+        me.id,
       );
       if (neither) {
         await addSystemMessage(
           sql,
           data.gameId,
           "Neither of you is bringing a basketball — figure it out in chat so tip-off isn’t empty-handed.",
+          me.id,
         );
       } else {
-        await addSystemMessage(sql, data.gameId, "Game locked in.");
+        await addSystemMessage(sql, data.gameId, "Game locked in.", me.id);
+      }
+      const others = await sql.query<{ thread_with_id: string }>(
+        `select distinct thread_with_id from game_message
+          where game_id = $1 and thread_with_id is not null and thread_with_id <> $2`,
+        [data.gameId, me.id],
+      );
+      for (const row of others) {
+        await addSystemMessage(
+          sql,
+          data.gameId,
+          "This game filled. Your messages stay between you and the host.",
+          row.thread_with_id,
+        );
       }
       appLog("game.join", { gameId: data.gameId, playerId: me.id, ok: true });
+      notifySoon(sql, {
+        playerId: game.host_id,
+        kind: "opponent_locked",
+        title: `${me.name} locked in as your opponent`,
+        body: "Your game is set. Open it to coordinate.",
+        matchId: data.gameId,
+        fromPlayerId: me.id,
+      });
       return { ok: true as const };
     });
   });
@@ -518,7 +695,7 @@ export const cancelGameFn = createServerFn({ method: "POST" })
          where id = $1 and opponent_id = $2 and status = 'scheduled'`,
         [data.gameId, me.id],
       );
-      await addSystemMessage(sql, data.gameId, `${me.name} left the game. It’s open again.`);
+      await addSystemMessage(sql, data.gameId, `${me.name} left the game. It’s open again.`, me.id);
       appLog("game.cancel", { gameId: data.gameId, playerId: me.id, action: "left" });
       return { ok: true as const, action: "left" as const };
     }
@@ -528,7 +705,7 @@ export const cancelGameFn = createServerFn({ method: "POST" })
        where id = $1 and status not in ('confirmed','cancelled')`,
       [data.gameId, me.id, data.reason ?? ""],
     );
-    await addSystemMessage(sql, data.gameId, `${me.name} cancelled the game.`);
+    await addSystemMessage(sql, data.gameId, `${me.name} cancelled the game.`, game.opponent_id);
     appLog("game.cancel", { gameId: data.gameId, playerId: me.id, action: "cancelled" });
     return { ok: true as const, action: "cancelled" as const };
   });
@@ -536,7 +713,13 @@ export const cancelGameFn = createServerFn({ method: "POST" })
 export const sendGameMessageFn = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((raw: unknown) =>
-    z.object({ gameId: z.string(), text: z.string().min(1).max(1000) }).parse(raw),
+    z
+      .object({
+        gameId: z.string(),
+        text: z.string().min(1).max(1000),
+        threadWithId: z.string().optional(),
+      })
+      .parse(raw),
   )
   .handler(async ({ context, data }) => {
     const sql = await getSql();
@@ -555,20 +738,35 @@ export const sendGameMessageFn = createServerFn({ method: "POST" })
         opponentId: game.opponent_id,
         actorId: me.id,
         inviteeIds: inviteRows.map((r) => r.player_id),
+        inviteOnly: game.invite_only,
       })
     ) {
       throw new Error("You can’t message this game.");
     }
-    const other = game.host_id === me.id ? game.opponent_id : game.host_id;
+    const isHost = me.id === game.host_id;
+    const threadWithId = isHost ? data.threadWithId || game.opponent_id : me.id;
+    if (!threadWithId) throw new Error("Pick a player to message.");
+    if (isHost && threadWithId === me.id) throw new Error("Pick a player to message.");
+    const other = isHost ? threadWithId : game.host_id;
     if (other && (await isBlocked(sql, me.id, other))) {
       throw new Error("You can’t message this player.");
     }
     const id = newId("msg");
     await sql.query(
-      `insert into game_message (id, game_id, author_id, author_name, body, system)
-       values ($1,$2,$3,$4,$5,false)`,
-      [id, data.gameId, me.id, me.name, data.text.trim()],
+      `insert into game_message (id, game_id, author_id, author_name, body, system, thread_with_id)
+       values ($1,$2,$3,$4,$5,false,$6)`,
+      [id, data.gameId, me.id, me.name, data.text.trim(), threadWithId],
     );
+    if (other) {
+      notifySoon(sql, {
+        playerId: other,
+        kind: "game_chat",
+        title: `${me.name} messaged about a game`,
+        body: data.text.trim().slice(0, 120),
+        matchId: data.gameId,
+        fromPlayerId: me.id,
+      });
+    }
     return { ok: true as const, id };
   });
 
@@ -629,8 +827,20 @@ export const submitScoreFn = createServerFn({ method: "POST" })
       sql,
       data.gameId,
       `${me.name} submitted scores (${data.scores.map((g) => `${g.a}–${g.b}`).join(", ")}). Opponent must confirm before ratings lock.`,
+      game.opponent_id,
     );
     appLog("game.score.submit", { gameId: data.gameId, playerId: me.id, games: data.scores.length });
+    const otherId = game.host_id === me.id ? game.opponent_id : game.host_id;
+    if (otherId) {
+      notifySoon(sql, {
+        playerId: otherId,
+        kind: "score_pending",
+        title: `${me.name} submitted a score`,
+        body: "Confirm it so ratings can lock.",
+        matchId: data.gameId,
+        fromPlayerId: me.id,
+      });
+    }
     return { ok: true as const };
   });
 
@@ -766,12 +976,28 @@ export const confirmScoreFn = createServerFn({ method: "POST" })
         sql,
         game.id,
         `Result dual-confirmed. ${applied.hostWon ? host.name : opp.name} wins. Ratings updated.`,
+        game.opponent_id,
       );
       await sql.query(
         `insert into reliability_event (id, player_id, game_id, kind) values ($1,$2,$3,'confirmed_game'), ($4,$5,$3,'confirmed_game'), ($6,$7,$3,'score_confirm_timely')`,
         [newId("rel"), host.id, game.id, newId("rel"), opp.id, newId("rel"), me.id],
       );
       appLog("game.score.confirm", { gameId: game.id, playerId: me.id, already: false });
+      const otherId = game.score_entered_by && game.score_entered_by !== me.id
+        ? game.score_entered_by
+        : game.host_id === me.id
+          ? game.opponent_id
+          : game.host_id;
+      if (otherId) {
+        notifySoon(sql, {
+          playerId: otherId,
+          kind: "score_pending",
+          title: "Score confirmed",
+          body: "Ratings are locked for this 1v1.",
+          matchId: game.id,
+          fromPlayerId: me.id,
+        });
+      }
       return { ok: true as const, already: false };
     });
   });
@@ -807,6 +1033,7 @@ export const disputeScoreFn = createServerFn({ method: "POST" })
       sql,
       data.gameId,
       "Score disputed — ratings not updated. Agree on the result and re-submit. Upset City does not auto-moderate disputes.",
+      game.opponent_id,
     );
     return { ok: true as const };
   });
@@ -877,7 +1104,7 @@ export const challengePlayerFn = createServerFn({ method: "POST" })
         data.notes ?? "",
       ],
     );
-    await addSystemMessage(sql, id, `${me.name} challenged ${target.name}. Private until they join.`);
+    await addSystemMessage(sql, id, `${me.name} challenged ${target.name}. Private until they join.`, target.id);
     const rows = await sql.query<GameRow>("select * from game where id = $1", [id]);
     const [match] = await hydrateMatches(sql, rows, me.id);
     if (!match) throw new Error("Challenge created but could not be loaded.");
@@ -999,15 +1226,70 @@ export const blockPlayerFn = createServerFn({ method: "POST" })
 export const reportPlayerFn = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((raw: unknown) =>
-    z.object({ targetId: z.string(), reason: z.string().min(1).max(400) }).parse(raw),
+    z
+      .object({
+        targetId: z.string().optional(),
+        reason: z.string().min(1).max(400),
+        kind: z.enum(["player", "message", "game", "incident"]).default("player"),
+        gameId: z.string().optional(),
+        messageRef: z.string().max(80).optional(),
+      })
+      .parse(raw),
   )
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const me = await requirePlayer(sql, context.userId);
+    const targetId = data.targetId ?? me.id;
     await sql.query(
-      `insert into player_report (id, actor_id, target_id, reason) values ($1,$2,$3,$4)`,
-      [newId("rp"), me.id, data.targetId, data.reason],
+      `alter table player_report add column if not exists kind text not null default 'player'`,
     );
+    await sql.query(`alter table player_report add column if not exists game_id text`);
+    await sql.query(`alter table player_report add column if not exists message_ref text`);
+    await sql.query(
+      `insert into player_report (id, actor_id, target_id, reason, kind, game_id, message_ref)
+       values ($1,$2,$3,$4,$5,$6,$7)`,
+      [
+        newId("rp"),
+        me.id,
+        targetId,
+        data.reason,
+        data.kind,
+        data.gameId ?? null,
+        data.messageRef ?? null,
+      ],
+    );
+    appLog("moderation.report", { kind: data.kind, playerId: me.id });
+    return { ok: true as const };
+  });
+
+export const deleteAccountFn = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const sql = await getSql();
+    const me = await requirePlayer(sql, context.userId);
+    await sql.query(
+      `update game set status = 'cancelled', cancelled_by = $1, cancel_reason = 'account deleted',
+          cancelled_at = now(), updated_at = now()
+        where host_id = $1 and status in ('open','matched','scheduled')`,
+      [me.id],
+    );
+    await sql.query(
+      `update player set
+         name = 'Deleted player',
+         handle = $2,
+         photo_url = null,
+         bio = null,
+         hide_from_catalog = true,
+         open_to_challenges = false,
+         updated_at = now()
+       where id = $1`,
+      [me.id, `deleted-${me.id.slice(-8)}`],
+    );
+    await sql.query(`update player set user_id = null where id = $1`, [me.id]);
+    await sql.query(`delete from session where "userId" = $1`, [context.userId]);
+    await sql.query(`delete from account where "userId" = $1`, [context.userId]);
+    await sql.query(`delete from "user" where id = $1`, [context.userId]);
+    appLog("auth.account.deleted", { playerId: me.id });
     return { ok: true as const };
   });
 
@@ -1096,6 +1378,7 @@ export const reportNoShowFn = createServerFn({ method: "POST" })
       sql,
       data.gameId,
       `${me.name} reported a no-show. This does not change ratings until a moderator verifies it.`,
+      accused,
     );
     return { ok: true as const };
   });
@@ -1119,6 +1402,7 @@ export const contestNoShowFn = createServerFn({ method: "POST" })
       sql,
       data.gameId,
       `${me.name} contested the no-show. A moderator will review — ratings stay unchanged.`,
+      me.id,
     );
     return { ok: true as const };
   });
@@ -1145,7 +1429,15 @@ export const invitePlayerToGameFn = createServerFn({ method: "POST" })
       `insert into game_invite (game_id, player_id) values ($1,$2) on conflict do nothing`,
       [data.gameId, data.playerId],
     );
-    await addSystemMessage(sql, data.gameId, `${me.name} invited ${target.name}.`);
+    await addSystemMessage(sql, data.gameId, `${me.name} invited ${target.name}.`, data.playerId);
+    notifySoon(sql, {
+      playerId: data.playerId,
+      kind: "invite",
+      title: `${me.name} invited you to a 1v1`,
+      body: `${game.court_name} — open Upset City to join or decline.`,
+      matchId: data.gameId,
+      fromPlayerId: me.id,
+    });
     return { ok: true as const };
   });
 
@@ -1164,7 +1456,15 @@ export const declineInviteFn = createServerFn({ method: "POST" })
       [data.gameId, me.id],
     );
     if (!gone.length) throw new Error("You’re not invited to this game.");
-    await addSystemMessage(sql, data.gameId, `${me.name} declined the invite.`);
+    await addSystemMessage(sql, data.gameId, `${me.name} declined the invite.`, me.id);
+    notifySoon(sql, {
+      playerId: game.host_id,
+      kind: "invite",
+      title: `${me.name} declined your invite`,
+      body: game.court_name,
+      matchId: data.gameId,
+      fromPlayerId: me.id,
+    });
     appLog("game.invite_decline", { gameId: data.gameId, playerId: me.id });
     return { ok: true as const };
   });
@@ -1201,6 +1501,13 @@ export const proposeGameChangeFn = createServerFn({ method: "POST" })
     if (Number.isNaN(when.getTime()) || when.getTime() < Date.now() - 60_000) {
       throw new Error("Pick a future tip-off.");
     }
+    const clash = await findScheduleConflict(sql, {
+      playerId: me.id,
+      courtId: data.courtId,
+      when,
+      ignoreGameId: data.gameId,
+    });
+    if (clash) throw new Error(conflictMessage(clash.reason));
     const who = me.name.split(" ")[0];
     await sql.query(
       `update game_message
@@ -1222,8 +1529,8 @@ export const proposeGameChangeFn = createServerFn({ method: "POST" })
       status: "pending",
     };
     await sql.query(
-      `insert into game_message (id, game_id, author_id, author_name, body, system, kind, payload)
-       values ($1,$2,$3,$4,$5,false,'proposal',$6::jsonb)`,
+      `insert into game_message (id, game_id, author_id, author_name, body, system, kind, payload, thread_with_id)
+       values ($1,$2,$3,$4,$5,false,'proposal',$6::jsonb,$7)`,
       [
         newId("prop"),
         data.gameId,
@@ -1231,12 +1538,14 @@ export const proposeGameChangeFn = createServerFn({ method: "POST" })
         me.name,
         `${who} proposed: ${data.courtName} · ${data.whenLabel}. Needs approval.`,
         JSON.stringify(payload),
+        game.opponent_id,
       ],
     );
     await addSystemMessage(
       sql,
       data.gameId,
       "Approve in chat to move the game — or chat and send a new plan.",
+      game.opponent_id,
     );
     return { ok: true as const };
   });
@@ -1288,6 +1597,6 @@ export const approveGameChangeFn = createServerFn({ method: "POST" })
         where id = $1`,
       [data.messageId, JSON.stringify(payload)],
     );
-    await addSystemMessage(sql, data.gameId, `Plan locked · ${courtName} · ${whenLabel}.`);
+    await addSystemMessage(sql, data.gameId, `Plan locked · ${courtName} · ${whenLabel}.`, game.opponent_id);
     return { ok: true as const };
   });
